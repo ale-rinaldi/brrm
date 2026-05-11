@@ -550,9 +550,12 @@ Private Function BuildBatchPayload() As String
     Endif
   Endif
 
-  ' Tempo (durata): solo se entrambi presenti, sennò vuoto
+  ' Tempo (durata): solo se entrambi presenti, sennò vuoto.
+  ' Calcolato direttamente sulla differenza Float (frazioni di giorno: piccole)
+  ' invece che sottraendo due UNIX ms (numeri ~1.8e12: a doppia precisione
+  ' perdono 1 ms sulla sottrazione e l'arrivo - partenza puo' essere off-by-one).
   If dPart <> 0 And dArr <> 0 Then
-    deltaMs = DateToUnixMs(dArr) - DateToUnixMs(dPart)
+    deltaMs = CLong((CFloat(dArr) - CFloat(dPart)) * 86400000.0)
     If deltaMs < 0 Then deltaMs = 0   ' guardia
     totalSec = deltaMs \ 1000
     mm = totalSec \ 60
