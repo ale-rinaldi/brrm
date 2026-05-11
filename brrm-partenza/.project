@@ -1,13 +1,12 @@
-# Gambas Project File 2.0
-# Compiled with Gambas 2.19.0
+# Gambas Project File 3.0
+# Manually migrated from Gambas 2.x
 Title=BoxRally Race Manager
 Startup=FMain
 Version=0.0.4
-Library=gb.qt
-Library=gb.form
-Library=gb.net
-Library=gb.qt.ext
+Component=gb.qt6
+Component=gb.form
+Component=gb.net
+Component=gb.qt6.ext
 TabSize=2
 ControlPublic=1
 ModulePublic=1
-ExecPath=/home/vlad/Desktop/brrm-partenza.gambas
