@@ -179,7 +179,7 @@ Private Function ParseCredentials(sPath As String) As Boolean
     LogLine("Cannot write privkey to " & $privKeyPath & ": " & Error.Text)
     Return False
   Endif
-  Try Shell "chmod 600 " & Shell$($privKeyPath) Wait
+  Try Chmod $privKeyPath To "rw-------"
   Return True
 End
 
@@ -824,15 +824,10 @@ Private Function ReadAll(h As HttpClient) As String
 End
 
 Private Function NowEpoch() As Long
-  ' Secondi dall'epoch UTC. Shell out: zero ambiguità di timezone.
-  Dim sFile As String
-  Dim sOut As String
-  sFile = Temp$()
-  Shell "date +%s > " & Shell$(sFile) Wait
-  sOut = ""
-  Try sOut = File.Load(sFile)
-  Try Kill sFile
-  Return CLong(Trim$(sOut))
+  ' Secondi dall'epoch UTC. Math intera pura: giorni_locali_dall'epoch * 86400
+  ' + ora locale in secondi + offset TZ (POSIX: negativo per fusi a est).
+  Dim t As Date = Now
+  Return DaysFromEpoch(Year(t), Month(t), Day(t)) * 86400 + Hour(t) * 3600 + Minute(t) * 60 + Second(t) + CLong(System.TimeZone)
 End
 
 Private Function DateToUnixMs(d As Date) As Long
