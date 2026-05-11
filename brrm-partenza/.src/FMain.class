@@ -13,6 +13,18 @@ FotON As Boolean
 INV1 As Integer
 INV2 As Integer
 
+' --- Align (sync via web) ---
+Private $alignEnabled As Boolean
+Private $alignUrl As String
+Private $alignUser As String
+Private $alignPass As String
+Private $alignSession As String
+Private $alignSeq As Long
+Private $alignOutbox As New String[]
+Private $alignBusy As Boolean
+Private $alignBackoffSec As Integer
+Private $hAlignHttp As HttpClient
+
 Public Sub _new()
 
 End
@@ -90,6 +102,150 @@ Public Sub AtomicSave(sPath As String, sContent As String)
   Move sTmp DownTo sPath
 End
 
+Private Sub AlignLoadConfig() As Boolean
+  Dim sPath As String
+  Dim sLine As String
+  Dim sKey As String
+  Dim sVal As String
+  Dim iEq As Integer
+  sPath = User.Home &/ ".config/brrm/align.conf"
+  $alignSession = "default"
+  If Not Exist(sPath) Then Return False
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Then Continue
+    If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "url"
+        $alignUrl = sVal
+      Case "username"
+        $alignUser = sVal
+      Case "password"
+        $alignPass = sVal
+      Case "session"
+        $alignSession = sVal
+    End Select
+  Next
+  Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
+End
+
+Public Sub AlignInit()
+  Dim sLine As String
+  $alignEnabled = AlignLoadConfig()
+  If Not $alignEnabled Then
+    LabelSync.Visible = False
+    Return
+  Endif
+  $alignSeq = 0
+  Try $alignSeq = CLong(Trim$(File.Load(User.Home &/ ".brrm-partenza-align-seq")))
+  $alignOutbox = New String[]
+  If Exist(User.Home &/ ".brrm-partenza-outbox") Then
+    For Each sLine In Split(File.Load(User.Home &/ ".brrm-partenza-outbox"), gb.NewLine)
+      sLine = Trim$(sLine)
+      If sLine <> "" Then $alignOutbox.Add(sLine)
+    Next
+  Endif
+  $hAlignHttp = New HttpClient As "AlignHttp"
+  $alignBackoffSec = 1
+  LabelSync.Visible = True
+  AlignSetStatus(False)
+  AlignTrySend()
+End
+
+Private Sub AlignSetStatus(connected As Boolean)
+  If connected Then
+    LabelSync.Background = &H00CC00&
+    LabelSync.Text = "SYNC OK"
+  Else
+    LabelSync.Background = &HCC0000&
+    LabelSync.Text = "SYNC FAIL"
+  Endif
+End
+
+Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
+  ' Accoda un evento di partenza per sync. orarioOrZero=0 -> annullamento.
+  If Not $alignEnabled Then Return
+  Dim sOrarioJson As String
+  Dim sTsOrigine As String
+  Dim sEvent As String
+  $alignSeq = $alignSeq + 1
+  If orarioOrZero = 0 Then
+    sOrarioJson = "null"
+  Else
+    sOrarioJson = Chr(34) & Str$(orarioOrZero) & Chr(34)
+  Endif
+  sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.zzz") & "Z"
+  sEvent = "{" & Chr(34) & "seq" & Chr(34) & ":" & $alignSeq
+  sEvent &= "," & Chr(34) & "type" & Chr(34) & ":" & Chr(34) & "partenza" & Chr(34)
+  sEvent &= "," & Chr(34) & "numero" & Chr(34) & ":" & numero
+  sEvent &= "," & Chr(34) & "orario" & Chr(34) & ":" & sOrarioJson
+  sEvent &= "," & Chr(34) & "ts_origine" & Chr(34) & ":" & Chr(34) & sTsOrigine & Chr(34)
+  sEvent &= "}"
+  $alignOutbox.Add(sEvent)
+  AtomicSave(User.Home &/ ".brrm-partenza-align-seq", CStr($alignSeq))
+  AtomicSave(User.Home &/ ".brrm-partenza-outbox", $alignOutbox.Join(gb.NewLine))
+  AlignTrySend()
+End
+
+Private Sub AlignTrySend()
+  ' Avvia POST del primo evento in outbox, se possibile.
+  If Not $alignEnabled Then Return
+  If $alignBusy Then Return
+  If $alignOutbox.Count = 0 Then Return
+  $alignBusy = True
+  $hAlignHttp.URL = $alignUrl & "/events?session=" & $alignSession
+  $hAlignHttp.Auth = Net.AuthBasic
+  $hAlignHttp.User = $alignUser
+  $hAlignHttp.Password = $alignPass
+  $hAlignHttp.Async = True
+  $hAlignHttp.Timeout = 5
+  Try $hAlignHttp.Post("application/json", $alignOutbox[0])
+  If Error Then
+    $alignBusy = False
+    AlignSetStatus(False)
+    AlignScheduleRetry()
+  Endif
+End
+
+Public Sub AlignHttp_Finished()
+  $alignBusy = False
+  If $hAlignHttp.Code = 200 Or $hAlignHttp.Code = 201 Then
+    Try $alignOutbox.Remove(0)
+    Try AtomicSave(User.Home &/ ".brrm-partenza-outbox", $alignOutbox.Join(gb.NewLine))
+    AlignSetStatus(True)
+    $alignBackoffSec = 1
+    ' Se ci sono altri eventi pending, spedisci subito il prossimo
+    If $alignOutbox.Count > 0 Then AlignTrySend()
+  Else
+    AlignSetStatus(False)
+    AlignScheduleRetry()
+  Endif
+End
+
+Public Sub AlignHttp_Error()
+  $alignBusy = False
+  AlignSetStatus(False)
+  AlignScheduleRetry()
+End
+
+Private Sub AlignScheduleRetry()
+  ' Single-shot timer: scatta dopo $alignBackoffSec secondi e ritenta.
+  If $alignBackoffSec < 60 Then $alignBackoffSec = $alignBackoffSec * 2
+  If $alignBackoffSec > 60 Then $alignBackoffSec = 60
+  TimerAlign.Stop
+  TimerAlign.Delay = $alignBackoffSec * 1000
+  TimerAlign.Start
+End
+
+Public Sub TimerAlign_Timer()
+  TimerAlign.Stop
+  AlignTrySend()
+End
+
 Public Sub UpgradeSessionFile()
   ' Formato v1: prima riga = magic header, righe successive numero|partenza.
   Dim Counter As Integer
@@ -115,6 +271,7 @@ Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
   Timer1.Stop
   partenze[Equipaggio] = Partenza
   UpgradeSessionFile()
+  AlignEnqueue(Equipaggio, Partenza)
   Timer1.Start
 End
 
@@ -170,6 +327,7 @@ If aTest.Count >= 1 And If aTest[0] = "brrm-partenza-session v1" Then
   Next
 Endif
 Timer1.Start()
+AlignInit()
 End 
 
 Public Sub Timer1_Timer()
@@ -220,9 +378,16 @@ End
 
 Public Sub Button1_Click()
 Dim Counter As Integer
+Dim iResetNum As Integer
 If Message.Question("Sei sicuro?", "Sì", "No") = 1 Then 
 If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
 Timer1.Stop
+' Sync: enqueue annullamento per ogni equipaggio attivo prima di pulire
+For Counter = 0 To LEquipaggi.Count - 1
+  iResetNum = 0
+  Try iResetNum = LEquipaggi[Counter].Text
+  If iResetNum > 0 Then AlignEnqueue(iResetNum, 0)
+Next
 LEquipaggi.Clear
 Counter = 0
 While Counter < 1000
@@ -363,7 +528,9 @@ Dim pt2 As Date
   If CurrAct = "annpart" Then 
   If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
   Timer1.Stop
-  partenze[LEquipaggi[GridView1.Row - 1].Text] = 0
+  Dim iAnnNum As Integer = LEquipaggi[GridView1.Row - 1].Text
+  partenze[iAnnNum] = 0
+  AlignEnqueue(iAnnNum, 0)
   Endif 
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0

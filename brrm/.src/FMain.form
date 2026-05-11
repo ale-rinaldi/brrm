@@ -42,6 +42,14 @@
     Alignment = Align.Center
     Text = ("ARDUINO ?")
   }
+  { LabelSync Label
+    MoveScaled(62,44,13,4)
+    Visible = False
+    Background = &HCC0000&
+    Foreground = &HFFFFFF&
+    Alignment = Align.Center
+    Text = ("SYNC")
+  }
   { Label2 Label
     MoveScaled(50,45,25,9)
     Font = Font["+15"]

@@ -5,6 +5,7 @@ Version=0.0.4
 Component=gb.qt6
 Component=gb.form
 Component=gb.net
+Component=gb.net.curl
 TabSize=2
 ControlPublic=1
 ModulePublic=1
