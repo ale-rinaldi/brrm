@@ -107,8 +107,22 @@
     Enabled = True
     Delay = 2000
   }
+  { TimerAlignWatchdog #Timer
+    #X = 665
+    #Y = 350
+    Enabled = False
+    Delay = 15000
+  }
   { Button10 Button
     MoveScaled(1,55,25,4)
     Text = ("MODIFICA ORDINE")
+  }
+  { ButtonChangeNum Button
+    MoveScaled(27,55,21,4)
+    Text = ("Cambia numero")
+  }
+  { ButtonSettings Button
+    MoveScaled(62,49,13,4)
+    Text = ("Impostazioni…")
   }
 }

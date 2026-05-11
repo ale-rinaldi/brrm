@@ -167,6 +167,12 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/ping")
+async def ping(_user: str = Depends(authenticate)):
+    """Probe veloce per i client (testa rete + credenziali). Risposta minima."""
+    return {"ok": True}
+
+
 @app.post("/events")
 async def post_event(
     event: Event,

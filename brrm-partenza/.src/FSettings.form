@@ -1,0 +1,57 @@
+# Gambas Form File 3.0
+
+{ Form Form
+  MoveScaled(0,0,68,40)
+  Text = ("Impostazioni")
+  { FrameSync Frame
+    MoveScaled(1,1,66,28)
+    Text = ("Sincronizzazione")
+    { Label1 Label
+      MoveScaled(1,4,15,3)
+      Text = ("URL")
+    }
+    { TextURL TextBox
+      MoveScaled(17,4,48,3)
+      Text = ("")
+    }
+    { Label2 Label
+      MoveScaled(1,8,15,3)
+      Text = ("Username")
+    }
+    { TextUser TextBox
+      MoveScaled(17,8,48,3)
+      Text = ("")
+    }
+    { Label3 Label
+      MoveScaled(1,12,15,3)
+      Text = ("Password")
+    }
+    { TextPass TextBox
+      MoveScaled(17,12,48,3)
+      Text = ("")
+      Password = True
+    }
+    { Label4 Label
+      MoveScaled(1,16,15,3)
+      Text = ("Session")
+    }
+    { TextSession TextBox
+      MoveScaled(17,16,48,3)
+      Text = ("default")
+    }
+    { LabelHint Label
+      MoveScaled(1,20,64,5)
+      Foreground = &H666666&
+      Text = ("La stessa session deve essere usata sia su partenza che su arrivo.\nLasciare URL/username/password vuoti disattiva il sync.")
+    }
+  }
+  { ButtonCancel Button
+    MoveScaled(31,33,16,5)
+    Text = ("Annulla")
+  }
+  { ButtonSave Button
+    MoveScaled(49,33,16,5)
+    Default = True
+    Text = ("Salva")
+  }
+}

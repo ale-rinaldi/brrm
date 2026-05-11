@@ -22,6 +22,7 @@ Private $alignSession As String
 Private $alignSeq As Long
 Private $alignOutbox As New String[]
 Private $alignBusy As Boolean
+Private $alignProbing As Boolean
 Private $alignBackoffSec As Integer
 Private $hAlignHttp As HttpClient
 
@@ -133,6 +134,25 @@ Private Sub AlignLoadConfig() As Boolean
   Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
 End
 
+Public Sub AlignReinit()
+  ' Chiamato dalla form Settings dopo aver scritto il config: chiude
+  ' la sessione corrente e fa ripartire AlignInit da zero, in modo che
+  ' nuovi URL/credenziali abbiano effetto senza riavviare l'app.
+  TimerAlign.Stop
+  TimerAlignHeartbeat.Stop
+  If $hAlignHttp Then
+    Try $hAlignHttp.Stop
+    $hAlignHttp = Null
+  Endif
+  $alignBusy = False
+  $alignProbing = False
+  $alignUrl = ""
+  $alignUser = ""
+  $alignPass = ""
+  $alignSession = ""
+  AlignInit()
+End
+
 Public Sub AlignInit()
   Dim sLine As String
   $alignEnabled = AlignLoadConfig()
@@ -151,19 +171,53 @@ Public Sub AlignInit()
   Endif
   $hAlignHttp = New HttpClient As "AlignHttp"
   $alignBackoffSec = 1
-  LabelSync.Visible = True
-  AlignSetStatus(False)
-  AlignTrySend()
+  ' Niente stato prematuro: label nascosta finche' il probe non da' un esito.
+  LabelSync.Visible = False
+  ' Heartbeat: probe periodico ogni 30s per rilevare network drop silenziosi
+  ' anche quando l'utente non sta facendo partenze. Il timer fa skip quando
+  ' c'e' gia' una richiesta in volo (busy) o eventi pendenti in outbox.
+  TimerAlignHeartbeat.Delay = 30000
+  TimerAlignHeartbeat.Start
+  AlignProbe()
 End
 
-Private Sub AlignSetStatus(connected As Boolean)
+Private Sub AlignProbe()
+  ' GET /ping autenticato: testa rete+credenziali senza side-effect sul server.
+  ' L'esito (success/fail) rende visibile LabelSync col colore appropriato.
+  If Not $alignEnabled Then Return
+  If $alignBusy Then Return
+  $alignBusy = True
+  $alignProbing = True
+  $hAlignHttp.URL = $alignUrl & "/ping"
+  $hAlignHttp.Auth = Net.AuthBasic
+  $hAlignHttp.User = $alignUser
+  $hAlignHttp.Password = $alignPass
+  $hAlignHttp.Async = True
+  $hAlignHttp.Timeout = 5
+  Try $hAlignHttp.Get()
+  If Error Then
+    $alignBusy = False
+    $alignProbing = False
+    AlignSetStatus(False, "Errore avvio probe: " & Error.Text)
+    AlignScheduleRetry()
+  Endif
+End
+
+Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
+  ' Una qualsiasi chiamata a SetStatus rende visibile l'indicatore: significa
+  ' che abbiamo un esito definitivo da mostrare all'utente. Il `detail` finisce
+  ' nel tooltip per troubleshooting senza ingombrare la UI.
+  LabelSync.Visible = True
   If connected Then
     LabelSync.Background = &H00CC00&
     LabelSync.Text = "SYNC OK"
+    If detail = "" Then detail = "Sincronizzazione attiva"
   Else
     LabelSync.Background = &HCC0000&
     LabelSync.Text = "SYNC FAIL"
+    If detail = "" Then detail = "Errore di sincronizzazione"
   Endif
+  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSession
 End
 
 Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
@@ -213,22 +267,36 @@ End
 
 Public Sub AlignHttp_Finished()
   $alignBusy = False
+  If $alignProbing Then
+    $alignProbing = False
+    If $hAlignHttp.Code = 200 Then
+      AlignSetStatus(True, "Probe OK")
+      $alignBackoffSec = 1
+      ' Probe OK → drena eventuali eventi pendenti nell'outbox.
+      If $alignOutbox.Count > 0 Then AlignTrySend()
+    Else
+      AlignSetStatus(False, "Probe fallito: HTTP " & $hAlignHttp.Code)
+      AlignScheduleRetry()
+    Endif
+    Return
+  Endif
   If $hAlignHttp.Code = 200 Or $hAlignHttp.Code = 201 Then
     Try $alignOutbox.Remove(0)
     Try AtomicSave(User.Home &/ ".brrm-partenza-outbox", $alignOutbox.Join(gb.NewLine))
-    AlignSetStatus(True)
+    AlignSetStatus(True, "Ultimo evento (seq=" & $alignSeq & ") sincronizzato")
     $alignBackoffSec = 1
     ' Se ci sono altri eventi pending, spedisci subito il prossimo
     If $alignOutbox.Count > 0 Then AlignTrySend()
   Else
-    AlignSetStatus(False)
+    AlignSetStatus(False, "POST fallito: HTTP " & $hAlignHttp.Code & " (" & $alignOutbox.Count & " eventi in coda)")
     AlignScheduleRetry()
   Endif
 End
 
 Public Sub AlignHttp_Error()
   $alignBusy = False
-  AlignSetStatus(False)
+  If $alignProbing Then $alignProbing = False
+  AlignSetStatus(False, "Errore di rete (timeout o server irraggiungibile)")
   AlignScheduleRetry()
 End
 
@@ -242,8 +310,28 @@ Private Sub AlignScheduleRetry()
 End
 
 Public Sub TimerAlign_Timer()
+  ' Retry condiviso: se ho eventi pendenti, riprova il POST; altrimenti
+  ' probe (cosi' lo stato SYNC OK/FAIL riflette la situazione corrente
+  ' anche quando l'outbox e' vuoto).
   TimerAlign.Stop
-  AlignTrySend()
+  If Not $alignEnabled Then Return
+  If $alignOutbox.Count > 0 Then
+    AlignTrySend()
+  Else
+    AlignProbe()
+  Endif
+End
+
+Public Sub TimerAlignHeartbeat_Timer()
+  ' Probe periodico per rilevare rete morta in stato idle. Skip se:
+  '   - una richiesta e' gia' in volo ($alignBusy): non doppiamo traffico
+  '   - ci sono eventi pendenti: AlignTrySend fara' gia' da heartbeat naturale
+  '   - TimerAlign e' attivo (siamo in backoff dopo un fail): aspettiamo il retry
+  If Not $alignEnabled Then Return
+  If $alignBusy Then Return
+  If $alignOutbox.Count > 0 Then Return
+  If TimerAlign.Enabled Then Return
+  AlignProbe()
 End
 
 Public Sub UpgradeSessionFile()
@@ -565,13 +653,64 @@ Dim pt2 As Date
   Timer1.Start
   End If
   
-  If CurrAct = "invarr1" Then 
+  If CurrAct = "invarr1" Then
   INV1 = LEquipaggi[GridView1.Row - 1].Text
   CurrAct = "invarr2"
     GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   End If
-  
+
+  If CurrAct = "modnum" Then
+    Dim iOld As Integer
+    Dim sNew As String
+    Dim iNew As Integer
+    iOld = LEquipaggi[GridView1.Row - 1].Text
+    If partenze[iOld] = 0 Then
+      Message.Error("L'equipaggio " & iOld & " non ha un orario di partenza da spostare.")
+    Else
+      Timer1.Stop
+      sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & " (partenza " & partenze[iOld] & "):", "Cambia numero")
+      If sNew <> "" Then
+        iNew = 0
+        Try iNew = CInt(Trim$(sNew))
+        If iNew <= 0 Or iNew >= 10000 Then
+          Message.Error("Numero non valido. Deve essere fra 1 e 9999.")
+        Else If iNew = iOld Then
+          ' no-op
+        Else If LEquipaggi.Find(iNew) >= 0 Then
+          Message.Error("L'equipaggio " & iNew & " esiste già: non posso assegnare lo stesso numero a due partenze.")
+        Else
+          ChangeNumero(iOld, iNew)
+        Endif
+      Endif
+      Timer1.Start
+    Endif
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  End If
+
+  If CurrAct = "invpart2" Then
+    INV2 = LEquipaggi[GridView1.Row - 1].Text
+    If INV2 = INV1 Then
+      Message.Error("Non posso invertire un equipaggio con se stesso.")
+    Else If Message.Question("Sei sicuro di voler invertire le partenze degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then
+      Timer1.Stop
+      InvertiPartenze(INV1, INV2)
+      Timer1.Start
+    Endif
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  End If
+
+  If CurrAct = "invpart1" Then
+    INV1 = LEquipaggi[GridView1.Row - 1].Text
+    CurrAct = "invpart2"
+    GridView1.Background = &H007FFFFF&
+    GridView1.Mouse = 2
+  End If
+
 Endif
 UpgradeSessionFile()
 End
@@ -582,15 +721,77 @@ End
 
 Public Sub Button3_Click()
 
-If CurrAct = "annpart" Then 
+If CurrAct = "annpart" Then
   GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
-  Else 
+  Else
 CurrAct = "annpart"
 GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 End If
+End
+
+Public Sub ButtonChangeNum_Click()
+  ' Toggle: clicco di nuovo per annullare il "pick row" pendente.
+  If CurrAct = "modnum" Then
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  Else
+    CurrAct = "modnum"
+    GridView1.Background = &H00FFFF7F&
+    GridView1.Mouse = 2
+  Endif
+End
+
+Public Sub ButtonInvert_Click()
+  ' Toggle: clic ulteriore (in qualsiasi fase invpart1/invpart2) annulla.
+  If CurrAct = "invpart1" Or CurrAct = "invpart2" Then
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  Else
+    CurrAct = "invpart1"
+    GridView1.Background = &H00FFFF7F&
+    GridView1.Mouse = 2
+  Endif
+End
+
+Public Sub ButtonSettings_Click()
+  FSettings.Show
+End
+
+Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
+  ' Sostituisce oldNum → newNum preservando l'orario di partenza e la posizione
+  ' nella lista equipaggi. Sync: invia annullamento per oldNum + nuovo per newNum.
+  Dim idx As Integer
+  Dim dPart As Date
+  dPart = partenze[oldNum]
+  partenze[newNum] = dPart
+  partenze[oldNum] = 0
+  idx = LEquipaggi.Find(oldNum)
+  If idx >= 0 Then
+    LEquipaggi[idx].Text = newNum
+  Else
+    LEquipaggi.Add(newNum)
+  Endif
+  UpgradeSessionFile()
+  AlignEnqueue(oldNum, 0)
+  AlignEnqueue(newNum, dPart)
+End
+
+Private Sub InvertiPartenze(n1 As Integer, n2 As Integer)
+  ' Scambia gli orari di partenza fra due equipaggi. I numeri restano.
+  Dim pt1 As Date
+  Dim pt2 As Date
+  pt1 = partenze[n1]
+  pt2 = partenze[n2]
+  partenze[n1] = pt2
+  partenze[n2] = pt1
+  UpgradeSessionFile()
+  AlignEnqueue(n1, pt2)
+  AlignEnqueue(n2, pt1)
 End
   
 

@@ -13,6 +13,18 @@ FotON AS Boolean
 INV1 AS Integer
 INV2 AS Integer
 
+' --- Align (sync via web, RECEIVER) ---
+Private $alignEnabled As Boolean
+Private $alignUrl As String
+Private $alignUser As String
+Private $alignPass As String
+Private $alignSession As String
+Private $alignLastSeq As Long
+Private $alignBuffer As String
+Private $alignBackoffSec As Integer
+Private $alignWantReconnect As Boolean
+Private $hAlignHttp As HttpClient
+
 PUBLIC SUB _new()
 
 END
@@ -69,6 +81,295 @@ PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
   File.Save(sTmp, sContent)
   Move sTmp DownTo sPath
 END
+
+Private Sub AlignLoadConfig() As Boolean
+  ' Carica ~/.config/brrm/align.conf (key=value, # commento). Tutti i campi
+  ' richiesti: url, username, password. Default per session: "default".
+  Dim sPath As String
+  Dim sLine As String
+  Dim sKey As String
+  Dim sVal As String
+  Dim iEq As Integer
+  sPath = User.Home &/ ".config/brrm/align.conf"
+  $alignSession = "default"
+  If Not Exist(sPath) Then Return False
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Then Continue
+    If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "url"
+        $alignUrl = sVal
+      Case "username"
+        $alignUser = sVal
+      Case "password"
+        $alignPass = sVal
+      Case "session"
+        $alignSession = sVal
+    End Select
+  Next
+  Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
+End
+
+Public Sub AlignReinit()
+  ' Chiamato dalla form Settings dopo aver scritto il config: chiude
+  ' lo stream corrente e fa ripartire AlignInit da zero.
+  TimerAlignWatchdog.Stop
+  If $hAlignHttp Then
+    Try $hAlignHttp.Stop
+    $hAlignHttp = Null
+  Endif
+  $alignWantReconnect = False
+  $alignUrl = ""
+  $alignUser = ""
+  $alignPass = ""
+  $alignSession = ""
+  AlignInit()
+End
+
+Public Sub AlignInit()
+  ' Punto di ingresso: chiamato da Form_Open. Se non configurato, no-op.
+  $alignEnabled = AlignLoadConfig()
+  If Not $alignEnabled Then
+    LabelSync.Visible = False
+    Return
+  Endif
+  $alignLastSeq = 0
+  Try $alignLastSeq = CLong(Trim$(File.Load(User.Home &/ ".brrm-align-lastseq")))
+  $alignBuffer = ""
+  $alignBackoffSec = 1
+  $alignWantReconnect = False
+  ' Niente stato prematuro: label nascosta finche' non abbiamo un esito
+  ' definitivo (primo chunk = SYNC OK; oppure errore/disconnessione = FAIL).
+  LabelSync.Visible = False
+  AlignStartStream()
+End
+
+Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
+  ' Una qualsiasi chiamata a SetStatus rende visibile l'indicatore.
+  ' Il `detail` finisce nel tooltip per troubleshooting.
+  LabelSync.Visible = True
+  If connected Then
+    LabelSync.Background = &H00CC00&
+    LabelSync.Text = "SYNC OK"
+    If detail = "" Then detail = "Stream connesso"
+  Else
+    LabelSync.Background = &HCC0000&
+    LabelSync.Text = "SYNC FAIL"
+    If detail = "" Then detail = "Errore di sincronizzazione"
+  Endif
+  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSession & gb.NewLine & "Ultimo seq ricevuto: " & $alignLastSeq
+End
+
+Private Sub AlignStartStream()
+  ' Apre la connessione SSE long-lived. _Read fira per ogni chunk, _Finished
+  ' quando il server o la rete chiudono (→ schedula riconnessione).
+  If Not $alignEnabled Then Return
+  TimerAlignWatchdog.Stop
+  If $hAlignHttp Then
+    Try $hAlignHttp.Stop
+    $hAlignHttp = Null
+  Endif
+  $alignBuffer = ""
+  $hAlignHttp = New HttpClient As "AlignHttp"
+  $hAlignHttp.URL = $alignUrl & "/stream?session=" & $alignSession & "&since=" & CStr($alignLastSeq)
+  $hAlignHttp.Auth = Net.AuthBasic
+  $hAlignHttp.User = $alignUser
+  $hAlignHttp.Password = $alignPass
+  $hAlignHttp.Async = True
+  $hAlignHttp.Timeout = 0   ' stream long-lived, niente timeout
+  Try $hAlignHttp.Get()
+  If Error Then
+    AlignSetStatus(False, "Errore apertura stream: " & Error.Text)
+    AlignScheduleReconnect()
+    Return
+  Endif
+  ' Watchdog: 15s di silenzio → riconnetti (keepalive server e' ogni 10s)
+  $alignWantReconnect = False
+  TimerAlignWatchdog.Delay = 15000
+  TimerAlignWatchdog.Start
+End
+
+Public Sub AlignHttp_Read()
+  ' Chunk SSE ricevuto: accumula nel buffer ed estrai i blocchi completi
+  ' (delimitati da "\n\n"). Reset del watchdog ad ogni chunk.
+  Dim sChunk As String
+  Dim iSep As Integer
+  Dim sBlock As String
+  sChunk = ""
+  Try Read #$hAlignHttp, sChunk, Lof($hAlignHttp)
+  If sChunk = "" Then Return
+  ' Normalizza CRLF → LF per parsing semplice
+  sChunk = Replace(sChunk, Chr(13), "")
+  $alignBuffer &= sChunk
+  TimerAlignWatchdog.Stop
+  TimerAlignWatchdog.Delay = 15000
+  $alignWantReconnect = False
+  TimerAlignWatchdog.Start
+  AlignSetStatus(True, "Stream attivo")
+  $alignBackoffSec = 1
+  Do
+    iSep = InStr($alignBuffer, "\n\n")
+    If iSep = 0 Then Break
+    sBlock = Left$($alignBuffer, iSep - 1)
+    $alignBuffer = Mid$($alignBuffer, iSep + 2)
+    AlignProcessBlock(sBlock)
+  Loop
+End
+
+Public Sub AlignHttp_Finished()
+  ' Server o rete hanno chiuso lo stream — riconnetti con backoff.
+  AlignSetStatus(False, "Stream chiuso (HTTP " & $hAlignHttp.Code & "), riconnessione in corso")
+  AlignScheduleReconnect()
+End
+
+Public Sub AlignHttp_Error()
+  AlignSetStatus(False, "Errore di rete sullo stream")
+  AlignScheduleReconnect()
+End
+
+Private Sub AlignScheduleReconnect()
+  ' Backoff esponenziale 1→2→4→…→60s. TimerAlignWatchdog viene riusato
+  ' come single-shot per il delay (distinto dal watchdog via flag).
+  If Not $alignEnabled Then Return
+  TimerAlignWatchdog.Stop
+  If $alignBackoffSec < 60 Then $alignBackoffSec = $alignBackoffSec * 2
+  If $alignBackoffSec > 60 Then $alignBackoffSec = 60
+  TimerAlignWatchdog.Delay = $alignBackoffSec * 1000
+  $alignWantReconnect = True
+  TimerAlignWatchdog.Start
+End
+
+Public Sub TimerAlignWatchdog_Timer()
+  TimerAlignWatchdog.Stop
+  If $alignWantReconnect Then
+    $alignWantReconnect = False
+    AlignStartStream()
+    Return
+  Endif
+  ' Watchdog scaduto (15s senza dati) → tratta come disconnessione
+  AlignSetStatus(False, "Nessun dato dallo stream per 15s (keepalive perso)")
+  AlignScheduleReconnect()
+End
+
+Private Sub AlignProcessBlock(sBlock As String)
+  ' Un blocco SSE puo' contenere righe "event:", "data:", commenti (":"),
+  ' "id:", "retry:". Estrae solo event+data e li passa ad AlignApplyEvent.
+  Dim sLine As String
+  Dim sEventType As String
+  Dim sData As String
+  sEventType = ""
+  sData = ""
+  For Each sLine In Split(sBlock, "\n")
+    If sLine = "" Then Continue
+    If Left$(sLine, 1) = ":" Then Continue   ' commento SSE
+    If Left$(sLine, 7) = "event: " Then
+      sEventType = Mid$(sLine, 8)
+    Else If Left$(sLine, 6) = "data: " Then
+      If sData = "" Then
+        sData = Mid$(sLine, 7)
+      Else
+        sData = sData & "\n" & Mid$(sLine, 7)
+      Endif
+    Endif
+  Next
+  If sData = "" Then Return
+  AlignApplyEvent(sEventType, sData)
+End
+
+Private Function JsonGetInt(s As String, key As String) As Long
+  ' Parser super-semplice per JSON flat: cerca "key": e legge il numero.
+  Dim i As Integer
+  Dim iStart As Integer
+  Dim iEnd As Integer
+  Dim sNeedle As String
+  sNeedle = Chr(34) & key & Chr(34) & ":"
+  i = InStr(s, sNeedle)
+  If i = 0 Then Return 0
+  iStart = i + Len(sNeedle)
+  While iStart <= Len(s) And Mid$(s, iStart, 1) = " "
+    Inc iStart
+  Wend
+  iEnd = iStart
+  While iEnd <= Len(s) And (Mid$(s, iEnd, 1) Like "[0-9-]")
+    Inc iEnd
+  Wend
+  If iEnd = iStart Then Return 0
+  Return CLong(Mid$(s, iStart, iEnd - iStart))
+End
+
+Private Function JsonGetStr(s As String, key As String) As String
+  ' Parser super-semplice per JSON flat: cerca "key": e legge la stringa
+  ' fra virgolette. Null → "". Assume nessun escape interno (sufficiente per
+  ' i nostri payload: orario HH:MM:SS.zzz, ts_origine ISO8601).
+  Dim i As Integer
+  Dim iStart As Integer
+  Dim iEnd As Integer
+  Dim sNeedle As String
+  sNeedle = Chr(34) & key & Chr(34) & ":"
+  i = InStr(s, sNeedle)
+  If i = 0 Then Return ""
+  i = i + Len(sNeedle)
+  While i <= Len(s) And Mid$(s, i, 1) = " "
+    Inc i
+  Wend
+  If Mid$(s, i, 4) = "null" Then Return ""
+  If Mid$(s, i, 1) <> Chr(34) Then Return ""
+  iStart = i + 1
+  iEnd = InStr(s, Chr(34), iStart)
+  If iEnd = 0 Then Return ""
+  Return Mid$(s, iStart, iEnd - iStart)
+End
+
+Private Sub AlignApplyEvent(sEventType As String, sData As String)
+  ' Applica un evento SSE allo stato locale. Idempotente: scarta seq gia' visti.
+  Dim iSeq As Long
+  Dim iNumero As Integer
+  Dim sOrario As String
+  Dim dPartenza As Date
+  Dim iMinSeq As Long
+
+  Select Case sEventType
+    Case "meta"
+      ' Gap detection: se la TTL server ha mangiato eventi sotto la nostra
+      ' last_seq, allinea last_seq a min_seq-1 cosi' accettiamo lo snapshot.
+      iMinSeq = JsonGetInt(sData, "min_seq")
+      If iMinSeq > 0 And If $alignLastSeq < iMinSeq - 1 Then
+        $alignLastSeq = iMinSeq - 1
+        Try AtomicSave(User.Home &/ ".brrm-align-lastseq", CStr($alignLastSeq))
+      Endif
+
+    Case "event"
+      iSeq = JsonGetInt(sData, "seq")
+      If iSeq <= $alignLastSeq Then Return
+      iNumero = JsonGetInt(sData, "numero")
+      If iNumero <= 0 Or iNumero >= 10000 Then Return
+      sOrario = JsonGetStr(sData, "orario")
+      Timer1.Stop
+      If sOrario = "" Then
+        ' orario=null → annullamento partenza
+        partenze[iNumero] = 0
+      Else
+        dPartenza = 0
+        Try dPartenza = sOrario
+        If dPartenza <> 0 Then
+          partenze[iNumero] = dPartenza
+          If LEquipaggi.Find(iNumero) < 0 Then LEquipaggi.Add(iNumero)
+        Endif
+      Endif
+      $alignLastSeq = iSeq
+      Try AtomicSave(User.Home &/ ".brrm-align-lastseq", CStr($alignLastSeq))
+      UpgradeSessionFile()
+      Timer1.Start
+
+    ' "keepalive" e altri tipi: nessuna azione (il reset del watchdog avviene
+    ' gia' in AlignHttp_Read per qualsiasi chunk ricevuto).
+  End Select
+End
 
 PUBLIC SUB UpgradeSessionFile()
   ' Formato v1: prima riga = magic header, righe successive numero|partenza|arrivo.
@@ -165,7 +466,8 @@ IF aTest.Count >= 1 AND IF aTest[0] = "brrm-session v1" THEN
   NEXT
 ENDIF
 Timer1.Start()
-END 
+AlignInit()
+END
 
 PUBLIC SUB Timer1_Timer()
 ' Guard: ogni Message dialog (Question/Info/Error) resetta il formatting
@@ -210,10 +512,10 @@ asdd = "NO DATI PARTENZA"
 ENDIF 
 aAsd = Split(asdd, ".")
 asdd = ""
-TRY asdd = aAsd[0] & "." & twoDecs(aAsd[1])
-IF asdd = "" THEN 
+TRY asdd = aAsd[0] & "." & PadMillis(aAsd[1])
+IF asdd = "" THEN
 asdd = aAsd[0]
-ENDIF 
+ENDIF
 aAsd = Split(asdd, ":")
 asdd = ""
 TRY asdd = aAsd[1] & ":" & aAsd[2]
@@ -480,13 +782,39 @@ DIM pt2 AS Date
   Timer1.Start
   END IF
   
-  IF CurrAct = "invarr1" THEN 
+  IF CurrAct = "invarr1" THEN
   INV1 = LEquipaggi[GridView1.Row - 1].Text
   CurrAct = "invarr2"
     GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   END IF
-  
+
+  IF CurrAct = "modnum" THEN
+    DIM iOld AS Integer
+    DIM sNew AS String
+    DIM iNew AS Integer
+    iOld = LEquipaggi[GridView1.Row - 1].Text
+    Timer1.Stop
+    sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & ":", "Cambia numero")
+    IF sNew <> "" THEN
+      iNew = 0
+      TRY iNew = CInt(Trim$(sNew))
+      IF iNew <= 0 OR iNew >= 10000 THEN
+        Message.Error("Numero non valido. Deve essere fra 1 e 9999.")
+      ELSE IF iNew = iOld THEN
+        ' no-op
+      ELSE IF LEquipaggi.Find(iNew) >= 0 THEN
+        Message.Error("L'equipaggio " & iNew & " esiste già: non posso assegnare lo stesso numero a due righe.")
+      ELSE
+        ChangeNumero(iOld, iNew)
+      ENDIF
+    ENDIF
+    Timer1.Start
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  END IF
+
 ENDIF
 UpgradeSessionFile()
 END
@@ -590,3 +918,42 @@ PUBLIC SUB Button10_Click()
   FOrdine.Show
 
 END
+
+PUBLIC SUB ButtonChangeNum_Click()
+  ' Toggle: clicco di nuovo per annullare il "pick row" pendente.
+  IF CurrAct = "modnum" THEN
+    GridView1.Background = &H0FFFFFF&
+    GridView1.Mouse = 0
+    CurrAct = ""
+  ELSE
+    CurrAct = "modnum"
+    GridView1.Background = &H00FFFF7F&
+    GridView1.Mouse = 2
+  ENDIF
+END
+
+PUBLIC SUB ButtonSettings_Click()
+  FSettings.Show
+END
+
+Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
+  ' Rinomina la riga: porta sia la partenza che l'arrivo al nuovo numero,
+  ' preservando la posizione nell'ordine equipaggi. Operazione locale: NON
+  ' viene propagata via sync (canale upstream non esiste in brrm).
+  Dim idx As Integer
+  Dim dPart As Date
+  Dim dArr As Date
+  dPart = partenze[oldNum]
+  dArr = arrivi[oldNum]
+  partenze[newNum] = dPart
+  arrivi[newNum] = dArr
+  partenze[oldNum] = 0
+  arrivi[oldNum] = 0
+  idx = LEquipaggi.Find(oldNum)
+  If idx >= 0 Then
+    LEquipaggi[idx].Text = newNum
+  Else
+    LEquipaggi.Add(newNum)
+  Endif
+  UpgradeSessionFile()
+End

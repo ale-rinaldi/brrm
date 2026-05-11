@@ -1,0 +1,62 @@
+' Gambas class file
+
+' Form di configurazione runtime. Per ora solo settings di sync; layout
+' prevede di accomodare altre sezioni in futuro (frame separati).
+
+Public Sub Form_Open()
+  Dim sPath As String
+  Dim sLine As String
+  Dim iEq As Integer
+  Dim sKey As String
+  Dim sVal As String
+  FSettings.Center()
+  TextURL.Text = ""
+  TextUser.Text = ""
+  TextPass.Text = ""
+  TextSession.Text = "default"
+  sPath = User.Home &/ ".config/brrm/align.conf"
+  If Not Exist(sPath) Then Return
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Then Continue
+    If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "url"
+        TextURL.Text = sVal
+      Case "username"
+        TextUser.Text = sVal
+      Case "password"
+        TextPass.Text = sVal
+      Case "session"
+        TextSession.Text = sVal
+    End Select
+  Next
+End
+
+Public Sub ButtonSave_Click()
+  Dim sDir As String
+  Dim sPath As String
+  Dim sOut As String
+  sDir = User.Home &/ ".config/brrm"
+  If Not Exist(sDir) Then Try Mkdir sDir
+  sPath = sDir &/ "align.conf"
+  sOut = "url = " & Trim$(TextURL.Text) & gb.NewLine
+  sOut &= "username = " & Trim$(TextUser.Text) & gb.NewLine
+  sOut &= "password = " & Trim$(TextPass.Text) & gb.NewLine
+  sOut &= "session = " & Trim$(TextSession.Text) & gb.NewLine
+  Try FMain.AtomicSave(sPath, sOut)
+  If Error Then
+    Message.Error("Impossibile salvare le impostazioni: " & Error.Text)
+    Return
+  Endif
+  FMain.AlignReinit()
+  Me.Close
+End
+
+Public Sub ButtonCancel_Click()
+  Me.Close
+End

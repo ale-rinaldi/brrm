@@ -75,6 +75,23 @@ Versione ridotta dedicata al solo registro partenze.
 - Persistenza in `~/.brrm-partenza-session`.
 - *Non implementati* (presenti in UI ma vuoti): pulsante Esporta, modifica ordine.
 
+## Sync partenza ↔ arrivo via Internet (opzionale)
+
+Quando le due postazioni **non sono sulla stessa LAN**, è possibile sincronizzarle attraverso il servizio bridge **brrm-align** (vedi `server/`). La sincronizzazione è **opzionale** e **fire-and-forget**: un guasto di rete non blocca mai la registrazione locale. Un'etichetta `SYNC OK` / `SYNC FAIL` accanto allo stato Arduino indica lo stato del bridge.
+
+Architettura: la postazione partenza pubblica gli eventi su `POST /events?session=…` (idempotente, sequence number monotono, outbox locale per ritrasmissione), la postazione arrivo li riceve via SSE long-poll su `GET /stream?session=…&since=<lastSeq>` con riconnessione automatica (backoff esponenziale 1→60 s) e watchdog di 15 s. Il bridge mantiene una cache in-memory con TTL 5 min; gli stati locali sono persistiti in `~/.brrm-partenza-outbox`, `~/.brrm-partenza-align-seq`, `~/.brrm-align-lastseq`.
+
+Per attivare il sync, creare su **entrambe le postazioni** il file `~/.config/brrm/align.conf` con lo stesso `session` e le stesse credenziali:
+
+```ini
+url=https://www.boxrally.eu/brrm-align
+username=brrm
+password=<password>
+session=gara-2026-05-11
+```
+
+Senza il file, l'etichetta `SYNC` resta nascosta e il software funziona esattamente come prima.
+
 ## Dettagli tecnici
 
 - **Porta seriale hardcoded:** `/dev/ttyUSB0` (Arduino USB su Linux).

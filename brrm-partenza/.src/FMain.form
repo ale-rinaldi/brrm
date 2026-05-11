@@ -1,7 +1,7 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,93,55)
+  MoveScaled(0,0,93,60)
   Text = ("BoxRally Race Manager - Partenza")
   { GridView1 GridView
     MoveScaled(1,1,91,38)
@@ -16,8 +16,20 @@
     Visible = False
   }
   { Button3 Button
-    MoveScaled(27,45,21,4)
+    MoveScaled(27,42,21,4)
     Text = ("Annulla partenza")
+  }
+  { ButtonChangeNum Button
+    MoveScaled(27,47,21,4)
+    Text = ("Cambia numero")
+  }
+  { ButtonInvert Button
+    MoveScaled(27,52,21,4)
+    Text = ("Inverti partenze")
+  }
+  { ButtonSettings Button
+    MoveScaled(50,49,16,4)
+    Text = ("Impostazioni…")
   }
   { Button6 Button
     MoveScaled(68,44,18,5)
@@ -44,7 +56,7 @@
     Delay = 500
   }
   { Button1 Button
-    MoveScaled(68,50,18,4)
+    MoveScaled(68,52,18,4)
     Text = ("RESET!")
   }
   { BArrivi ListBox
@@ -52,7 +64,7 @@
     Visible = False
   }
   { Button9 Button
-    MoveScaled(1,42,25,10)
+    MoveScaled(1,42,25,15)
     Text = ("PARTENZA")
   }
   { Timer3 #Timer
@@ -72,6 +84,12 @@
     #Y = 350
     Enabled = False
     Delay = 1000
+  }
+  { TimerAlignHeartbeat #Timer
+    #X = 609
+    #Y = 357
+    Enabled = False
+    Delay = 30000
   }
   { LabelArduino Label
     MoveScaled(50,40,16,4)
