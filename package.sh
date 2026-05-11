@@ -16,7 +16,7 @@ mkdir -p dist
 MAINTAINER="Alessandro Rinaldi <ale@alerinaldi.it>"
 # util-linux fornisce chrt, usato dal wrapper per priorita' RT FIFO
 # (gia' di solito Essential ma lo dichiariamo esplicito per chiarezza).
-DEPS="gambas3-runtime, gambas3-gb-qt6, gambas3-gb-form, gambas3-gb-net, util-linux"
+DEPS="gambas3-runtime, gambas3-gb-qt6, gambas3-gb-form, gambas3-gb-net, gambas3-gb-net-curl, util-linux"
 
 declare -A DESCRIPTIONS=(
   [brrm]="BoxRally Race Manager - cronometraggio postazione arrivo per gare Soap Box"
