@@ -173,6 +173,8 @@ Timer1.Start()
 End 
 
 Public Sub Timer1_Timer()
+' Guard: ricontrolla header e riapplica se Message dialog l'ha resettato.
+If GridView1[0, 0].Background <> &H000000& Then SetupGridHeader()
 Dim concorrente As Integer
 Dim asd As Date
 Dim asdd As String

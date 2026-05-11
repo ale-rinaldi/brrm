@@ -168,6 +168,9 @@ Timer1.Start()
 END 
 
 PUBLIC SUB Timer1_Timer()
+' Guard: ogni Message dialog (Question/Info/Error) resetta il formatting
+' delle celle del row 0. Ricontrolliamo qui e ri-applichiamo se serve.
+IF GridView1[0, 0].Background <> &H000000& THEN SetupGridHeader()
 DIM concorrente AS Integer
 DIM asd AS Date
 DIM asdd AS String
@@ -410,7 +413,6 @@ PUBLIC SUB ButtonImporta_Click()
   UpgradeSessionFile()
   Timer1.Start
   Message.Info(iImportati & " orari di partenza importati.")
-  SetupGridHeader()
 END
 
 PUBLIC SUB twoDecs(number AS String) AS String
