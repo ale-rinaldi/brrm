@@ -77,10 +77,10 @@ GridView1.Columns.Count = 2
 GridView1.Rows.Count = 1
 GridView1.Columns[0].Width = GridView1.Width - 150
 GridView1.Columns[1].Width = 140
-GridView1[0, 0].BackColor = &H000000&
-GridView1[0, 1].BackColor = &H000000&
-GridView1[0, 0].ForeColor = &HFFFFFF&
-GridView1[0, 1].ForeColor = &HFFFFFF&
+GridView1[0, 0].Background = &H000000&
+GridView1[0, 1].Background = &H000000&
+GridView1[0, 0].Foreground = &HFFFFFF&
+GridView1[0, 1].Foreground = &HFFFFFF&
 GridView1[0, 0].Text = "Equipaggio"
 GridView1[0, 1].Text = "Tempo"
 TRY SerialPort1.Open
@@ -180,28 +180,28 @@ END
 PUBLIC SUB Button5_Click()
 
 IF CurrAct = "annarr" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
 CurrAct = "annarr"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 END IF
 END
 
 PUBLIC SUB Button4_Click()
 IF CurrAct = "invarr1" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE IF CurrAct = "invarr2"
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
   CurrAct = "invarr1"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 ENDIF 
 END
@@ -220,7 +220,7 @@ DIM pt2 AS Date
   Timer1.Stop
   ChangingN = LEquipaggi[GridView1.Row - 1].Text
   FPartenza.Show
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
     CurrAct = ""
     Timer1.Start
@@ -231,7 +231,7 @@ DIM pt2 AS Date
   Timer1.Stop
   partenze[LEquipaggi[GridView1.Row - 1].Text] = 0
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -242,7 +242,7 @@ DIM pt2 AS Date
   Timer1.Stop
   arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -258,7 +258,7 @@ DIM pt2 AS Date
   arrivi[INV2] = pt1
   arrivi[INV1] = pt2
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -267,7 +267,7 @@ DIM pt2 AS Date
   IF CurrAct = "invarr1" THEN 
   INV1 = LEquipaggi[GridView1.Row - 1].Text
   CurrAct = "invarr2"
-    GridView1.BackColor = &H007FFFFF&
+    GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   END IF
   
@@ -288,12 +288,12 @@ END
 PUBLIC SUB Button3_Click()
 
 IF CurrAct = "annpart" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
 CurrAct = "annpart"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 END IF
 END
@@ -309,26 +309,26 @@ PUBLIC SUB Button7_Click()
 
   FotON = TRUE
   Timer2.Stop
-  Button8.BackColor = &HFFFFFF&
-  Button7.BackColor = &H00FF00&
+  Button8.Background = &HFFFFFF&
+  Button7.Background = &H00FF00&
 
 END
 
 PUBLIC SUB Button8_Click()
 
   FotON = FALSE
-    Button8.BackColor = &HFF0000&
-    Button7.BackColor = &HFFFFFF&
+    Button8.Background = &HFF0000&
+    Button7.Background = &HFFFFFF&
     Timer2.Start
 
 END
 
 PUBLIC SUB Timer2_Timer()
 
-  IF Button8.BackColor = &HFF0000& THEN 
-  Button8.BackColor = &HFFFFFF&
+  IF Button8.Background = &HFF0000& THEN 
+  Button8.Background = &HFFFFFF&
   ELSE 
-  Button8.BackColor = &HFF0000&
+  Button8.Background = &HFF0000&
   ENDIF 
   
 
