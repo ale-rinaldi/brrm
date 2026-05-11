@@ -23,6 +23,11 @@ declare -A DESCRIPTIONS=(
 
 for p in brrm brrm-partenza; do
   ver=$(cat "$p/.version")
+  # Se VERSION_SUFFIX è settato (es. da CI come "YYYYMMDD.shortsha"),
+  # lo appende alla versione base con il separatore + (compatibile Debian).
+  if [ -n "${VERSION_SUFFIX:-}" ]; then
+    ver="${ver}+${VERSION_SUFFIX}"
+  fi
   desc=${DESCRIPTIONS[$p]}
   stage=$(mktemp -d)
   chmod 755 "$stage"

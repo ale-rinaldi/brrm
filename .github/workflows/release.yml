@@ -1,0 +1,108 @@
+name: Release APT repo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Una deploy alla volta su Pages; se ne parte un'altra mentre questa è in volo,
+# aspetta che finisca (non cancella per non perdere release).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # serve a git rev-parse e a date dei commit
+
+      - name: Installa Gambas 3 e tool di packaging
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gambas3 fakeroot apt-utils dpkg-dev
+
+      - name: Calcola version suffix (YYYYMMDD.shortsha)
+        run: |
+          SUFFIX="$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          echo "VERSION_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
+          echo "Suffix per questa release: $SUFFIX"
+
+      - name: Build dei .deb
+        run: ./package.sh
+
+      - name: Costruisci metadata APT
+        run: |
+          mkdir -p apt-repo
+          cp dist/*.deb apt-repo/
+          cd apt-repo
+          # Packages e Packages.gz (indice dei pacchetti)
+          dpkg-scanpackages --multiversion . > Packages
+          gzip -9 -k -f Packages
+          # Release (metadata top-level del repo flat)
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="ale-rinaldi/brrm" \
+            -o APT::FTPArchive::Release::Label="brrm" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="brrm" \
+            -o APT::FTPArchive::Release::Architectures="all" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="brrm APT repository" \
+            release . > Release
+
+      - name: Pagina indice landing
+        run: |
+          cat > apt-repo/index.html <<'EOF'
+          <!doctype html>
+          <html lang="it">
+          <head>
+            <meta charset="utf-8">
+            <title>brrm - APT repository</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2em auto; padding: 0 1em; line-height: 1.5; }
+              code, pre { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; }
+              pre { padding: 1em; overflow-x: auto; }
+              .warn { background: #fff3cd; border-left: 4px solid #ffc107; padding: 0.5em 1em; }
+            </style>
+          </head>
+          <body>
+            <h1>brrm - APT repository</h1>
+            <p>Pacchetti Debian per <a href="https://github.com/ale-rinaldi/brrm">brrm</a> (BoxRally Race Manager), software amatoriale di cronometraggio per gare Soap Box.</p>
+            <div class="warn">
+              <strong>Software amatoriale.</strong> Nessuna pretesa di efficienza o correttezza. Usalo a tuo rischio.
+            </div>
+            <h2>Installazione</h2>
+            <p>Su Debian/Ubuntu (richiede Gambas 3 con Qt6 disponibile nei repo della distro):</p>
+            <pre>echo "deb [trusted=yes] https://ale-rinaldi.github.io/brrm ./" \
+              | sudo tee /etc/apt/sources.list.d/brrm.list
+          sudo apt update
+          sudo apt install brrm brrm-partenza</pre>
+            <p>Il repo non è firmato GPG (<code>[trusted=yes]</code>); per un uso più serio andrebbe firmato.</p>
+            <h2>Pacchetti disponibili</h2>
+            <ul>
+              <li><code>brrm</code> &mdash; postazione arrivo (cronometraggio completo)</li>
+              <li><code>brrm-partenza</code> &mdash; postazione partenza</li>
+            </ul>
+            <p>Versionamento: <code>&lt;ver-base&gt;+YYYYMMDD.&lt;short-sha&gt;</code> &mdash; ogni commit su <code>main</code> produce una nuova release.</p>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload artefatto Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./apt-repo
+
+      - name: Deploy su GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

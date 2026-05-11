@@ -5,6 +5,21 @@
 Software di cronometraggio per le gare di **Soap Box** del campionato **BoxRally**, scritto originariamente in **Gambas 2** e migrato a **Gambas 3 + Qt6**.
 Il sistema è progettato per funzionare in coppia con un **Arduino** che pilota una fotocellula, e si compone di due applicazioni distinte, una per ciascuna postazione di gara.
 
+## Installazione (Debian / Ubuntu)
+
+I `.deb` precompilati sono pubblicati su un repository APT ospitato su GitHub Pages, aggiornato ad ogni push su `main`:
+
+```sh
+echo "deb [trusted=yes] https://ale-rinaldi.github.io/brrm ./" \
+  | sudo tee /etc/apt/sources.list.d/brrm.list
+sudo apt update
+sudo apt install brrm brrm-partenza
+```
+
+Pagina di landing: <https://ale-rinaldi.github.io/brrm/>.
+
+Il repo non è firmato GPG (da cui `[trusted=yes]`); per uso più serio si userebbe una signing key dedicata.
+
 ## Componenti del progetto
 
 Il repository contiene due progetti Gambas indipendenti:
