@@ -629,10 +629,10 @@ PUBLIC SUB Button6_Click()
   DIM aMs AS Long
   DIM pMs AS Long
   DIM delta AS Long
-  DIM iH AS Long
-  DIM iM AS Long
-  DIM iS AS Long
-  DIM iMs AS Long
+  DIM iHr AS Long
+  DIM iMn AS Long
+  DIM iSec AS Long
+  DIM iMillis AS Long
   DIM sOut AS String
   DIM sPath AS String
 
@@ -647,11 +647,11 @@ PUBLIC SUB Button6_Click()
     TRY pMs = pMs + CInt(Format$(partenze[iEqui], "uuu"))
     delta = aMs - pMs
     IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
-    iH = delta \ 3600000
-    iM = (delta \ 60000) MOD 60
-    iS = (delta \ 1000) MOD 60
-    iMs = delta MOD 1000
-    sOut = sOut & iEqui & "," & iH & "," & iM & "," & iS & "," & Format$(iMs, "000") & "\n"
+    iHr = delta \ 3600000
+    iMn = (delta \ 60000) MOD 60
+    iSec = (delta \ 1000) MOD 60
+    iMillis = delta MOD 1000
+    sOut = sOut & iEqui & "," & iHr & "," & iMn & "," & iSec & "," & Format$(iMillis, "000") & "\n"
   NEXT
 
   Dialog.Title = "Salva risultati gara"

@@ -543,10 +543,10 @@ Public Sub Button6_Click()
   Dim Counter As Integer
   Dim iEqui As Integer
   Dim tPart As Date
-  Dim iH As Integer
-  Dim iM As Integer
-  Dim iS As Integer
-  Dim iMs As Integer
+  Dim iHr As Integer
+  Dim iMn As Integer
+  Dim iSec As Integer
+  Dim iMillis As Integer
   Dim sOut As String
   Dim sPath As String
 
@@ -556,12 +556,12 @@ Public Sub Button6_Click()
     If iEqui = 0 Then Continue
     If partenze[iEqui] = 0 Then Continue
     tPart = partenze[iEqui]
-    iH = Hour(tPart)
-    iM = Minute(tPart)
-    iS = Second(tPart)
-    iMs = 0
-    Try iMs = CInt(Format$(tPart, "uuu"))
-    sOut = sOut & iEqui & "," & iH & "," & iM & "," & iS & "," & Format$(iMs, "000") & "\n"
+    iHr = Hour(tPart)
+    iMn = Minute(tPart)
+    iSec = Second(tPart)
+    iMillis = 0
+    Try iMillis = CInt(Format$(tPart, "uuu"))
+    sOut = sOut & iEqui & "," & iHr & "," & iMn & "," & iSec & "," & Format$(iMillis, "000") & "\n"
   Next
 
   Dialog.Title = "Salva orari partenza"
