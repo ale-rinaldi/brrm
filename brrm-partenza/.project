@@ -1,5 +1,4 @@
 # Gambas Project File 3.0
-# Manually migrated from Gambas 2.x
 Title=BoxRally Race Manager
 Startup=FMain
 Version=0.0.4
@@ -9,3 +8,4 @@ Component=gb.net
 TabSize=2
 ControlPublic=1
 ModulePublic=1
+Packager=1
