@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gambas3-gb-qt6 \
       gambas3-gb-qt6-x11 \
       gambas3-gb-form \
+      gambas3-gb-form-stock \
       gambas3-gb-net \
       gambas3-gb-net-curl \
       gambas3-devel \
@@ -17,10 +18,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
       fonts-dejavu-core \
       locales \
+      xvfb \
+      x11vnc \
+      fluxbox \
+      feh \
+      x11-utils \
  && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
  && locale-gen \
  && rm -rf /var/lib/apt/lists/*
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # L'utente boxrally mappa quello del Mac (uid 501) per permessi sui volumi
 # mounted. UID/GID si possono override a build time.
