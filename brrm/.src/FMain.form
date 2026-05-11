@@ -51,6 +51,10 @@
     MoveScaled(76,44,18,5)
     Text = ("ESPORTA")
   }
+  { ButtonImporta Button
+    MoveScaled(76,50,18,4)
+    Text = ("Importa partenze")
+  }
   { SerialPort1 #SerialPort
     #X = 665
     #Y = 280
@@ -72,7 +76,7 @@
     Delay = 500
   }
   { Button1 Button
-    MoveScaled(76,50,18,4)
+    MoveScaled(76,55,18,4)
     Text = ("RESET!")
   }
   { BArrivi ListBox
@@ -98,9 +102,5 @@
   { Button10 Button
     MoveScaled(1,55,25,4)
     Text = ("MODIFICA ORDINE")
-  }
-  { ButtonImporta Button
-    MoveScaled(27,55,21,4)
-    Text = ("IMPORTA PARTENZE")
   }
 }
