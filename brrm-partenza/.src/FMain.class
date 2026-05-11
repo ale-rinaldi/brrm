@@ -1,0 +1,362 @@
+' Gambas class file
+
+prow As Integer
+partenze As New Date[10000]
+arrivi As New Date[10000]
+startposindex As Integer
+stopposindex As Integer
+posingrid As New Integer[10000]
+CurrAct As String
+numingrid As New Integer[10000]
+ChangingN As Integer
+FotON As Boolean
+INV1 As Integer
+INV2 As Integer
+
+Public Sub _new()
+
+End
+
+Public Sub SerialPort1_Read()
+  
+Dim s As String
+Read #SerialPort1, s, Lof(SerialPort1)
+If FotON = True Then
+BArrivi.Add(Time)
+Endif 
+   
+  
+End
+
+Public Sub UpgradeSessionFile()
+  Dim Counter As Integer
+  Dim FileOut As String
+  Counter = 0
+  Try Counter = LEquipaggi[0].Text
+  If Counter <> 0 Then 
+  FileOut = LEquipaggi[0].Text & " " & partenze[LEquipaggi[0].Text] & " " & arrivi[LEquipaggi[0].Text]
+  Counter = 1
+  While Counter < LEquipaggi.Count
+  FileOut = FileOut & "-" & LEquipaggi[Counter].Text & " " & partenze[LEquipaggi[Counter].Text] & " " & arrivi[LEquipaggi[Counter].Text]
+  Counter = Counter + 1
+  Wend 
+  Endif 
+  FileOut = Trim$(FileOut)
+  Shell "echo " & FileOut & " > ~/.brrm-partenza-session"
+
+End
+
+
+Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
+  
+  Timer1.Stop
+  partenze[Equipaggio] = Partenza
+  UpgradeSessionFile()
+  Timer1.Start
+End
+
+Public Sub ReturnArrivo(Numero As Integer) As Date
+  
+  Return arrivi[Numero]
+  
+End
+
+Public Sub ReturnPartenza(Numero As Integer) As Date
+  
+  Return partenze[Numero]
+  
+End
+
+Public Sub Form_Open()
+Dim sTest As String
+Dim aTest As String[]
+Dim aTest2 As String[]
+FotON = True
+FMain.Center()
+GridView1.Columns.Count = 2
+GridView1.Rows.Count = 1
+GridView1.Columns[0].Width = GridView1.Width - 150
+GridView1.Columns[1].Width = 140
+GridView1[0, 0].Background = &H000000&
+GridView1[0, 1].Background = &H000000&
+GridView1[0, 0].Foreground = &HFFFFFF&
+GridView1[0, 1].Foreground = &HFFFFFF&
+GridView1[0, 0].Text = "Equipaggio"
+GridView1[0, 1].Text = "Tempo"
+Try SerialPort1.Open
+If SerialPort1.Status = 0 Then 
+Message("ARDUINO Error")
+Endif
+Shell "cat ~/.brrm-partenza-session" To sTest
+sTest = Trim$(sTest)
+aTest = Split(sTest, "-")
+For Each sTest In aTest
+aTest2 = Split(sTest, " ")
+LEquipaggi.Add(aTest2[0])
+partenze[aTest2[0]] = aTest2[1]
+arrivi[aTest2[0]] = aTest2[2]
+Next 
+Timer1.Start()
+End 
+
+Public Sub Timer1_Timer()
+Dim concorrente As Integer
+Dim asd As Date
+Dim asdd As String
+Dim posgrid As Integer
+Dim indice As Integer
+Dim totale As Integer
+Dim Counter As Integer
+totale = 0
+indice = 0
+asdd = ""
+totale = LEquipaggi.Count
+Counter = 0
+GridView1.Rows.Count = totale + 1
+While Counter < totale 
+Try concorrente = LEquipaggi[Counter].Text
+GridView1[Counter + 1, 0].Text = concorrente
+If partenze[concorrente] <> 0 Then
+asd = partenze[concorrente]
+asdd = asd
+Endif  
+If partenze[concorrente] = 0 Then 
+LEquipaggi.Remove(LEquipaggi.Find(concorrente))
+UpgradeSessionFile()
+Endif 
+
+Try GridView1[Counter + 1, 1].Text = asdd
+indice = indice + 1
+Counter = Counter + 1
+Wend
+indice = 0
+Counter = 0
+While Counter < LEquipaggi.Count
+If arrivi[LEquipaggi[Counter].Text] = 0 Then 
+indice = 1
+Break 
+Endif 
+Counter = Counter + 1
+Wend 
+End
+
+Public Sub Button1_Click()
+Dim Counter As Integer
+If Message.Question("Sei sicuro?", "Sì", "No") = 1 Then 
+If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
+Timer1.Stop
+LEquipaggi.Clear
+Counter = 0
+While Counter < 1000
+partenze[Counter] = 0
+arrivi[Counter] = 0
+Counter = Counter + 1
+Wend 
+UpgradeSessionFile()
+Endif 
+Endif 
+Timer1.Start
+End
+
+Public Sub EditOrder(Order As String)
+  
+  Dim aOrdine As String[]
+  Dim iEqui As Integer
+  Dim Number As Integer
+  Timer1.Stop
+  LEquipaggi.Clear
+  aOrdine = Split(Order, "-")
+  GridView1.Rows.Count = aOrdine.Count + 1
+  Number = 0
+  For Each iEqui In aOrdine
+  LEquipaggi.Add(iEqui)
+  Next 
+  startposindex = 1
+  stopposindex = 1
+  Timer1.Start
+End
+
+
+Public Sub Button5_Click()
+
+If CurrAct = "annarr" Then 
+  GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Else 
+CurrAct = "annarr"
+GridView1.Background = &H00FFFF7F&
+GridView1.Mouse = 2
+End If
+End
+
+Public Sub Button4_Click()
+If CurrAct = "invarr1" Then 
+  GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Else If CurrAct = "invarr2"
+    GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Else 
+  CurrAct = "invarr1"
+GridView1.Background = &H00FFFF7F&
+GridView1.Mouse = 2
+Endif 
+End
+
+Public Sub Button6_Click()
+
+
+
+End
+
+Public Sub GridView1_Click()
+Dim pt1 As Date
+Dim pt2 As Date
+  If GridView1.Row > 0 Then 
+  If CurrAct = "part" Then 
+  Timer1.Stop
+  ChangingN = LEquipaggi[GridView1.Row - 1].Text
+  FPartenza.Show
+  GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+    CurrAct = ""
+    Timer1.Start
+  End If
+    
+  If CurrAct = "annpart" Then 
+  If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
+  Timer1.Stop
+  partenze[LEquipaggi[GridView1.Row - 1].Text] = 0
+  Endif 
+    GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Timer1.Start
+  End If
+  
+    If CurrAct = "annarr" Then 
+    If Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
+  Timer1.Stop
+  arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
+  Endif 
+    GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Timer1.Start
+  End If
+  
+    If CurrAct = "invarr2" Then 
+    
+  INV2 = LEquipaggi[GridView1.Row - 1].Text
+  If Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then 
+ Timer1.Stop
+  pt1 = arrivi[INV1]
+  pt2 = arrivi[INV2]
+  arrivi[INV2] = pt1
+  arrivi[INV1] = pt2
+  Endif 
+    GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Timer1.Start
+  End If
+  
+  If CurrAct = "invarr1" Then 
+  INV1 = LEquipaggi[GridView1.Row - 1].Text
+  CurrAct = "invarr2"
+    GridView1.Background = &H007FFFFF&
+    GridView1.Mouse = 2
+  End If
+  
+Endif
+UpgradeSessionFile()
+End
+
+Public Sub Button2_Click()
+FPartenza.Show()
+End
+
+Public Sub ListBox1_Click()
+
+  
+
+End
+
+Public Sub Button3_Click()
+
+If CurrAct = "annpart" Then 
+  GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Else 
+CurrAct = "annpart"
+GridView1.Background = &H00FFFF7F&
+GridView1.Mouse = 2
+End If
+End
+  
+
+Public Sub RadioButton1_Click()
+
+  
+
+End
+
+Public Sub Button7_Click()
+
+  FotON = True
+  Timer2.Stop
+  Button8.Background = &HFFFFFF&
+  Button7.Background = &H00FF00&
+
+End
+
+Public Sub Button8_Click()
+
+  FotON = False
+    Button8.Background = &HFF0000&
+    Button7.Background = &HFFFFFF&
+    Timer2.Start
+
+End
+
+Public Sub Timer2_Timer()
+
+  If Button8.Background = &HFF0000& Then 
+  Button8.Background = &HFFFFFF&
+  Else 
+  Button8.Background = &HFF0000&
+  Endif 
+  
+
+End
+
+Public Sub Button9_Click()
+
+
+BArrivi.Add(Time)
+
+End
+
+Public Sub SetArrivo(Numero As Integer, Orario As Date) 
+
+Timer1.Stop
+arrivi[Numero] = Orario
+Timer1.Start
+  UpgradeSessionFile()
+  
+End 
+
+
+Public Sub Timer3_Timer()
+
+  If FArrivo.Visible = False And BArrivi.Count > 0 And FPartenza.Visible = False And CurrAct = "" Then 
+  FArrivo.Show
+  FArrivo.setOrario(BArrivi[0].Text)
+  BArrivi.Remove(0)
+  Endif  
+
+End

@@ -1,13 +1,13 @@
 ' Gambas class file
 
 prow AS Integer
-partenze AS Date[10000]
-arrivi AS Date[10000]
+partenze AS NEW Date[10000]
+arrivi AS NEW Date[10000]
 startposindex AS Integer
 stopposindex AS Integer
-posingrid AS Integer[10000]
+posingrid AS NEW Integer[10000]
 CurrAct AS String
-numingrid AS Integer[10000]
+numingrid AS NEW Integer[10000]
 ChangingN AS Integer
 FotON AS Boolean
 INV1 AS Integer
@@ -42,7 +42,7 @@ PUBLIC SUB UpgradeSessionFile()
   WEND 
   ENDIF 
   FileOut = Trim$(FileOut)
-  SHELL "echo " & FileOut & " > ~/.brrm-partenza-session"
+  SHELL "echo " & FileOut & " > ~/.brrm-session"
 
 END
 
@@ -73,21 +73,30 @@ DIM aTest AS String[]
 DIM aTest2 AS String[]
 FotON = TRUE
 FMain.Center()
-GridView1.Columns.Count = 2
+GridView1.Columns.Count = 4
 GridView1.Rows.Count = 1
-GridView1.Columns[0].Width = GridView1.Width - 150
-GridView1.Columns[1].Width = 140
-GridView1[0, 0].BackColor = &H000000&
-GridView1[0, 1].BackColor = &H000000&
-GridView1[0, 0].ForeColor = &HFFFFFF&
-GridView1[0, 1].ForeColor = &HFFFFFF&
+GridView1.Columns[0].Width = GridView1.Width - 500
+
+GridView1.Columns[1].Width = 150
+GridView1.Columns[2].Width = 150
+GridView1.Columns[3].Width = 150
+GridView1[0, 0].Background = &H000000&
+GridView1[0, 1].Background = &H000000&
+GridView1[0, 2].Background = &H000000&
+GridView1[0, 3].Background = &H000000&
+GridView1[0, 0].Foreground = &HFF9999&
+GridView1[0, 1].Foreground = &HFFFFFF&
+GridView1[0, 2].Foreground = &HFFFFFF&
+GridView1[0, 3].Foreground = &HFF9999&
 GridView1[0, 0].Text = "Equipaggio"
-GridView1[0, 1].Text = "Tempo"
+GridView1[0, 1].Text = "Partenza"
+GridView1[0, 2].Text = "Arrivo"
+GridView1[0, 3].Text = "Tempo"
 TRY SerialPort1.Open
 IF SerialPort1.Status = 0 THEN 
 Message("ARDUINO Error")
 ENDIF
-SHELL "cat ~/.brrm-partenza-session" TO sTest
+SHELL "cat ~/.brrm-session" TO sTest
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
 FOR EACH sTest IN aTest
@@ -103,6 +112,7 @@ PUBLIC SUB Timer1_Timer()
 DIM concorrente AS Integer
 DIM asd AS Date
 DIM asdd AS String
+DIM aAsd AS String[]
 DIM posgrid AS Integer
 DIM indice AS Integer
 DIM totale AS Integer
@@ -116,16 +126,36 @@ GridView1.Rows.Count = totale + 1
 WHILE Counter < totale 
 TRY concorrente = LEquipaggi[Counter].Text
 GridView1[Counter + 1, 0].Text = concorrente
-IF partenze[concorrente] <> 0 THEN
-asd = partenze[concorrente]
+IF partenze[concorrente] <> 0 AND arrivi[concorrente] <> 0 THEN
+asd = arrivi[concorrente] - partenze[concorrente]
 asdd = asd
 ENDIF  
-IF partenze[concorrente] = 0 THEN 
+IF partenze[concorrente] <> 0 AND arrivi[concorrente] = 0 THEN 
+asd = Time - partenze[concorrente]
+asdd = asd
+ENDIF 
+IF partenze[concorrente] = 0 AND arrivi[concorrente] = 0 THEN 
 LEquipaggi.Remove(LEquipaggi.Find(concorrente))
 UpgradeSessionFile()
 ENDIF 
-
-TRY GridView1[Counter + 1, 1].Text = asdd
+IF partenze[concorrente] = 0 AND arrivi[concorrente] <> 0 THEN 
+asdd = "NO DATI PARTENZA"
+ENDIF 
+aAsd = Split(asdd, ".")
+asdd = ""
+TRY asdd = aAsd[0] & "." & twoDecs(aAsd[1])
+IF asdd = "" THEN 
+asdd = aAsd[0]
+ENDIF 
+aAsd = Split(asdd, ":")
+asdd = ""
+TRY asdd = aAsd[1] & ":" & aAsd[2]
+IF asdd = "" THEN 
+asdd = aAsd[0]
+ENDIF 
+TRY GridView1[Counter + 1, 1].Text = partenze[concorrente]
+TRY GridView1[Counter + 1, 2].Text = arrivi[concorrente]
+TRY GridView1[Counter + 1, 3].Text = asdd
 indice = indice + 1
 Counter = Counter + 1
 WEND
@@ -133,11 +163,15 @@ indice = 0
 Counter = 0
 WHILE Counter < LEquipaggi.Count
 IF arrivi[LEquipaggi[Counter].Text] = 0 THEN 
+Label2.Text = LEquipaggi[Counter].Text
 indice = 1
 BREAK 
 ENDIF 
 Counter = Counter + 1
 WEND 
+IF indice = 0 THEN 
+Label2.Text = "/"
+ENDIF 
 END
 
 PUBLIC SUB Button1_Click()
@@ -180,37 +214,86 @@ END
 PUBLIC SUB Button5_Click()
 
 IF CurrAct = "annarr" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
 CurrAct = "annarr"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 END IF
 END
 
 PUBLIC SUB Button4_Click()
 IF CurrAct = "invarr1" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE IF CurrAct = "invarr2"
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
   CurrAct = "invarr1"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 ENDIF 
 END
 
 PUBLIC SUB Button6_Click()
 
+  DIM Counter AS Integer
+  DIM FileAddress AS String
+  DIM FileOut AS String
+  DIM TTempo AS Date
+  DIM sTempo AS String
+  DIM sUseful AS String
+  DIM sMinutes AS String
+  DIM aUseful AS String[]
+  DIM sSeconds AS String
+  DIM sCents AS String
+  Counter = 0
+  TRY Counter = LEquipaggi[0].Text
+  IF Counter <> 0 THEN 
+  Counter = 0
+  WHILE Counter <= LEquipaggi.Count
+  TRY TTempo = arrivi[LEquipaggi[Counter].Text] - partenze[LEquipaggi[Counter].Text]
+  sTempo = TTempo
+  
+  aUseful = Split(sTempo, ":")
+  sMinutes = aUseful[1]
+  sUseful = aUseful[2]
+  aUseful = Split(sUseful, ".")
+  sSeconds = aUseful[0]
+  TRY sCents = aUseful[1]
+  
+TRY FileOut = FileOut & "\n'" & LEquipaggi[Counter].Text & "','" & sMinutes & "','" & sSeconds & "','" & twoDecs(sCents) & "'"
+  Counter = Counter + 1
+  WEND 
+  ENDIF 
+  FileOut = Trim$(FileOut)
 
+SHELL "zenity --title=\"Seleziona dove salvare il file CSV\" --file-selection --save  --confirm-overwrite --text=\"Seleziona dove salvare il file CSV\"" TO FileAddress
+FileAddress = Trim$(FileAddress)
+IF LCase$(Right$(FileAddress, 4)) <> ".csv" THEN 
+FileAddress = FileAddress & ".csv"
+ENDIF 
+SHELL "echo \"" & FileOut & "\" > " & FileAddress
 
 END
+
+PUBLIC SUB twoDecs(number AS String) AS String
+  DIM lol AS String
+IF Len(number) = 0 THEN 
+RETURN "00"
+ELSE IF Len(number) < 2 THEN 
+RETURN number & "0"
+ELSE IF Len(number) > 2 THEN 
+RETURN Left$(number, -1)
+END IF
+RETURN number
+END
+
 
 PUBLIC SUB GridView1_Click()
 DIM pt1 AS Date
@@ -220,7 +303,7 @@ DIM pt2 AS Date
   Timer1.Stop
   ChangingN = LEquipaggi[GridView1.Row - 1].Text
   FPartenza.Show
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
     CurrAct = ""
     Timer1.Start
@@ -231,7 +314,7 @@ DIM pt2 AS Date
   Timer1.Stop
   partenze[LEquipaggi[GridView1.Row - 1].Text] = 0
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -242,7 +325,7 @@ DIM pt2 AS Date
   Timer1.Stop
   arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -258,7 +341,7 @@ DIM pt2 AS Date
   arrivi[INV2] = pt1
   arrivi[INV1] = pt2
   ENDIF 
-    GridView1.BackColor = &H0FFFFFF&
+    GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
@@ -267,7 +350,7 @@ DIM pt2 AS Date
   IF CurrAct = "invarr1" THEN 
   INV1 = LEquipaggi[GridView1.Row - 1].Text
   CurrAct = "invarr2"
-    GridView1.BackColor = &H007FFFFF&
+    GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   END IF
   
@@ -288,12 +371,12 @@ END
 PUBLIC SUB Button3_Click()
 
 IF CurrAct = "annpart" THEN 
-  GridView1.BackColor = &H0FFFFFF&
+  GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   ELSE 
 CurrAct = "annpart"
-GridView1.BackColor = &H00FFFF7F&
+GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 END IF
 END
@@ -309,26 +392,26 @@ PUBLIC SUB Button7_Click()
 
   FotON = TRUE
   Timer2.Stop
-  Button8.BackColor = &HFFFFFF&
-  Button7.BackColor = &H00FF00&
+  Button8.Background = &HFFFFFF&
+  Button7.Background = &H00FF00&
 
 END
 
 PUBLIC SUB Button8_Click()
 
   FotON = FALSE
-    Button8.BackColor = &HFF0000&
-    Button7.BackColor = &HFFFFFF&
+    Button8.Background = &HFF0000&
+    Button7.Background = &HFFFFFF&
     Timer2.Start
 
 END
 
 PUBLIC SUB Timer2_Timer()
 
-  IF Button8.BackColor = &HFF0000& THEN 
-  Button8.BackColor = &HFFFFFF&
+  IF Button8.Background = &HFF0000& THEN 
+  Button8.Background = &HFFFFFF&
   ELSE 
-  Button8.BackColor = &HFF0000&
+  Button8.Background = &HFF0000&
   ENDIF 
   
 
@@ -358,5 +441,17 @@ PUBLIC SUB Timer3_Timer()
   FArrivo.setOrario(BArrivi[0].Text)
   BArrivi.Remove(0)
   ENDIF  
+
+END
+
+PUBLIC SUB Timer4_Timer()
+
+  
+
+END
+
+PUBLIC SUB Button10_Click()
+
+  FOrdine.Show
 
 END

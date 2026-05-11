@@ -1,9 +1,24 @@
 # macOS
 .DS_Store
 
-# Gambas IDE backup files
+# Editor / IDE backup files
 *~
 
 # Gambas compiled output
 .gambas/
 *.gambas
+
+# Gambas IDE per-user state
+.settings
+.gbc.lock
+.gbc.stderr
+
+# Gambas IDE regenerable folders (created on project open)
+.action/
+.conf/
+.desc/
+.hidden/
+.lang/
+
+# Build output (.deb packages)
+dist/
