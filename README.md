@@ -1,6 +1,6 @@
 # BoxRally Race Manager (brrm)
 
-Software di cronometraggio per gare di rally (automodellismo) scritto in **Gambas 2**.
+Software di cronometraggio per le gare di **Soap Box** del campionato **BoxRally**, scritto in **Gambas 2**.
 Il sistema è progettato per funzionare in coppia con un **Arduino** che pilota una fotocellula, e si compone di due applicazioni distinte, una per ciascuna postazione di gara.
 
 ## Componenti del progetto
