@@ -1,13 +1,13 @@
 ' Gambas class file
 
 prow AS Integer
-partenze AS Date[10000]
-arrivi AS Date[10000]
+partenze AS NEW Date[10000]
+arrivi AS NEW Date[10000]
 startposindex AS Integer
 stopposindex AS Integer
-posingrid AS Integer[10000]
+posingrid AS NEW Integer[10000]
 CurrAct AS String
-numingrid AS Integer[10000]
+numingrid AS NEW Integer[10000]
 ChangingN AS Integer
 FotON AS Boolean
 INV1 AS Integer
