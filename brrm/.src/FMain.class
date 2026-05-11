@@ -194,8 +194,13 @@ asd = Time - partenze[concorrente]
 asdd = asd
 ENDIF 
 IF partenze[concorrente] = 0 AND arrivi[concorrente] = 0 THEN 
-LEquipaggi.Remove(LEquipaggi.Find(concorrente))
-UpgradeSessionFile()
+  LEquipaggi.Remove(LEquipaggi.Find(concorrente))
+  UpgradeSessionFile()
+  totale = totale - 1
+  GridView1.Rows.Count = totale + 1
+  ' Counter NON viene incrementato: il prossimo equipaggio si e' spostato
+  ' nella posizione corrente. Skippiamo il resto del body (parsing asdd).
+  CONTINUE
 ENDIF 
 IF partenze[concorrente] = 0 AND arrivi[concorrente] <> 0 THEN 
 asdd = "NO DATI PARTENZA"

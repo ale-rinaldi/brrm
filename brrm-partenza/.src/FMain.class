@@ -194,8 +194,11 @@ asd = partenze[concorrente]
 asdd = asd
 Endif  
 If partenze[concorrente] = 0 Then 
-LEquipaggi.Remove(LEquipaggi.Find(concorrente))
-UpgradeSessionFile()
+  LEquipaggi.Remove(LEquipaggi.Find(concorrente))
+  UpgradeSessionFile()
+  totale = totale - 1
+  GridView1.Rows.Count = totale + 1
+  Continue
 Endif 
 
 Try GridView1[Counter + 1, 1].Text = asdd
