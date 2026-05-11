@@ -18,7 +18,13 @@ for p in "${projects[@]}"; do
   # cercando di copiarla e l'errore propaga come "Cannot load class FMain").
   # Lo generiamo qui copiando l'icona del progetto.
   [ -f .icon.png ] && cp .icon.png .app.png
-  if gbc3 -w -a; then
+  # Flag come fa l'IDE Gambas su "Make Executable":
+  # -e translatable errors, -a all files, -g debug info,
+  # -t translations, -fpublic-control rende i controlli del form
+  # pubblici (necessario per accessi cross-form tipo FMain.LEquipaggi),
+  # -fpublic-module rende i moduli pubblici, -x build eseguibile,
+  # -j1 single job.
+  if gbc3 -w -e -a -g -t -fpublic-control -fpublic-module -x -j1; then
     gba3
     echo "OK -> $p/$p.gambas"
   else

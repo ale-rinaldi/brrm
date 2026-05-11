@@ -87,7 +87,7 @@ Public Sub AtomicSave(sPath As String, sContent As String)
   Dim sTmp As String
   sTmp = sPath & ".tmp"
   File.Save(sTmp, sContent)
-  Move sTmp To sPath
+  Move sTmp DownTo sPath
 End
 
 Public Sub UpgradeSessionFile()
@@ -129,22 +129,27 @@ Public Sub ReturnPartenza(Numero As Integer) As Date
   
 End
 
+Public Sub SetupGridHeader()
+  ' Configurazione fissa dell'header (riga 0). Idempotente.
+  GridView1.Columns.Count = 2
+  GridView1.Rows.Count = Max(GridView1.Rows.Count, 1)
+  GridView1.Columns[0].Width = GridView1.Width - 150
+  GridView1.Columns[1].Width = 140
+  GridView1[0, 0].Background = &H000000&
+  GridView1[0, 1].Background = &H000000&
+  GridView1[0, 0].Foreground = &HFFFFFF&
+  GridView1[0, 1].Foreground = &HFFFFFF&
+  GridView1[0, 0].Text = "Equipaggio"
+  GridView1[0, 1].Text = "Tempo"
+End
+
 Public Sub Form_Open()
 Dim sTest As String
 Dim aTest As String[]
 Dim aTest2 As String[]
 FotON = True
 FMain.Center()
-GridView1.Columns.Count = 2
-GridView1.Rows.Count = 1
-GridView1.Columns[0].Width = GridView1.Width - 150
-GridView1.Columns[1].Width = 140
-GridView1[0, 0].Background = &H000000&
-GridView1[0, 1].Background = &H000000&
-GridView1[0, 0].Foreground = &HFFFFFF&
-GridView1[0, 1].Foreground = &HFFFFFF&
-GridView1[0, 0].Text = "Equipaggio"
-GridView1[0, 1].Text = "Tempo"
+SetupGridHeader()
 Try SerialPort1.Open
 sTest = ""
 If Exist(User.Home &/ ".brrm-partenza-session") Then sTest = File.Load(User.Home &/ ".brrm-partenza-session")

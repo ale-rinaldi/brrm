@@ -67,7 +67,7 @@ PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
   DIM sTmp AS String
   sTmp = sPath & ".tmp"
   File.Save(sTmp, sContent)
-  Move sTmp To sPath
+  Move sTmp DownTo sPath
 END
 
 PUBLIC SUB UpgradeSessionFile()
@@ -109,31 +109,37 @@ PUBLIC SUB ReturnPartenza(Numero AS Integer) AS Date
   
 END
 
+PUBLIC SUB SetupGridHeader()
+  ' Configurazione fissa dell'header (riga 0). Idempotente: chiamabile
+  ' tutte le volte che serve. Necessario richiamarla dopo IMPORTA perche'
+  ' Message.Info + altri eventi Qt resettano le proprieta' delle celle.
+  GridView1.Columns.Count = 4
+  GridView1.Rows.Count = Max(GridView1.Rows.Count, 1)
+  GridView1.Columns[0].Width = GridView1.Width - 500
+  GridView1.Columns[1].Width = 150
+  GridView1.Columns[2].Width = 150
+  GridView1.Columns[3].Width = 150
+  GridView1[0, 0].Background = &H000000&
+  GridView1[0, 1].Background = &H000000&
+  GridView1[0, 2].Background = &H000000&
+  GridView1[0, 3].Background = &H000000&
+  GridView1[0, 0].Foreground = &HFF9999&
+  GridView1[0, 1].Foreground = &HFFFFFF&
+  GridView1[0, 2].Foreground = &HFFFFFF&
+  GridView1[0, 3].Foreground = &HFF9999&
+  GridView1[0, 0].Text = "Equipaggio"
+  GridView1[0, 1].Text = "Partenza"
+  GridView1[0, 2].Text = "Arrivo"
+  GridView1[0, 3].Text = "Tempo"
+END
+
 PUBLIC SUB Form_Open()
 DIM sTest AS String
 DIM aTest AS String[]
 DIM aTest2 AS String[]
 FotON = TRUE
 FMain.Center()
-GridView1.Columns.Count = 4
-GridView1.Rows.Count = 1
-GridView1.Columns[0].Width = GridView1.Width - 500
-
-GridView1.Columns[1].Width = 150
-GridView1.Columns[2].Width = 150
-GridView1.Columns[3].Width = 150
-GridView1[0, 0].Background = &H000000&
-GridView1[0, 1].Background = &H000000&
-GridView1[0, 2].Background = &H000000&
-GridView1[0, 3].Background = &H000000&
-GridView1[0, 0].Foreground = &HFF9999&
-GridView1[0, 1].Foreground = &HFFFFFF&
-GridView1[0, 2].Foreground = &HFFFFFF&
-GridView1[0, 3].Foreground = &HFF9999&
-GridView1[0, 0].Text = "Equipaggio"
-GridView1[0, 1].Text = "Partenza"
-GridView1[0, 2].Text = "Arrivo"
-GridView1[0, 3].Text = "Tempo"
+SetupGridHeader()
 TRY SerialPort1.Open
 sTest = ""
 IF Exist(User.Home &/ ".brrm-session") THEN sTest = File.Load(User.Home &/ ".brrm-session")
@@ -386,6 +392,7 @@ PUBLIC SUB ButtonImporta_Click()
   UpgradeSessionFile()
   Timer1.Start
   Message.Info(iImportati & " orari di partenza importati.")
+  SetupGridHeader()
 END
 
 PUBLIC SUB twoDecs(number AS String) AS String
