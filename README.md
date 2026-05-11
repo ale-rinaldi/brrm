@@ -7,18 +7,21 @@ Il sistema è progettato per funzionare in coppia con un **Arduino** che pilota 
 
 ## Installazione (Debian / Ubuntu)
 
-I `.deb` precompilati sono pubblicati su un repository APT ospitato su GitHub Pages, aggiornato ad ogni push su `main`:
+I `.deb` precompilati sono pubblicati su un repository APT ospitato su GitHub Pages, aggiornato ad ogni push su `main` (versionamento: `<ver-base>+YYYYMMDD.<short-sha>`).
+
+Richiede una distro che fornisca Gambas 3 + Qt6 (es. Debian 13 trixie o successive):
 
 ```sh
-echo "deb [trusted=yes] https://ale-rinaldi.github.io/brrm ./" \
+sudo install -d /etc/apt/keyrings
+curl -fsSL https://ale-rinaldi.github.io/brrm/brrm-apt-key.asc \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/brrm-apt.gpg
+echo "deb [signed-by=/etc/apt/keyrings/brrm-apt.gpg] https://ale-rinaldi.github.io/brrm ./" \
   | sudo tee /etc/apt/sources.list.d/brrm.list
 sudo apt update
 sudo apt install brrm brrm-partenza
 ```
 
 Pagina di landing: <https://ale-rinaldi.github.io/brrm/>.
-
-Il repo non è firmato GPG (da cui `[trusted=yes]`); per uso più serio si userebbe una signing key dedicata.
 
 ## Componenti del progetto
 

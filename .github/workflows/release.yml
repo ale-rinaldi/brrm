@@ -25,12 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # serve a git rev-parse e a date dei commit
-
-      - name: Installa Gambas 3 e tool di packaging
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gambas3 fakeroot apt-utils dpkg-dev
+          fetch-depth: 0  # serve a git rev-parse
 
       - name: Calcola version suffix (YYYYMMDD.shortsha)
         run: |
@@ -38,15 +33,36 @@ jobs:
           echo "VERSION_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
           echo "Suffix per questa release: $SUFFIX"
 
-      - name: Build dei .deb
-        run: ./package.sh
+      # Ubuntu runner ha Gambas 3.18 (solo gb.qt5). Servono 3.20+ con gb.qt6,
+      # quindi il build avviene dentro un container Debian trixie.
+      - name: Build dei .deb (container Debian trixie)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            -e VERSION_SUFFIX \
+            debian:trixie \
+            bash -c "set -e
+              apt-get update -qq
+              apt-get install -y -qq gambas3 fakeroot
+              ./package.sh"
 
-      - name: Costruisci metadata APT
+      - name: Installa tool per metadata APT e firma
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils dpkg-dev gnupg
+
+      - name: Importa chiave GPG di signing
+        run: |
+          echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')
+          echo "GPG_KEYID=$KEYID" >> "$GITHUB_ENV"
+          echo "Importata chiave: $KEYID"
+
+      - name: Costruisci metadata APT e firma Release
         run: |
           mkdir -p apt-repo
           cp dist/*.deb apt-repo/
           cd apt-repo
-          # Packages e Packages.gz (indice dei pacchetti)
+          # Indice dei pacchetti
           dpkg-scanpackages --multiversion . > Packages
           gzip -9 -k -f Packages
           # Release (metadata top-level del repo flat)
@@ -59,6 +75,15 @@ jobs:
             -o APT::FTPArchive::Release::Components="main" \
             -o APT::FTPArchive::Release::Description="brrm APT repository" \
             release . > Release
+          # Firma: Release.gpg (detached) + InRelease (clearsigned)
+          gpg --batch --yes --armor --detach-sign \
+              --default-key "$GPG_KEYID" \
+              --output Release.gpg Release
+          gpg --batch --yes --clearsign \
+              --default-key "$GPG_KEYID" \
+              --output InRelease Release
+          # Esporta chiave pubblica per gli utenti del repo
+          gpg --armor --export "$GPG_KEYID" > brrm-apt-key.asc
 
       - name: Pagina indice landing
         run: |
@@ -71,7 +96,7 @@ jobs:
             <style>
               body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2em auto; padding: 0 1em; line-height: 1.5; }
               code, pre { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; }
-              pre { padding: 1em; overflow-x: auto; }
+              pre { padding: 1em; overflow-x: auto; white-space: pre-wrap; }
               .warn { background: #fff3cd; border-left: 4px solid #ffc107; padding: 0.5em 1em; }
             </style>
           </head>
@@ -82,13 +107,15 @@ jobs:
               <strong>Software amatoriale.</strong> Nessuna pretesa di efficienza o correttezza. Usalo a tuo rischio.
             </div>
             <h2>Installazione</h2>
-            <p>Su Debian/Ubuntu (richiede Gambas 3 con Qt6 disponibile nei repo della distro):</p>
-            <pre>echo "deb [trusted=yes] https://ale-rinaldi.github.io/brrm ./" \
-              | sudo tee /etc/apt/sources.list.d/brrm.list
+            <p>Su Debian/Ubuntu recenti (richiede Gambas 3 con Qt6 disponibile nei repo della distro &mdash; Debian 13 trixie o successive):</p>
+            <pre>sudo install -d /etc/apt/keyrings
+          curl -fsSL https://ale-rinaldi.github.io/brrm/brrm-apt-key.asc \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/brrm-apt.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/brrm-apt.gpg] https://ale-rinaldi.github.io/brrm ./" \
+            | sudo tee /etc/apt/sources.list.d/brrm.list
           sudo apt update
           sudo apt install brrm brrm-partenza</pre>
-            <p>Il repo non è firmato GPG (<code>[trusted=yes]</code>); per un uso più serio andrebbe firmato.</p>
-            <h2>Pacchetti disponibili</h2>
+            <h2>Pacchetti</h2>
             <ul>
               <li><code>brrm</code> &mdash; postazione arrivo (cronometraggio completo)</li>
               <li><code>brrm-partenza</code> &mdash; postazione partenza</li>
