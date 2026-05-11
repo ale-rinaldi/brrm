@@ -7,7 +7,7 @@ Il sistema è progettato per funzionare in coppia con un **Arduino** che pilota 
 
 ## Installazione (Debian / Ubuntu)
 
-I `.deb` precompilati sono pubblicati su un repository APT ospitato su GitHub Pages, aggiornato ad ogni push su `main` (versionamento: `<ver-base>+YYYYMMDD.<short-sha>`).
+I `.deb` precompilati sono pubblicati su un repository APT ospitato su GitHub Pages, aggiornato ad ogni push su `main` (versionamento: `<ver-base>+YYYYMMDDHHMM.<short-sha>`).
 
 Richiede una distro che fornisca Gambas 3 + Qt6 (es. Debian 13 trixie o successive):
 

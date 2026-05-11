@@ -27,9 +27,13 @@ jobs:
         with:
           fetch-depth: 0  # serve a git rev-parse
 
-      - name: Calcola version suffix (YYYYMMDD.shortsha)
+      - name: Calcola version suffix (YYYYMMDDHHMM.shortsha)
         run: |
-          SUFFIX="$(date -u +%Y%m%d).$(git rev-parse --short HEAD)"
+          # YYYYMMDDHHMM e' strettamente crescente -> dpkg confronta la parte
+          # numerica e riconosce sempre la release piu' recente come piu' nuova,
+          # anche con piu' commit nello stesso giorno (il solo SHA non e'
+          # ordinabile lessicograficamente in modo affidabile).
+          SUFFIX="$(date -u +%Y%m%d%H%M).$(git rev-parse --short HEAD)"
           echo "VERSION_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
           echo "Suffix per questa release: $SUFFIX"
 
@@ -126,7 +130,7 @@ jobs:
               <li><code>brrm</code> &mdash; postazione arrivo (cronometraggio completo)</li>
               <li><code>brrm-partenza</code> &mdash; postazione partenza</li>
             </ul>
-            <p>Versionamento: <code>&lt;ver-base&gt;+YYYYMMDD.&lt;short-sha&gt;</code> &mdash; ogni commit su <code>main</code> produce una nuova release.</p>
+            <p>Versionamento: <code>&lt;ver-base&gt;+YYYYMMDDHHMM.&lt;short-sha&gt;</code> &mdash; ogni commit su <code>main</code> produce una nuova release.</p>
           </body>
           </html>
           EOF
