@@ -78,6 +78,18 @@ Public Sub Timer4_Timer()
   SetArduinoStatus(SerialPort1.Status >= 1)
 End
 
+Public Sub AtomicSave(sPath As String, sContent As String)
+  ' Scrittura atomica: scrive in <path>.tmp, poi rinomina su <path>.
+  ' Il Move di Gambas usa rename(2) POSIX che e' atomico nello stesso
+  ' filesystem - quindi <path> contiene sempre o il vecchio o il nuovo
+  ' contenuto, mai un troncato. Su ext4 (default Debian) l'ordine
+  ' data/metadata e' garantito anche in caso di power cut.
+  Dim sTmp As String
+  sTmp = sPath & ".tmp"
+  File.Save(sTmp, sContent)
+  Move sTmp To sPath
+End
+
 Public Sub UpgradeSessionFile()
   Dim Counter As Integer
   Dim FileOut As String
@@ -92,7 +104,7 @@ Public Sub UpgradeSessionFile()
   Wend 
   Endif 
   FileOut = Trim$(FileOut)
-  Shell "echo " & FileOut & " > ~/.brrm-partenza-session"
+  AtomicSave(User.Home &/ ".brrm-partenza-session", FileOut)
 
 End
 
@@ -134,7 +146,8 @@ GridView1[0, 1].Foreground = &HFFFFFF&
 GridView1[0, 0].Text = "Equipaggio"
 GridView1[0, 1].Text = "Tempo"
 Try SerialPort1.Open
-Shell "cat ~/.brrm-partenza-session" To sTest
+sTest = ""
+If Exist(User.Home &/ ".brrm-partenza-session") Then sTest = File.Load(User.Home &/ ".brrm-partenza-session")
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
 For Each sTest In aTest

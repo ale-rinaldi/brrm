@@ -58,6 +58,18 @@ PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
   ENDIF
 END
 
+PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
+  ' Scrittura atomica: scrive in <path>.tmp, poi rinomina su <path>.
+  ' Il Move di Gambas usa rename(2) POSIX che e' atomico nello stesso
+  ' filesystem - quindi <path> contiene sempre o il vecchio o il nuovo
+  ' contenuto, mai un troncato. Su ext4 (default Debian) l'ordine
+  ' data/metadata e' garantito anche in caso di power cut.
+  DIM sTmp AS String
+  sTmp = sPath & ".tmp"
+  File.Save(sTmp, sContent)
+  Move sTmp To sPath
+END
+
 PUBLIC SUB UpgradeSessionFile()
   DIM Counter AS Integer
   DIM FileOut AS String
@@ -72,7 +84,7 @@ PUBLIC SUB UpgradeSessionFile()
   WEND 
   ENDIF 
   FileOut = Trim$(FileOut)
-  SHELL "echo " & FileOut & " > ~/.brrm-session"
+  AtomicSave(User.Home &/ ".brrm-session", FileOut)
 
 END
 
@@ -123,7 +135,8 @@ GridView1[0, 1].Text = "Partenza"
 GridView1[0, 2].Text = "Arrivo"
 GridView1[0, 3].Text = "Tempo"
 TRY SerialPort1.Open
-SHELL "cat ~/.brrm-session" TO sTest
+sTest = ""
+IF Exist(User.Home &/ ".brrm-session") THEN sTest = File.Load(User.Home &/ ".brrm-session")
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
 FOR EACH sTest IN aTest
