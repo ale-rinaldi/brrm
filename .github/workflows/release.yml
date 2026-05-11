@@ -45,6 +45,7 @@ jobs:
             bash -c "set -e
               apt-get update -qq
               apt-get install -y -qq \
+                gambas3-devel \
                 gambas3-runtime \
                 gambas3-gb-qt6 \
                 gambas3-gb-form \
