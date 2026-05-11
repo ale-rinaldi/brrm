@@ -146,10 +146,11 @@ IF Exist(User.Home &/ ".brrm-session") THEN sTest = File.Load(User.Home &/ ".brr
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
 FOR EACH sTest IN aTest
-aTest2 = Split(sTest, " ")
-LEquipaggi.Add(aTest2[0])
-partenze[aTest2[0]] = aTest2[1]
-arrivi[aTest2[0]] = aTest2[2]
+  aTest2 = Split(sTest, " ")
+  IF aTest2.Count < 2 THEN CONTINUE
+  LEquipaggi.Add(aTest2[0])
+  partenze[aTest2[0]] = aTest2[1]
+  IF aTest2.Count >= 3 THEN arrivi[aTest2[0]] = aTest2[2]
 NEXT 
 Timer1.Start()
 END 

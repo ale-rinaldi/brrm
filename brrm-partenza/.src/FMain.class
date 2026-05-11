@@ -140,7 +140,7 @@ Public Sub SetupGridHeader()
   GridView1[0, 0].Foreground = &HFFFFFF&
   GridView1[0, 1].Foreground = &HFFFFFF&
   GridView1[0, 0].Text = "Equipaggio"
-  GridView1[0, 1].Text = "Tempo"
+  GridView1[0, 1].Text = "Partenza"
 End
 
 Public Sub Form_Open()
@@ -156,10 +156,11 @@ If Exist(User.Home &/ ".brrm-partenza-session") Then sTest = File.Load(User.Home
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
 For Each sTest In aTest
-aTest2 = Split(sTest, " ")
-LEquipaggi.Add(aTest2[0])
-partenze[aTest2[0]] = aTest2[1]
-arrivi[aTest2[0]] = aTest2[2]
+  aTest2 = Split(sTest, " ")
+  If aTest2.Count < 2 Then Continue
+  LEquipaggi.Add(aTest2[0])
+  partenze[aTest2[0]] = aTest2[1]
+  If aTest2.Count >= 3 Then arrivi[aTest2[0]] = aTest2[2]
 Next 
 Timer1.Start()
 End 
