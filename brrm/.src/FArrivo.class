@@ -49,6 +49,8 @@ END
 
 PUBLIC SUB Button2_Click()
 
-  FArrivo.Close
+  IF Message.Question("Sei sicuro di voler annullare l'inserimento? L'orario di arrivo verrà perso definitivamente.", "Annulla l'inserimento", "Continua a inserire") = 1 THEN
+    FArrivo.Close
+  ENDIF
 
 END

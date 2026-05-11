@@ -36,7 +36,9 @@ END
 
 PUBLIC SUB Button2_Click()
 
-  FPartenza.Close
+  IF Message.Question("Sei sicuro di voler annullare l'inserimento? L'orario verrà perso definitivamente.", "Annulla l'inserimento", "Continua a inserire") = 1 THEN
+    FPartenza.Close
+  ENDIF
 
 END
 
