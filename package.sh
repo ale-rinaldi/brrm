@@ -21,6 +21,11 @@ declare -A DESCRIPTIONS=(
   [brrm-partenza]="BoxRally Race Manager - cronometraggio postazione partenza per gare Soap Box"
 )
 
+declare -A DESKTOP_NAMES=(
+  [brrm]="BRRM"
+  [brrm-partenza]="BRRM Partenza"
+)
+
 for p in brrm brrm-partenza; do
   ver=$(cat "$p/.version")
   # Se VERSION_SUFFIX è settato (es. da CI come "YYYYMMDD.shortsha"),
@@ -44,7 +49,7 @@ for p in brrm brrm-partenza; do
   cat > "$stage/usr/share/applications/$p.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=BoxRally Race Manager ($p)
+Name=${DESKTOP_NAMES[$p]}
 Comment=$desc
 Exec=$p
 Icon=$p
