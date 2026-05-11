@@ -18,14 +18,64 @@ Public Sub _new()
 End
 
 Public Sub SerialPort1_Read()
-  
+
 Dim s As String
-Read #SerialPort1, s, Lof(SerialPort1)
+Try Read #SerialPort1, s, Lof(SerialPort1)
+If Error Then
+  Try SerialPort1.Close   ' Timer4 lo riaprira quando torna disponibile
+  Return
+Endif
 If FotON = True Then
 BArrivi.Add(Time)
-Endif 
-   
-  
+Endif
+
+End
+
+Public Function FindArduinoDevice() As String
+  ' Ritorna il primo /dev/ttyUSB* o /dev/ttyACM* disponibile, o "" se nessuno.
+  Dim aFiles As String[]
+  Dim sFile As String
+  aFiles = Dir("/dev", "ttyUSB*")
+  For Each sFile In aFiles
+    Return "/dev/" & sFile
+  Next
+  aFiles = Dir("/dev", "ttyACM*")
+  For Each sFile In aFiles
+    Return "/dev/" & sFile
+  Next
+  Return ""
+End
+
+Private Sub SetArduinoStatus(bConnected As Boolean)
+  If bConnected Then
+    LabelArduino.Background = &H00CC00&
+    LabelArduino.Foreground = &HFFFFFF&
+    LabelArduino.Text = "ARDUINO OK"
+  Else
+    LabelArduino.Background = &HCC0000&
+    LabelArduino.Foreground = &HFFFFFF&
+    LabelArduino.Text = "NO ARDUINO"
+  Endif
+End
+
+Public Sub Timer4_Timer()
+  ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
+  ' E che il device file esista ancora (rileva USB disconnect hardware).
+  Dim sDevice As String
+  If SerialPort1.Status >= 1 And Exist(SerialPort1.PortName) Then
+    SetArduinoStatus(True)
+    Return
+  Endif
+  ' Non connesso: ferma la porta vecchia, prova a trovare un nuovo device.
+  Try SerialPort1.Close
+  sDevice = FindArduinoDevice()
+  If sDevice = "" Then
+    SetArduinoStatus(False)
+    Return
+  Endif
+  SerialPort1.PortName = sDevice
+  Try SerialPort1.Open
+  SetArduinoStatus(SerialPort1.Status >= 1)
 End
 
 Public Sub UpgradeSessionFile()
@@ -84,9 +134,6 @@ GridView1[0, 1].Foreground = &HFFFFFF&
 GridView1[0, 0].Text = "Equipaggio"
 GridView1[0, 1].Text = "Tempo"
 Try SerialPort1.Open
-If SerialPort1.Status = 0 Then 
-Message("ARDUINO Error")
-Endif
 Shell "cat ~/.brrm-partenza-session" To sTest
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")

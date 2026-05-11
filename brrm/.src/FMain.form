@@ -35,6 +35,13 @@
     MoveScaled(50,41,11,3)
     Text = ("IN ARRIVO:")
   }
+  { LabelArduino Label
+    MoveScaled(62,40,13,4)
+    Background = &HCCCCCC&
+    Foreground = &H000000&
+    Alignment = Align.Center
+    Text = ("ARDUINO ?")
+  }
   { Label2 Label
     MoveScaled(50,45,25,9)
     Font = Font["+15"]
@@ -86,7 +93,7 @@
     #X = 665
     #Y = 343
     Enabled = True
-    Delay = 100
+    Delay = 2000
   }
   { Button10 Button
     MoveScaled(1,55,25,4)

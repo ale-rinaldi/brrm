@@ -18,14 +18,44 @@ PUBLIC SUB _new()
 END
 
 PUBLIC SUB SerialPort1_Read()
-  
+
 DIM s AS String
-READ #SerialPort1, s, Lof(SerialPort1)
+TRY READ #SerialPort1, s, Lof(SerialPort1)
+IF Error THEN
+  TRY SerialPort1.Close   ' Timer4 lo riaprira quando torna disponibile
+  RETURN
+ENDIF
 IF FotON = TRUE THEN
 BArrivi.Add(Time)
-ENDIF 
-   
-  
+ENDIF
+
+END
+
+PUBLIC FUNCTION FindArduinoDevice() AS String
+  ' Ritorna il primo /dev/ttyUSB* o /dev/ttyACM* disponibile, o "" se nessuno.
+  DIM aFiles AS String[]
+  DIM sFile AS String
+  aFiles = Dir("/dev", "ttyUSB*")
+  FOR EACH sFile IN aFiles
+    RETURN "/dev/" & sFile
+  NEXT
+  aFiles = Dir("/dev", "ttyACM*")
+  FOR EACH sFile IN aFiles
+    RETURN "/dev/" & sFile
+  NEXT
+  RETURN ""
+END
+
+PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
+  IF bConnected THEN
+    LabelArduino.Background = &H00CC00&
+    LabelArduino.Foreground = &HFFFFFF&
+    LabelArduino.Text = "ARDUINO OK"
+  ELSE
+    LabelArduino.Background = &HCC0000&
+    LabelArduino.Foreground = &HFFFFFF&
+    LabelArduino.Text = "NO ARDUINO"
+  ENDIF
 END
 
 PUBLIC SUB UpgradeSessionFile()
@@ -93,9 +123,6 @@ GridView1[0, 1].Text = "Partenza"
 GridView1[0, 2].Text = "Arrivo"
 GridView1[0, 3].Text = "Tempo"
 TRY SerialPort1.Open
-IF SerialPort1.Status = 0 THEN 
-Message("ARDUINO Error")
-ENDIF
 SHELL "cat ~/.brrm-session" TO sTest
 sTest = Trim$(sTest)
 aTest = Split(sTest, "-")
@@ -445,9 +472,23 @@ PUBLIC SUB Timer3_Timer()
 END
 
 PUBLIC SUB Timer4_Timer()
-
-  
-
+  ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
+  ' E che il device file esista ancora (rileva USB disconnect hardware).
+  DIM sDevice AS String
+  IF SerialPort1.Status >= 1 AND Exist(SerialPort1.PortName) THEN
+    SetArduinoStatus(TRUE)
+    RETURN
+  ENDIF
+  ' Non connesso: ferma la porta vecchia, prova a trovare un nuovo device.
+  TRY SerialPort1.Close
+  sDevice = FindArduinoDevice()
+  IF sDevice = "" THEN
+    SetArduinoStatus(FALSE)
+    RETURN
+  ENDIF
+  SerialPort1.PortName = sDevice
+  TRY SerialPort1.Open
+  SetArduinoStatus(SerialPort1.Status >= 1)
 END
 
 PUBLIC SUB Button10_Click()

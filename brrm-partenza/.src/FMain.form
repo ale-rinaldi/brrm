@@ -61,4 +61,17 @@
     Enabled = True
     Delay = 100
   }
+  { Timer4 #Timer
+    #X = 609
+    #Y = 343
+    Enabled = True
+    Delay = 2000
+  }
+  { LabelArduino Label
+    MoveScaled(50,40,16,4)
+    Background = &HCCCCCC&
+    Foreground = &H000000&
+    Alignment = Align.Center
+    Text = ("ARDUINO ?")
+  }
 }
