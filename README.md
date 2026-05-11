@@ -1,18 +1,20 @@
 # BoxRally Race Manager (brrm)
 
-Software di cronometraggio per le gare di **Soap Box** del campionato **BoxRally**, scritto in **Gambas 2**.
+> ⚠️ **Software amatoriale.** Questo è un progetto personale nato per gestire il cronometraggio delle gare BoxRally: non ha alcuna pretesa di efficienza, completezza o correttezza, ed è pubblicato così com'è. Usalo a tuo rischio e nessuna garanzia è data o implicata.
+
+Software di cronometraggio per le gare di **Soap Box** del campionato **BoxRally**, scritto originariamente in **Gambas 2** e migrato a **Gambas 3 + Qt6**.
 Il sistema è progettato per funzionare in coppia con un **Arduino** che pilota una fotocellula, e si compone di due applicazioni distinte, una per ciascuna postazione di gara.
 
 ## Componenti del progetto
 
 Il repository contiene due progetti Gambas indipendenti:
 
-| Cartella | Ruolo | Versione | Compilato con |
-|---|---|---|---|
-| `brrm/` | Postazione **arrivo** (cronometraggio completo) | 0.0.6 | Gambas 2.23.1 |
-| `brrm-partenza/` | Postazione **partenza** | 0.0.4 | Gambas 2.19.0 |
+| Cartella | Ruolo | Versione |
+|---|---|---|
+| `brrm/` | Postazione **arrivo** (cronometraggio completo) | 0.0.6 |
+| `brrm-partenza/` | Postazione **partenza** | 0.0.4 |
 
-Entrambi usano le librerie `gb.qt`, `gb.form`, `gb.net`, `gb.qt.ext`.
+Entrambi usano le componenti `gb.qt6`, `gb.form`, `gb.net`. Il codice originale era Gambas 2 (su `gb.qt`, `gb.qt.ext`); la migrazione a Gambas 3 + Qt6 vive sul branch `migrate-gambas3`.
 
 ## Architettura
 
