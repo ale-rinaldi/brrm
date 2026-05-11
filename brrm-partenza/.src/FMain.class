@@ -39,7 +39,7 @@ If Error Then
   Return
 Endif
 If FotON = True Then
-BArrivi.Add(Time)
+BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 Endif
 
 End
@@ -538,17 +538,15 @@ Endif
 End
 
 Public Sub Button6_Click()
-  ' Export CSV: numero,hh,mm,ss,mmm (orario di partenza, millis 3 cifre zero-padded a destra)
+  ' Export CSV: numero,hh,mm,ss,mmm (orario di partenza). Estratti da
+  ' Hour/Minute/Second/Format$(uuu) — int puri, niente CStr che trunca i ms.
   Dim Counter As Integer
   Dim iEqui As Integer
   Dim tPart As Date
-  Dim sPart As String
-  Dim aByColon As String[]
-  Dim aByDot As String[]
-  Dim sH As String
-  Dim sM As String
-  Dim sS As String
-  Dim sMs As String
+  Dim iH As Integer
+  Dim iM As Integer
+  Dim iS As Integer
+  Dim iMs As Integer
   Dim sOut As String
   Dim sPath As String
 
@@ -558,19 +556,12 @@ Public Sub Button6_Click()
     If iEqui = 0 Then Continue
     If partenze[iEqui] = 0 Then Continue
     tPart = partenze[iEqui]
-    sPart = CStr(tPart)                ' formato "hh:nn:ss.zzz" o "hh:nn:ss"
-    aByColon = Split(sPart, ":")
-    If aByColon.Count < 3 Then Continue
-    sH = aByColon[0]
-    sM = aByColon[1]
-    aByDot = Split(aByColon[2], ".")
-    sS = aByDot[0]
-    If aByDot.Count > 1 Then
-      sMs = aByDot[1]
-    Else
-      sMs = "0"
-    Endif
-    sOut = sOut & iEqui & "," & sH & "," & sM & "," & sS & "," & PadMillis(sMs) & "\n"
+    iH = Hour(tPart)
+    iM = Minute(tPart)
+    iS = Second(tPart)
+    iMs = 0
+    Try iMs = CInt(Format$(tPart, "uuu"))
+    sOut = sOut & iEqui & "," & iH & "," & iM & "," & iS & "," & Format$(iMs, "000") & "\n"
   Next
 
   Dialog.Title = "Salva orari partenza"
@@ -827,7 +818,7 @@ End
 Public Sub Button9_Click()
 
 
-BArrivi.Add(Time)
+BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 
 End
 

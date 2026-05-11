@@ -622,17 +622,17 @@ ENDIF
 END
 
 PUBLIC SUB Button6_Click()
-  ' Export CSV: numero,hh,mm,ss,mmm (millis con 3 cifre zero-padded a destra)
+  ' Export CSV: numero,hh,mm,ss,mmm. Durata calcolata in millisecondi
+  ' interi (niente float, niente parsing di CStr che tronca i ms).
   DIM Counter AS Integer
   DIM iEqui AS Integer
-  DIM tDur AS Date
-  DIM sDur AS String
-  DIM aByColon AS String[]
-  DIM aByDot AS String[]
-  DIM sH AS String
-  DIM sM AS String
-  DIM sS AS String
-  DIM sMs AS String
+  DIM aMs AS Long
+  DIM pMs AS Long
+  DIM delta AS Long
+  DIM iH AS Long
+  DIM iM AS Long
+  DIM iS AS Long
+  DIM iMs AS Long
   DIM sOut AS String
   DIM sPath AS String
 
@@ -641,20 +641,17 @@ PUBLIC SUB Button6_Click()
     TRY iEqui = LEquipaggi[Counter].Text
     IF iEqui = 0 THEN CONTINUE
     IF partenze[iEqui] = 0 OR arrivi[iEqui] = 0 THEN CONTINUE
-    tDur = arrivi[iEqui] - partenze[iEqui]
-    sDur = CStr(tDur)                  ' formato "hh:nn:ss.zzz" o "hh:nn:ss"
-    aByColon = Split(sDur, ":")
-    IF aByColon.Count < 3 THEN CONTINUE
-    sH = aByColon[0]
-    sM = aByColon[1]
-    aByDot = Split(aByColon[2], ".")
-    sS = aByDot[0]
-    IF aByDot.Count > 1 THEN
-      sMs = aByDot[1]
-    ELSE
-      sMs = "0"
-    ENDIF
-    sOut = sOut & iEqui & "," & sH & "," & sM & "," & sS & "," & PadMillis(sMs) & "\n"
+    aMs = Hour(arrivi[iEqui]) * 3600000 + Minute(arrivi[iEqui]) * 60000 + Second(arrivi[iEqui]) * 1000
+    TRY aMs = aMs + CInt(Format$(arrivi[iEqui], "uuu"))
+    pMs = Hour(partenze[iEqui]) * 3600000 + Minute(partenze[iEqui]) * 60000 + Second(partenze[iEqui]) * 1000
+    TRY pMs = pMs + CInt(Format$(partenze[iEqui], "uuu"))
+    delta = aMs - pMs
+    IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
+    iH = delta \ 3600000
+    iM = (delta \ 60000) MOD 60
+    iS = (delta \ 1000) MOD 60
+    iMs = delta MOD 1000
+    sOut = sOut & iEqui & "," & iH & "," & iM & "," & iS & "," & Format$(iMs, "000") & "\n"
   NEXT
 
   Dialog.Title = "Salva risultati gara"
