@@ -21,10 +21,12 @@
   }
   { Button1 Button
     MoveScaled(26,18,16,5)
+    Default = True
     Text = ("OK")
   }
   { Button2 Button
     MoveScaled(9,18,16,5)
+    Cancel = True
     Text = ("Annulla")
   }
 }
