@@ -19,3 +19,6 @@
 .desc/
 .hidden/
 .lang/
+
+# Build output (.deb packages)
+dist/
