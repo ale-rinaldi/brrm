@@ -10,7 +10,7 @@ services:
       - BRRM_ALIGN_TTL_SEC=${BRRM_ALIGN_TTL_SEC:-300}
       - BRRM_ALIGN_KEEPALIVE_SEC=${BRRM_ALIGN_KEEPALIVE_SEC:-10}
     networks:
-      - traefik
+      - traefik-servicenet
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.brrm-align.rule=Host(`www.boxrally.eu`) && PathPrefix(`/brrm-align`)"
@@ -23,5 +23,5 @@ services:
       - "traefik.http.services.brrm-align.loadbalancer.server.port=8000"
 
 networks:
-  traefik:
+  traefik-servicenet:
     external: true
