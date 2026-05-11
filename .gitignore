@@ -22,3 +22,6 @@
 
 # Build output (.deb packages)
 dist/
+
+# Generated at build time from .icon.png (needed in archive for runtime)
+.app.png
