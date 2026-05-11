@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libqt6gui6 \
       libxkbcommon-x11-0 \
       libdbus-1-3 \
+      openssl \
       ca-certificates \
       fonts-dejavu-core \
       locales \
@@ -23,6 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fluxbox \
       feh \
       x11-utils \
+      xdotool \
+      scrot \
+      imagemagick \
  && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
  && locale-gen \
  && rm -rf /var/lib/apt/lists/*

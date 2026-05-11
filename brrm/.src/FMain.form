@@ -121,8 +121,16 @@
     MoveScaled(27,55,21,4)
     Text = ("Cambia numero")
   }
-  { ButtonSettings Button
+  { LabelSheet Label
     MoveScaled(62,49,13,4)
+    Visible = False
+    Background = &HCC0000&
+    Foreground = &HFFFFFF&
+    Alignment = Align.Center
+    Text = ("SHEET")
+  }
+  { ButtonSettings Button
+    MoveScaled(62,54,13,4)
     Text = ("Impostazioni…")
   }
 }

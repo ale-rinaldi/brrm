@@ -25,6 +25,9 @@ Private $alignBackoffSec As Integer
 Private $alignWantReconnect As Boolean
 Private $hAlignHttp As HttpClient
 
+' --- Google Sheets (writer, opzionale) ---
+Private $sheet As CSheet
+
 PUBLIC SUB _new()
 
 END
@@ -38,7 +41,7 @@ IF Error THEN
   RETURN
 ENDIF
 IF FotON = TRUE THEN
-BArrivi.Add(Time)
+BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 ENDIF
 
 END
@@ -365,6 +368,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       Try AtomicSave(User.Home &/ ".brrm-align-lastseq", CStr($alignLastSeq))
       UpgradeSessionFile()
       Timer1.Start
+      If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
 
     ' "keepalive" e altri tipi: nessuna azione (il reset del watchdog avviene
     ' gia' in AlignHttp_Read per qualsiasi chunk ricevuto).
@@ -396,11 +400,12 @@ END
 
 
 PUBLIC SUB SetPartenza(Equipaggio AS Integer, Partenza AS Date)
-  
+
   Timer1.Stop
   partenze[Equipaggio] = Partenza
   UpgradeSessionFile()
   Timer1.Start
+  IF $sheet THEN $sheet.UpdateForEquipaggio(Equipaggio)
 END
 
 PUBLIC SUB ReturnArrivo(Numero AS Integer) AS Date
@@ -467,7 +472,14 @@ IF aTest.Count >= 1 AND IF aTest[0] = "brrm-session v1" THEN
 ENDIF
 Timer1.Start()
 AlignInit()
+$sheet = New CSheet
+$sheet.Init()
 END
+
+Public Sub SheetReinit()
+  ' Chiamato da FSettings dopo salvataggio config.
+  If $sheet Then $sheet.Reinit()
+End
 
 PUBLIC SUB Timer1_Timer()
 ' Guard: ogni Message dialog (Question/Info/Error) resetta il formatting
@@ -744,38 +756,48 @@ DIM pt2 AS Date
     Timer1.Start
   END IF
     
-  IF CurrAct = "annpart" THEN 
-  IF Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 THEN 
+  IF CurrAct = "annpart" THEN
+  DIM iAnnPartNum AS Integer
+  iAnnPartNum = LEquipaggi[GridView1.Row - 1].Text
+  IF Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & iAnnPartNum & "?", "Sì", "No") = 1 THEN
   Timer1.Stop
-  partenze[LEquipaggi[GridView1.Row - 1].Text] = 0
-  ENDIF 
+  partenze[iAnnPartNum] = 0
+  IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnPartNum)
+  ENDIF
+    GridView1.Background = &H0FFFFFF&
+  GridView1.Mouse = 0
+  CurrAct = ""
+  Timer1.Start
+  END IF
+
+    IF CurrAct = "annarr" THEN
+    DIM iAnnArrNum AS Integer
+    iAnnArrNum = LEquipaggi[GridView1.Row - 1].Text
+    IF Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & iAnnArrNum & "?", "Sì", "No") = 1 THEN
+  Timer1.Stop
+  arrivi[iAnnArrNum] = 0
+  IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnArrNum)
+  ENDIF
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
   Timer1.Start
   END IF
   
-    IF CurrAct = "annarr" THEN 
-    IF Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 THEN 
-  Timer1.Stop
-  arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
-  ENDIF 
-    GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ""
-  Timer1.Start
-  END IF
-  
-    IF CurrAct = "invarr2" THEN 
-    
+    IF CurrAct = "invarr2" THEN
+
   INV2 = LEquipaggi[GridView1.Row - 1].Text
-  IF Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 THEN 
+  IF Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 THEN
  Timer1.Stop
   pt1 = arrivi[INV1]
   pt2 = arrivi[INV2]
   arrivi[INV2] = pt1
   arrivi[INV1] = pt2
-  ENDIF 
+  IF $sheet THEN
+    $sheet.UpdateForEquipaggio(INV1)
+    $sheet.UpdateForEquipaggio(INV2)
+  ENDIF
+  ENDIF
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ""
@@ -869,16 +891,17 @@ END
 PUBLIC SUB Button9_Click()
 
 
-BArrivi.Add(Time)
+BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 
 END
 
-PUBLIC SUB SetArrivo(Numero AS Integer, Orario AS Date) 
+PUBLIC SUB SetArrivo(Numero AS Integer, Orario AS Date)
 
 Timer1.Stop
 arrivi[Numero] = Orario
 Timer1.Start
   UpgradeSessionFile()
+  IF $sheet THEN $sheet.UpdateForEquipaggio(Numero)
   
 END 
 
@@ -956,4 +979,8 @@ Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
     LEquipaggi.Add(newNum)
   Endif
   UpgradeSessionFile()
+  If $sheet Then
+    $sheet.UpdateForEquipaggio(oldNum)   ' clear vecchia riga
+    $sheet.UpdateForEquipaggio(newNum)   ' scrivi nuova riga
+  Endif
 End

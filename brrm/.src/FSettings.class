@@ -1,60 +1,109 @@
 ' Gambas class file
 
-' Form di configurazione runtime. Per ora solo settings di sync; layout
-' prevede di accomodare altre sezioni in futuro (frame separati).
+' Form di configurazione runtime: sync (align.conf) e foglio Google (sheet.conf).
+' Layout a frame impilati invece di TabStrip per semplicità di codice (la form
+' fa scrolling implicito se non sta in finestra).
 
 Public Sub Form_Open()
-  Dim sPath As String
-  Dim sLine As String
-  Dim iEq As Integer
-  Dim sKey As String
-  Dim sVal As String
   FSettings.Center()
+  LoadSyncConfig()
+  LoadSheetConfig()
+End
+
+Private Sub LoadSyncConfig()
+  Dim sPath As String
   TextURL.Text = ""
   TextUser.Text = ""
   TextPass.Text = ""
   TextSession.Text = "default"
   sPath = User.Home &/ ".config/brrm/align.conf"
   If Not Exist(sPath) Then Return
+  ReadKvFile(sPath, ["url", "username", "password", "session"], [TextURL, TextUser, TextPass, TextSession])
+End
+
+Private Sub LoadSheetConfig()
+  Dim sPath As String
+  TextCred.Text = ""
+  TextDocId.Text = ""
+  TextSheetName.Text = ""
+  TextEqCol.Text = "A"
+  TextPartSplit.Text = ""
+  TextPartUnix.Text = ""
+  TextArrSplit.Text = ""
+  TextArrUnix.Text = ""
+  TextTempoSplit.Text = ""
+  TextTempoMs.Text = ""
+  sPath = User.Home &/ ".config/brrm/sheet.conf"
+  If Not Exist(sPath) Then Return
+  ReadKvFile(sPath, ["credentials", "document_id", "sheet_name", "equipaggio_column", "partenza_split_column", "partenza_unixms_column", "arrivo_split_column", "arrivo_unixms_column", "tempo_split_column", "tempo_ms_column"], [TextCred, TextDocId, TextSheetName, TextEqCol, TextPartSplit, TextPartUnix, TextArrSplit, TextArrUnix, TextTempoSplit, TextTempoMs])
+End
+
+Private Sub ReadKvFile(sPath As String, keys As String[], controls As Object[])
+  ' Parser key=value molto semplice, ignora commenti #.
+  Dim sLine, sKey, sVal As String
+  Dim iEq, iKey As Integer
   For Each sLine In Split(File.Load(sPath), gb.NewLine)
     sLine = Trim$(sLine)
-    If sLine = "" Then Continue
-    If Left$(sLine, 1) = "#" Then Continue
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
     iEq = InStr(sLine, "=")
     If iEq < 2 Then Continue
     sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
     sVal = Trim$(Mid$(sLine, iEq + 1))
-    Select Case sKey
-      Case "url"
-        TextURL.Text = sVal
-      Case "username"
-        TextUser.Text = sVal
-      Case "password"
-        TextPass.Text = sVal
-      Case "session"
-        TextSession.Text = sVal
-    End Select
+    iKey = keys.Find(sKey)
+    If iKey >= 0 Then controls[iKey].Text = sVal
   Next
+End
+
+Public Sub ButtonBrowse_Click()
+  Dialog.Title = "Seleziona file credenziali Service Account (.json)"
+  Dialog.Filter = ["*.json", "File JSON"]
+  If Dialog.OpenFile() Then Return  ' annullato
+  TextCred.Text = Dialog.Path
 End
 
 Public Sub ButtonSave_Click()
   Dim sDir As String
-  Dim sPath As String
-  Dim sOut As String
   sDir = User.Home &/ ".config/brrm"
   If Not Exist(sDir) Then Try Mkdir sDir
-  sPath = sDir &/ "align.conf"
+  If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
+  If Not SaveSheetConfig(sDir &/ "sheet.conf") Then Return
+  Try FMain.AlignReinit()
+  Try FMain.SheetReinit()
+  Me.Close
+End
+
+Private Function SaveSyncConfig(sPath As String) As Boolean
+  Dim sOut As String
   sOut = "url = " & Trim$(TextURL.Text) & gb.NewLine
   sOut &= "username = " & Trim$(TextUser.Text) & gb.NewLine
   sOut &= "password = " & Trim$(TextPass.Text) & gb.NewLine
   sOut &= "session = " & Trim$(TextSession.Text) & gb.NewLine
   Try FMain.AtomicSave(sPath, sOut)
   If Error Then
-    Message.Error("Impossibile salvare le impostazioni: " & Error.Text)
-    Return
+    Message.Error("Impossibile salvare align.conf: " & Error.Text)
+    Return False
   Endif
-  FMain.AlignReinit()
-  Me.Close
+  Return True
+End
+
+Private Function SaveSheetConfig(sPath As String) As Boolean
+  Dim sOut As String
+  sOut = "credentials = " & Trim$(TextCred.Text) & gb.NewLine
+  sOut &= "document_id = " & Trim$(TextDocId.Text) & gb.NewLine
+  sOut &= "sheet_name = " & Trim$(TextSheetName.Text) & gb.NewLine
+  sOut &= "equipaggio_column = " & UCase$(Trim$(TextEqCol.Text)) & gb.NewLine
+  sOut &= "partenza_split_column = " & UCase$(Trim$(TextPartSplit.Text)) & gb.NewLine
+  sOut &= "partenza_unixms_column = " & UCase$(Trim$(TextPartUnix.Text)) & gb.NewLine
+  sOut &= "arrivo_split_column = " & UCase$(Trim$(TextArrSplit.Text)) & gb.NewLine
+  sOut &= "arrivo_unixms_column = " & UCase$(Trim$(TextArrUnix.Text)) & gb.NewLine
+  sOut &= "tempo_split_column = " & UCase$(Trim$(TextTempoSplit.Text)) & gb.NewLine
+  sOut &= "tempo_ms_column = " & UCase$(Trim$(TextTempoMs.Text)) & gb.NewLine
+  Try FMain.AtomicSave(sPath, sOut)
+  If Error Then
+    Message.Error("Impossibile salvare sheet.conf: " & Error.Text)
+    Return False
+  Endif
+  Return True
 End
 
 Public Sub ButtonCancel_Click()

@@ -1,17 +1,17 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,68,40)
+  MoveScaled(0,0,76,80)
   Text = ("Impostazioni")
   { FrameSync Frame
-    MoveScaled(1,1,66,28)
+    MoveScaled(1,1,74,26)
     Text = ("Sincronizzazione")
     { Label1 Label
       MoveScaled(1,4,15,3)
       Text = ("URL")
     }
     { TextURL TextBox
-      MoveScaled(17,4,48,3)
+      MoveScaled(17,4,56,3)
       Text = ("")
     }
     { Label2 Label
@@ -19,7 +19,7 @@
       Text = ("Username")
     }
     { TextUser TextBox
-      MoveScaled(17,8,48,3)
+      MoveScaled(17,8,56,3)
       Text = ("")
     }
     { Label3 Label
@@ -27,7 +27,7 @@
       Text = ("Password")
     }
     { TextPass TextBox
-      MoveScaled(17,12,48,3)
+      MoveScaled(17,12,56,3)
       Text = ("")
       Password = True
     }
@@ -36,21 +36,119 @@
       Text = ("Session")
     }
     { TextSession TextBox
-      MoveScaled(17,16,48,3)
+      MoveScaled(17,16,56,3)
       Text = ("default")
     }
-    { LabelHint Label
-      MoveScaled(1,20,64,5)
+    { LabelSyncHint Label
+      MoveScaled(1,20,72,5)
       Foreground = &H666666&
-      Text = ("La stessa session deve essere usata sia su partenza che su arrivo.\nLasciare URL/username/password vuoti disattiva il sync.")
+      Text = ("La stessa session su partenza e arrivo. Campi vuoti = sync disattivo.")
+    }
+  }
+  { FrameSheet Frame
+    MoveScaled(1,28,74,45)
+    Text = ("Foglio Google (opzionale)")
+    { Label5 Label
+      MoveScaled(1,4,21,3)
+      Text = ("File credenziali JSON")
+    }
+    { TextCred TextBox
+      MoveScaled(23,4,40,3)
+      Text = ("")
+    }
+    { ButtonBrowse Button
+      MoveScaled(64,4,9,3)
+      Text = ("Sfoglia…")
+    }
+    { Label6 Label
+      MoveScaled(1,8,21,3)
+      Text = ("ID documento")
+    }
+    { TextDocId TextBox
+      MoveScaled(23,8,50,3)
+      Text = ("")
+    }
+    { Label7 Label
+      MoveScaled(1,12,21,3)
+      Text = ("Nome foglio (scheda)")
+    }
+    { TextSheetName TextBox
+      MoveScaled(23,12,50,3)
+      Text = ("")
+    }
+    { Label8 Label
+      MoveScaled(1,16,21,3)
+      Text = ("Colonna equipaggio")
+    }
+    { TextEqCol TextBox
+      MoveScaled(23,16,8,3)
+      Text = ("A")
+    }
+    { LabelOptHint Label
+      MoveScaled(1,20,72,3)
+      Foreground = &H666666&
+      Text = ("Colonne opzionali (vuoto = disattivata). Per i range split indica la prima colonna.")
+    }
+    { Label9 Label
+      MoveScaled(1,24,32,3)
+      Text = ("Partenza split (h, m, s, ms)")
+    }
+    { TextPartSplit TextBox
+      MoveScaled(34,24,8,3)
+      Text = ("")
+    }
+    { Label10 Label
+      MoveScaled(44,24,21,3)
+      Text = ("Partenza UNIX ms")
+    }
+    { TextPartUnix TextBox
+      MoveScaled(65,24,8,3)
+      Text = ("")
+    }
+    { Label11 Label
+      MoveScaled(1,28,32,3)
+      Text = ("Arrivo split (h, m, s, ms)")
+    }
+    { TextArrSplit TextBox
+      MoveScaled(34,28,8,3)
+      Text = ("")
+    }
+    { Label12 Label
+      MoveScaled(44,28,21,3)
+      Text = ("Arrivo UNIX ms")
+    }
+    { TextArrUnix TextBox
+      MoveScaled(65,28,8,3)
+      Text = ("")
+    }
+    { Label13 Label
+      MoveScaled(1,32,32,3)
+      Text = ("Tempo split (m, s, ms)")
+    }
+    { TextTempoSplit TextBox
+      MoveScaled(34,32,8,3)
+      Text = ("")
+    }
+    { Label14 Label
+      MoveScaled(44,32,21,3)
+      Text = ("Tempo totale ms")
+    }
+    { TextTempoMs TextBox
+      MoveScaled(65,32,8,3)
+      Text = ("")
+    }
+    { LabelSheetHint Label
+      MoveScaled(1,36,72,7)
+      Foreground = &H666666&
+      Text = ("Condividi il foglio col client_email del service account (ruolo Editor). brrm cerca il numero nella colonna equipaggio: se non c'è lo aggiunge in una nuova riga.")
     }
   }
   { ButtonCancel Button
-    MoveScaled(31,33,16,5)
+    MoveScaled(39,74,16,5)
     Text = ("Annulla")
   }
   { ButtonSave Button
-    MoveScaled(49,33,16,5)
+    MoveScaled(57,74,16,5)
     Default = True
     Text = ("Salva")
   }

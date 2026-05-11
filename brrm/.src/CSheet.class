@@ -1,0 +1,848 @@
+' Gambas class file
+
+' CSheet - Integrazione Google Sheets per brrm (postazione arrivo).
+'
+' Logica isolata in una classe a sé: FMain crea una sola istanza, la chiama
+' su ogni evento rilevante (arrivo, annullamento, cambio numero, etc.) e
+' lascia che si arrangi col resto (auth JWT, find row, batch update) in
+' modo asincrono e fire-and-forget.
+'
+' Auth: Service Account → JWT RS256 (firmato via openssl CLI) → OAuth2
+' bearer token. Cache token per ~1h, refresh on demand.
+'
+' Status: FMain.LabelSheet (verde "SHEET OK" / rosso "SHEET FAIL"), nascosta
+' se non configurato. Tooltip con dettaglio errore.
+'
+' Fallimenti: mai propagati a FMain. Retry con backoff esponenziale 1→60s.
+' La coda eventi è in memoria e si perde su restart (accettabile per MVP).
+
+' --- config ----------------------------------------------------------------
+
+Private $enabled As Boolean
+Private $cfgPath As String
+
+Private $clientEmail As String
+Private $privKeyPath As String        ' percorso del file PEM estratto
+
+Private $documentId As String
+Private $sheetName As String
+Private $eqCol As String              ' colonna equipaggio, es. "A"
+
+' Colonne range opzionali (vuoto = disattivato)
+Private $partSplitCol As String       ' h,m,s,ms su 4 colonne consecutive
+Private $partUnixCol As String        ' singola colonna con ms-since-epoch
+Private $arrSplitCol As String
+Private $arrUnixCol As String
+Private $tempoSplitCol As String      ' m,s,ms su 3 colonne (m può >60)
+Private $tempoMsCol As String         ' singola colonna con totale ms
+
+' --- runtime state ---------------------------------------------------------
+
+Private $accessToken As String
+Private $tokenExpiry As Long          ' epoch secs di scadenza token
+Private $busy As Boolean
+Private $queue As New Integer[]       ' numeri equipaggio da aggiornare
+Private $backoffSec As Integer
+Private $http As HttpClient
+Private $hRetry As Timer
+
+Private $state As String              ' "token" | "scan" | "write" | "probe"
+Private $curNumero As Integer
+Private $curRow As Integer            ' riga trovata (>0) o -1 = nuova
+
+' --- pubblici --------------------------------------------------------------
+
+Public Sub Init()
+  $cfgPath = User.Home &/ ".config/brrm/sheet.conf"
+  $enabled = LoadConfig()
+  If Not $enabled Then
+    Try FMain.LabelSheet.Visible = False
+    Return
+  Endif
+  $http = New HttpClient As "Http"
+  $hRetry = New Timer As "RetryTimer"
+  $hRetry.Enabled = False
+  $backoffSec = 1
+  Try FMain.LabelSheet.Visible = False  ' nascosta finche' probe non risolve
+  StartProbe()
+End
+
+Public Sub Reinit()
+  ' Chiamato da FSettings dopo salvataggio config.
+  Try $hRetry.Stop
+  If $http Then Try $http.Stop
+  $http = Null
+  $busy = False
+  $state = ""
+  $queue = New Integer[]
+  $accessToken = ""
+  $tokenExpiry = 0
+  $enabled = False
+  Init()
+End
+
+Public Sub UpdateForEquipaggio(numero As Integer)
+  ' Punto d'ingresso unico. Idempotente: dedup nella coda.
+  If Not $enabled Then Return
+  If numero <= 0 Or numero >= 10000 Then Return
+  If $queue.Find(numero) < 0 Then $queue.Add(numero)
+  If Not $busy Then ProcessNext()
+End
+
+' --- config loading --------------------------------------------------------
+
+Private Function LoadConfig() As Boolean
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
+  Dim sCredPath As String
+
+  $documentId = ""
+  $sheetName = ""
+  $eqCol = ""
+  $partSplitCol = ""
+  $partUnixCol = ""
+  $arrSplitCol = ""
+  $arrUnixCol = ""
+  $tempoSplitCol = ""
+  $tempoMsCol = ""
+  sCredPath = ""
+
+  If Not Exist($cfgPath) Then Return False
+
+  For Each sLine In Split(File.Load($cfgPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "credentials"
+        sCredPath = sVal
+      Case "document_id"
+        $documentId = sVal
+      Case "sheet_name"
+        $sheetName = sVal
+      Case "equipaggio_column"
+        $eqCol = UCase$(sVal)
+      Case "partenza_split_column"
+        $partSplitCol = UCase$(sVal)
+      Case "partenza_unixms_column"
+        $partUnixCol = UCase$(sVal)
+      Case "arrivo_split_column"
+        $arrSplitCol = UCase$(sVal)
+      Case "arrivo_unixms_column"
+        $arrUnixCol = UCase$(sVal)
+      Case "tempo_split_column"
+        $tempoSplitCol = UCase$(sVal)
+      Case "tempo_ms_column"
+        $tempoMsCol = UCase$(sVal)
+    End Select
+  Next
+
+  If sCredPath = "" Or $documentId = "" Or $sheetName = "" Or $eqCol = "" Then Return False
+  If Not Exist(sCredPath) Then Return False
+
+  Return ParseCredentials(sCredPath)
+End
+
+Private Function ParseCredentials(sPath As String) As Boolean
+  ' Estrae client_email e private_key dal JSON del service account.
+  ' Salva la private_key in ~/.cache/brrm/sheet-privkey.pem (chmod 600) cosi'
+  ' openssl la puo' usare per firmare i JWT senza ulteriore IO sul file utente.
+  Dim sJson As String
+  Dim sKey As String
+  Dim sCacheDir As String
+
+  sJson = ""
+  Try sJson = File.Load(sPath)
+  If sJson = "" Then Return False
+
+  $clientEmail = JsonGetStr(sJson, "client_email")
+  sKey = JsonGetStr(sJson, "private_key")
+  ' Nel JSON i newline sono escape backslash+n letterali (non interpretati
+  ' dal nostro JsonGetStr); convertili a LF reali. In Gambas "\n" è già
+  ' un newline, "\\n" è due caratteri letterali backslash+n.
+  sKey = Replace(sKey, "\\n", Chr(10))
+  If $clientEmail = "" Or sKey = "" Then Return False
+
+  sCacheDir = User.Home &/ ".cache/brrm"
+  If Not Exist(sCacheDir) Then Try Mkdir sCacheDir
+  $privKeyPath = sCacheDir &/ "sheet-privkey.pem"
+  File.Save($privKeyPath, sKey)
+  Shell "chmod 600 " & Shell$($privKeyPath) Wait
+  Return True
+End
+
+' --- status indicator ------------------------------------------------------
+
+Private Sub SetStatus(connected As Boolean, Optional detail As String)
+  Try FMain.LabelSheet.Visible = True
+  If connected Then
+    Try FMain.LabelSheet.Background = &H00CC00&
+    Try FMain.LabelSheet.Text = "SHEET OK"
+    If detail = "" Then detail = "Foglio sincronizzato"
+  Else
+    Try FMain.LabelSheet.Background = &HCC0000&
+    Try FMain.LabelSheet.Text = "SHEET FAIL"
+    If detail = "" Then detail = "Errore di scrittura sul foglio"
+  Endif
+  Try FMain.LabelSheet.Tooltip = detail & gb.NewLine & "Documento: " & $documentId & gb.NewLine & "Foglio: " & $sheetName & " (coda: " & $queue.Count & ")"
+End
+
+' --- state machine entrypoint ---------------------------------------------
+
+Private Sub StartProbe()
+  ' Verifica iniziale: GET dei metadata del foglio. Esercita sia auth che
+  ' accesso al documento. L'esito setta lo status.
+  $busy = True
+  If $accessToken = "" Or $tokenExpiry <= NowEpoch() Then
+    $state = "probe-token"
+    StartTokenRequest()
+  Else
+    $state = "probe"
+    DoProbe()
+  Endif
+End
+
+Private Sub ProcessNext()
+  If $queue.Count = 0 Then Return
+  If $busy Then Return
+  $curNumero = $queue[0]
+  $busy = True
+  If $accessToken = "" Or $tokenExpiry <= NowEpoch() Then
+    $state = "token"
+    StartTokenRequest()
+  Else
+    $state = "scan"
+    StartScanRequest()
+  Endif
+End
+
+' --- token (JWT → access_token) -------------------------------------------
+
+Private Sub StartTokenRequest()
+  Dim sHeader, sClaim, sJwt, sSig, sBody As String
+  Dim iNow As Long
+
+  iNow = NowEpoch()
+  sHeader = Base64URLStr("{\"alg\":\"RS256\",\"typ\":\"JWT\"}")
+  sClaim = "{\"iss\":\"" & $clientEmail & "\","
+  sClaim &= "\"scope\":\"https://www.googleapis.com/auth/spreadsheets\","
+  sClaim &= "\"aud\":\"https://oauth2.googleapis.com/token\","
+  sClaim &= "\"exp\":" & CStr(iNow + 3600) & ","
+  sClaim &= "\"iat\":" & CStr(iNow) & "}"
+  sClaim = Base64URLStr(sClaim)
+
+  sSig = SignWithOpenSSL(sHeader & "." & sClaim)
+  If sSig = "" Then
+    $busy = False
+    SetStatus(False, "Errore firma JWT: openssl non disponibile?")
+    ScheduleRetry()
+    Return
+  Endif
+  sJwt = sHeader & "." & sClaim & "." & sSig
+
+  sBody = "grant_type=" & URLEncode("urn:ietf:params:oauth:grant-type:jwt-bearer")
+  sBody &= "&assertion=" & URLEncode(sJwt)
+
+  $http.URL = "https://oauth2.googleapis.com/token"
+  $http.Async = True
+  $http.Timeout = 10
+  Try $http.Post("application/x-www-form-urlencoded", sBody)
+  If Error Then
+    $busy = False
+    SetStatus(False, "Errore richiesta token: " & Error.Text)
+    ScheduleRetry()
+  Endif
+End
+
+Private Sub HandleTokenResponse()
+  Dim sBody As String
+  Dim iNow As Long
+  Dim expIn As Long
+
+  If $http.Code <> 200 Then
+    sBody = ""
+    Try sBody = ReadAll($http)
+    LogLine("Token failed code=" & $http.Code & " body=" & sBody)
+    $busy = False
+    SetStatus(False, "Token HTTP " & $http.Code)
+    ScheduleRetry()
+    Return
+  Endif
+
+  sBody = ""
+  Try sBody = ReadAll($http)
+  $accessToken = JsonGetStr(sBody, "access_token")
+  expIn = JsonGetInt(sBody, "expires_in")
+  If $accessToken = "" Then
+    $busy = False
+    SetStatus(False, "Token: campo access_token mancante")
+    ScheduleRetry()
+    Return
+  Endif
+  iNow = NowEpoch()
+  ' Sottrai 60s di margine per evitare race su scadenza
+  $tokenExpiry = iNow + Max(60, expIn - 60)
+  $backoffSec = 1
+
+  ' Continua nello stato successivo
+  If $state = "probe-token" Then
+    $state = "probe"
+    DoProbe()
+  Else
+    $state = "scan"
+    StartScanRequest()
+  Endif
+End
+
+' --- probe -----------------------------------------------------------------
+
+Private Sub DoProbe()
+  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId) & "?fields=properties.title,sheets.properties.title"
+  $http.Async = True
+  $http.Timeout = 10
+  Try $http.Get(["Authorization: Bearer " & $accessToken])
+  If Error Then
+    LogLine("Probe Get failed: " & Error.Text)
+    $busy = False
+    SetStatus(False, "Errore probe: " & Error.Text)
+    ScheduleRetry()
+  Endif
+End
+
+Private Sub HandleProbeResponse()
+  Dim sBody As String
+  $busy = False
+  sBody = ""
+  Try sBody = ReadAll($http)
+  If $http.Code = 200 Then
+    SetStatus(True, "Probe OK — " & JsonGetStr(sBody, "title"))
+    $backoffSec = 1
+    If $queue.Count > 0 Then ProcessNext()
+  Else
+    SetStatus(False, "Probe HTTP " & $http.Code & " — controlla document_id e permessi del service account")
+    ScheduleRetry()
+  Endif
+End
+
+' --- scan (find row by equipaggio) ----------------------------------------
+
+Private Sub StartScanRequest()
+  Dim sUrl As String
+  sUrl = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId)
+  sUrl &= "/values/" & URLEncode($sheetName & "!" & $eqCol & ":" & $eqCol)
+  $http.URL = sUrl
+  $http.Async = True
+  $http.Timeout = 10
+  Try $http.Get(["Authorization: Bearer " & $accessToken])
+  If Error Then
+    LogLine("Scan Get failed: " & Error.Text)
+    $busy = False
+    SetStatus(False, "Errore scan: " & Error.Text)
+    ScheduleRetry()
+  Endif
+End
+
+Private Sub HandleScanResponse()
+  Dim sBody As String
+  Dim aValues As String[]
+  Dim i As Integer
+  Dim sVal As String
+
+  If $http.Code = 401 Then
+    ' Token scaduto o invalidato — invalida e ritenta da capo
+    $accessToken = ""
+    $tokenExpiry = 0
+    $busy = False
+    ScheduleRetry()
+    Return
+  Else If $http.Code <> 200 Then
+    $busy = False
+    SetStatus(False, "Scan HTTP " & $http.Code)
+    ScheduleRetry()
+    Return
+  Endif
+
+  sBody = ""
+  Try sBody = ReadAll($http)
+  aValues = ParseColumnValues(sBody)
+  $curRow = -1
+  For i = 0 To aValues.Max
+    sVal = Trim$(aValues[i])
+    If sVal = CStr($curNumero) Then
+      $curRow = i + 1
+      Break
+    Endif
+  Next
+  If $curRow = -1 Then $curRow = aValues.Count + 1
+  $state = "write"
+  StartWriteRequest()
+End
+
+Private Function ParseColumnValues(sBody As String) As String[]
+  ' Estrae i valori dalla risposta values.get. La risposta è del tipo:
+  '   {"range":"...","majorDimension":"ROWS","values":[["42"],["99"],...]}
+  ' Se la colonna è vuota, manca proprio il campo "values".
+  Dim result As New String[]
+  Dim i As Integer
+  Dim iEnd As Integer
+  Dim sList As String
+  Dim depth As Integer
+  Dim startRow As Integer
+  Dim sRow As String
+  Dim sVal As String
+  Dim j As Integer
+  Dim c As String
+
+  i = InStr(sBody, "\"values\":")
+  If i = 0 Then Return result
+  i = InStr(sBody, "[", i)   ' apertura dell'array esterno
+  If i = 0 Then Return result
+  ' Trova la chiusura matching del []
+  depth = 0
+  iEnd = i
+  While iEnd <= Len(sBody)
+    c = Mid$(sBody, iEnd, 1)
+    If c = "[" Then Inc depth
+    If c = "]" Then
+      Dec depth
+      If depth = 0 Then Break
+    Endif
+    Inc iEnd
+  Wend
+  sList = Mid$(sBody, i + 1, iEnd - i - 1)
+
+  ' sList è del tipo: ["42"],["99"],...   oppure  ["42"],[],["99"],...
+  ' Splittiamo a mano per gestire le righe annidate.
+  j = 1
+  While j <= Len(sList)
+    c = Mid$(sList, j, 1)
+    If c = "[" Then
+      ' Trova ]
+      startRow = j + 1
+      While j <= Len(sList) And Mid$(sList, j, 1) <> "]"
+        Inc j
+      Wend
+      sRow = Mid$(sList, startRow, j - startRow)
+      sVal = ExtractFirstString(sRow)
+      result.Add(sVal)
+    Endif
+    Inc j
+  Wend
+  Return result
+End
+
+Private Function ExtractFirstString(s As String) As String
+  ' Estrae la prima stringa JSON da una riga tipo: "42"  oppure  "42","13",...
+  ' Ritorna "" se non c'è nulla (riga vuota []).
+  Dim i As Integer
+  Dim iStart As Integer
+  i = InStr(s, Chr(34))
+  If i = 0 Then Return ""
+  iStart = i + 1
+  i = InStr(s, Chr(34), iStart)
+  If i = 0 Then Return ""
+  Return Mid$(s, iStart, i - iStart)
+End
+
+' --- write (batchUpdate) --------------------------------------------------
+
+Private Sub StartWriteRequest()
+  Dim sPayload As String
+  sPayload = ""
+  Try sPayload = BuildBatchPayload()
+  If Error Then
+    LogLine("BuildBatchPayload error: " & Error.Text & " at " & Error.Where)
+    $busy = False
+    SetStatus(False, "Errore costruzione payload: " & Error.Text)
+    ScheduleRetry()
+    Return
+  Endif
+  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId) & "/values:batchUpdate"
+  $http.Async = True
+  $http.Timeout = 10
+  Try $http.Post("application/json", sPayload, ["Authorization: Bearer " & $accessToken])
+  If Error Then
+    LogLine("Write Post failed: " & Error.Text)
+    $busy = False
+    SetStatus(False, "Errore write: " & Error.Text)
+    ScheduleRetry()
+  Endif
+End
+
+Private Sub HandleWriteResponse()
+  If $http.Code = 401 Then
+    $accessToken = ""
+    $tokenExpiry = 0
+    $busy = False
+    ScheduleRetry()
+    Return
+  Else If $http.Code <> 200 Then
+    $busy = False
+    SetStatus(False, "Write HTTP " & $http.Code & " su eq " & $curNumero)
+    ScheduleRetry()
+    Return
+  Endif
+
+  ' Successo: rimuovi dalla coda, eventualmente processa il prossimo
+  Try $queue.Remove(0)
+  $busy = False
+  SetStatus(True, "Eq " & $curNumero & " aggiornato (riga " & $curRow & ")")
+  $backoffSec = 1
+  If $queue.Count > 0 Then ProcessNext()
+End
+
+' --- payload construction --------------------------------------------------
+
+Private Function BuildBatchPayload() As String
+  Dim parts As New String[]
+  Dim dPart As Date
+  Dim dArr As Date
+  Dim deltaMs As Long
+  Dim totalSec As Long
+  Dim mm As Long
+  Dim ss As Long
+  Dim msec As Long
+
+  dPart = FMain.ReturnPartenza($curNumero)
+  dArr = FMain.ReturnArrivo($curNumero)
+
+  ' Equipaggio (scrivilo sempre: idempotente)
+  parts.Add(MakeRange1($eqCol, CStr($curNumero)))
+
+  ' Partenza split (h,m,s,ms). Ms con padding "000" + apostrofo per forzare
+  ' interpretazione text su Sheets (altrimenti 001→1, perde lo 0 davanti).
+  If $partSplitCol Then
+    If dPart = 0 Then
+      parts.Add(MakeRangeN($partSplitCol, 4, ["", "", "", ""]))
+    Else
+      parts.Add(MakeRangeN($partSplitCol, 4, [CStr(Hour(dPart)), CStr(Minute(dPart)), CStr(Second(dPart)), "'" & Format$(MillisOf(dPart), "000")]))
+    Endif
+  Endif
+
+  ' Partenza UNIX ms (singola colonna)
+  If $partUnixCol Then
+    If dPart = 0 Then
+      parts.Add(MakeRange1($partUnixCol, ""))
+    Else
+      parts.Add(MakeRange1($partUnixCol, CStr(DateToUnixMs(dPart))))
+    Endif
+  Endif
+
+  ' Arrivo split
+  If $arrSplitCol Then
+    If dArr = 0 Then
+      parts.Add(MakeRangeN($arrSplitCol, 4, ["", "", "", ""]))
+    Else
+      parts.Add(MakeRangeN($arrSplitCol, 4, [CStr(Hour(dArr)), CStr(Minute(dArr)), CStr(Second(dArr)), "'" & Format$(MillisOf(dArr), "000")]))
+    Endif
+  Endif
+
+  ' Arrivo UNIX ms
+  If $arrUnixCol Then
+    If dArr = 0 Then
+      parts.Add(MakeRange1($arrUnixCol, ""))
+    Else
+      parts.Add(MakeRange1($arrUnixCol, CStr(DateToUnixMs(dArr))))
+    Endif
+  Endif
+
+  ' Tempo (durata): solo se entrambi presenti, sennò vuoto
+  If dPart <> 0 And dArr <> 0 Then
+    deltaMs = DateToUnixMs(dArr) - DateToUnixMs(dPart)
+    If deltaMs < 0 Then deltaMs = 0   ' guardia
+    totalSec = deltaMs \ 1000
+    mm = totalSec \ 60
+    ss = totalSec Mod 60
+    msec = deltaMs Mod 1000
+    If $tempoSplitCol Then
+      parts.Add(MakeRangeN($tempoSplitCol, 3, [CStr(mm), CStr(ss), "'" & Format$(msec, "000")]))
+    Endif
+    If $tempoMsCol Then
+      parts.Add(MakeRange1($tempoMsCol, CStr(deltaMs)))
+    Endif
+  Else
+    ' Mancano i dati per il tempo: pulisci le celle (potrebbero esistere da prima)
+    If $tempoSplitCol Then parts.Add(MakeRangeN($tempoSplitCol, 3, ["", "", ""]))
+    If $tempoMsCol Then parts.Add(MakeRange1($tempoMsCol, ""))
+  Endif
+
+  Return "{\"valueInputOption\":\"USER_ENTERED\",\"data\":[" & parts.Join(",") & "]}"
+End
+
+Private Function MakeRange1(col As String, value As String) As String
+  ' {"range":"Sheet!A5","values":[["..."]]}
+  Return "{\"range\":\"" & JsonEscape($sheetName) & "!" & col & CStr($curRow) & "\",\"values\":[[\"" & JsonEscape(value) & "\"]]}"
+End
+
+Private Function MakeRangeN(startCol As String, n As Integer, values As String[]) As String
+  ' {"range":"Sheet!B5:E5","values":[["a","b","c","d"]]}
+  Dim endCol As String
+  Dim vals As New String[]
+  Dim i As Integer
+  endCol = ColumnPlusN(startCol, n - 1)
+  For i = 0 To values.Max
+    vals.Add("\"" & JsonEscape(values[i]) & "\"")
+  Next
+  Return "{\"range\":\"" & JsonEscape($sheetName) & "!" & startCol & CStr($curRow) & ":" & endCol & CStr($curRow) & "\",\"values\":[[" & vals.Join(",") & "]]}"
+End
+
+Private Function ColumnPlusN(col As String, n As Integer) As String
+  ' A+1=B, B+1=C, Z+1=AA, AA+1=AB. Sheets supporta colonne fino a ZZZ.
+  Dim val As Integer
+  Dim i As Integer
+  Dim out As String
+  Dim r As Integer
+  val = 0
+  For i = 1 To Len(col)
+    val = val * 26 + (Asc(Mid$(col, i, 1)) - Asc("A") + 1)
+  Next
+  val = val + n
+  out = ""
+  While val > 0
+    r = (val - 1) Mod 26
+    out = Chr(Asc("A") + r) & out
+    val = (val - 1) \ 26
+  Wend
+  Return out
+End
+
+' --- HTTP event handlers ---------------------------------------------------
+
+Public Sub Http_Finished()
+  LogLine("Http_Finished entry state=" & $state & " code=" & $http.Code)
+  Select Case $state
+    Case "token", "probe-token"
+      HandleTokenResponse()
+    Case "probe"
+      HandleProbeResponse()
+    Case "scan"
+      HandleScanResponse()
+    Case "write"
+      HandleWriteResponse()
+  End Select
+End
+
+Public Sub Http_Error()
+  Dim wasState As String = $state
+  LogLine("HTTP error in state=" & wasState & " code=" & $http.Code & " status=" & $http.Status)
+  $busy = False
+  SetStatus(False, "Errore di rete su " & wasState)
+  ScheduleRetry()
+End
+
+' --- debug log ------------------------------------------------------------
+
+Private Sub LogLine(s As String)
+  Dim hLog As Stream
+  Try hLog = Open "/tmp/csheet.log" For Append
+  If Error Then Return
+  Try Print #hLog, "[" & Str$(Time(Now)) & "] " & s
+  Try Close #hLog
+End
+
+' --- retry / scheduling ----------------------------------------------------
+
+Private Sub ScheduleRetry()
+  If Not $enabled Then Return
+  If $backoffSec < 60 Then $backoffSec = $backoffSec * 2
+  If $backoffSec > 60 Then $backoffSec = 60
+  $hRetry.Delay = $backoffSec * 1000
+  $hRetry.Start
+End
+
+Public Sub RetryTimer_Timer()
+  $hRetry.Stop
+  If Not $enabled Then Return
+  If $queue.Count > 0 Then
+    ProcessNext()
+  Else
+    ' Nessuna coda: ritenta solo il probe per rinfrescare lo status
+    If Not $busy Then StartProbe()
+  Endif
+End
+
+' --- helpers: JWT signing --------------------------------------------------
+
+Private Function SignWithOpenSSL(sData As String) As String
+  ' Firma sData con la private key (RSA-SHA256) usando openssl CLI. Ritorna
+  ' la firma base64url-encoded, o "" se openssl non è disponibile.
+  Dim sFileIn, sFileOut, sSig As String
+  sFileIn = Temp$()
+  sFileOut = Temp$()
+  Try File.Save(sFileIn, sData)
+  ' Nota: openssl 3 non accetta più -in con dgst; il file di input va come
+  ' argomento posizionale.
+  Shell "openssl dgst -sha256 -sign " & Shell$($privKeyPath) & " -out " & Shell$(sFileOut) & " " & Shell$(sFileIn) Wait
+  sSig = ""
+  Try sSig = File.Load(sFileOut)
+  Try Kill sFileIn
+  Try Kill sFileOut
+  If sSig = "" Then Return ""
+  Return Base64URLStr(sSig)
+End
+
+' --- helpers: base64url / json / time / http body --------------------------
+
+Private Function Base64URLStr(s As String) As String
+  Dim b64 As String
+  b64 = Base64$(s)
+  b64 = Replace(b64, "+", "-")
+  b64 = Replace(b64, "/", "_")
+  b64 = Replace(b64, "=", "")
+  Return b64
+End
+
+Private Function URLEncode(s As String) As String
+  ' Pure-Gambas URL-encoder (RFC 3986 unreserved + replace altri con %HH).
+  Dim out As String
+  Dim i As Integer
+  Dim c As String
+  Dim code As Integer
+  out = ""
+  For i = 1 To Len(s)
+    c = Mid$(s, i, 1)
+    code = Asc(c)
+    Dim safe As Boolean
+    safe = False
+    If code >= Asc("A") And code <= Asc("Z") Then safe = True
+    If code >= Asc("a") And code <= Asc("z") Then safe = True
+    If code >= Asc("0") And code <= Asc("9") Then safe = True
+    If c = "-" Or c = "_" Or c = "." Or c = "~" Then safe = True
+    If safe Then
+      out &= c
+    Else
+      out &= "%" & UCase$(Hex$(code, 2))
+    Endif
+  Next
+  Return out
+End
+
+Private Function JsonEscape(s As String) As String
+  ' Escape minimi per stringhe JSON: \, ", e newline. Sufficiente per i
+  ' nostri payload (numeri equipaggio, nomi foglio senza chars esotici).
+  Dim out As String = s
+  out = Replace(out, "\\", "\\\\")
+  out = Replace(out, Chr(34), "\\\"")
+  out = Replace(out, Chr(10), "\\n")
+  out = Replace(out, Chr(13), "")
+  Return out
+End
+
+Private Function JsonGetStr(s As String, key As String) As String
+  ' Estrae una stringa "key":"valore". Gestisce escape \" e \\.
+  ' Per altre escape (\n, \t, ecc.) le restituisce letterali (\n a due char).
+  Dim sNeedle As String
+  Dim i As Integer
+  Dim iStart As Integer
+  Dim out As String
+  Dim escape As Boolean
+  Dim c As String
+
+  sNeedle = Chr(34) & key & Chr(34) & ":"
+  i = InStr(s, sNeedle)
+  If i = 0 Then Return ""
+  i = i + Len(sNeedle)
+  While i <= Len(s) And Mid$(s, i, 1) = " "
+    Inc i
+  Wend
+  If Mid$(s, i, 1) <> Chr(34) Then Return ""
+  iStart = i + 1
+  i = iStart
+  out = ""
+  escape = False
+  While i <= Len(s)
+    c = Mid$(s, i, 1)
+    If escape Then
+      Select Case c
+        Case Chr(34)
+          out &= Chr(34)
+        Case "\\"
+          out &= "\\"
+        Case Else
+          out &= "\\" & c   ' lascia la sequenza letterale
+      End Select
+      escape = False
+    Else If c = "\\" Then
+      escape = True
+    Else If c = Chr(34) Then
+      Return out
+    Else
+      out &= c
+    Endif
+    Inc i
+  Wend
+  Return ""
+End
+
+Private Function JsonGetInt(s As String, key As String) As Long
+  Dim sNeedle As String
+  Dim i, iStart, iEnd As Integer
+  Dim sVal As String
+  sNeedle = Chr(34) & key & Chr(34) & ":"
+  i = InStr(s, sNeedle)
+  If i = 0 Then Return 0
+  i = i + Len(sNeedle)
+  While i <= Len(s) And Mid$(s, i, 1) = " "
+    Inc i
+  Wend
+  iStart = i
+  iEnd = iStart
+  While iEnd <= Len(s) And (Mid$(s, iEnd, 1) Like "[0-9-]")
+    Inc iEnd
+  Wend
+  If iEnd = iStart Then Return 0
+  sVal = Mid$(s, iStart, iEnd - iStart)
+  Return CLong(sVal)
+End
+
+Private Function ReadAll(h As HttpClient) As String
+  ' Legge tutto il body della risposta in una stringa.
+  Dim sOut As String
+  Dim sChunk As String
+  sOut = ""
+  While Lof(h) > 0
+    sChunk = ""
+    Try Read #h, sChunk, Lof(h)
+    If sChunk = "" Then Break
+    sOut &= sChunk
+  Wend
+  Return sOut
+End
+
+Private Function NowEpoch() As Long
+  ' Secondi dall'epoch UTC. Shell out: zero ambiguità di timezone.
+  Dim sFile As String
+  Dim sOut As String
+  sFile = Temp$()
+  Shell "date +%s > " & Shell$(sFile) Wait
+  sOut = ""
+  Try sOut = File.Load(sFile)
+  Try Kill sFile
+  Return CLong(Trim$(sOut))
+End
+
+Private Function DateToUnixMs(d As Date) As Long
+  ' Converte un Date locale in ms da epoch UTC. Se manca la parte data
+  ' (caso tipico di brrm: orario fotocellula time-only), assume oggi.
+  ' Per il fuso usa System.TimeZone (secondi a ovest di UTC, POSIX-style).
+  Dim full As Float
+  Dim fracTime As Float
+  Dim localMs As Long
+  full = CFloat(d)
+  If Year(d) <= 1900 Then
+    fracTime = full - Floor(full)
+    full = CFloat(Date()) + fracTime    ' Date() = oggi 00:00 locale
+  Endif
+  localMs = CLong((full - CFloat(Date(1970, 1, 1))) * 86400000.0)
+  Return localMs + CLong(System.TimeZone) * 1000
+End
+
+Private Function MillisOf(d As Date) As Integer
+  ' Frazione di secondo in millisecondi (0-999) calcolata dal Float
+  ' sottostante del Date. Str$ tronca i ms su Date "time-only", quindi
+  ' parserli dalla stringa non e' affidabile. Math diretta sul float si'.
+  Return CInt(CLong(Frac(CFloat(d)) * 86400000.0) Mod 1000)
+End
