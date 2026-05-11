@@ -254,9 +254,65 @@ Endif
 End
 
 Public Sub Button6_Click()
+  ' Export CSV: numero,hh,mm,ss,mmm (orario di partenza, millis 3 cifre zero-padded a destra)
+  Dim Counter As Integer
+  Dim iEqui As Integer
+  Dim tPart As Date
+  Dim sPart As String
+  Dim aByColon As String[]
+  Dim aByDot As String[]
+  Dim sH As String
+  Dim sM As String
+  Dim sS As String
+  Dim sMs As String
+  Dim sOut As String
+  Dim sPath As String
 
+  For Counter = 0 To LEquipaggi.Count - 1
+    iEqui = 0
+    Try iEqui = LEquipaggi[Counter].Text
+    If iEqui = 0 Then Continue
+    If partenze[iEqui] = 0 Then Continue
+    tPart = partenze[iEqui]
+    sPart = CStr(tPart)                ' formato "hh:nn:ss.zzz" o "hh:nn:ss"
+    aByColon = Split(sPart, ":")
+    If aByColon.Count < 3 Then Continue
+    sH = aByColon[0]
+    sM = aByColon[1]
+    aByDot = Split(aByColon[2], ".")
+    sS = aByDot[0]
+    If aByDot.Count > 1 Then
+      sMs = aByDot[1]
+    Else
+      sMs = "0"
+    Endif
+    sOut = sOut & iEqui & "," & sH & "," & sM & "," & sS & "," & PadMillis(sMs) & "\n"
+  Next
 
+  Dialog.Title = "Salva orari partenza"
+  Dialog.Filter = ["*.csv", "File CSV"]
+  Dialog.Path = User.Home &/ "brrm-partenze.csv"
+  If Dialog.SaveFile() Then Return
+  sPath = Dialog.Path
+  If LCase$(File.Ext(sPath)) <> "csv" Then sPath = sPath & ".csv"
+  Try File.Save(sPath, sOut)
+  If Error Then Message.Error("Impossibile salvare il file: " & Error.Text)
+End
 
+Public Function PadMillis(s As String) As String
+  ' Pad a destra con zeri a esattamente 3 cifre. "7" -> "700", "07" -> "070".
+  Select Case Len(s)
+    Case 0
+      Return "000"
+    Case 1
+      Return s & "00"
+    Case 2
+      Return s & "0"
+    Case 3
+      Return s
+    Case Else
+      Return Left$(s, 3)
+  End Select
 End
 
 Public Sub GridView1_Click()
@@ -326,12 +382,6 @@ Public Sub Button2_Click()
 FPartenza.Show()
 End
 
-Public Sub ListBox1_Click()
-
-  
-
-End
-
 Public Sub Button3_Click()
 
 If CurrAct = "annpart" Then 
@@ -345,12 +395,6 @@ GridView1.Mouse = 2
 End If
 End
   
-
-Public Sub RadioButton1_Click()
-
-  
-
-End
 
 Public Sub Button7_Click()
 

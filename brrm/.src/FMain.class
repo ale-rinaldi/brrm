@@ -268,45 +268,111 @@ ENDIF
 END
 
 PUBLIC SUB Button6_Click()
-
+  ' Export CSV: numero,hh,mm,ss,mmm (millis con 3 cifre zero-padded a destra)
   DIM Counter AS Integer
-  DIM FileAddress AS String
-  DIM FileOut AS String
-  DIM TTempo AS Date
-  DIM sTempo AS String
-  DIM sUseful AS String
-  DIM sMinutes AS String
-  DIM aUseful AS String[]
-  DIM sSeconds AS String
-  DIM sCents AS String
-  Counter = 0
-  TRY Counter = LEquipaggi[0].Text
-  IF Counter <> 0 THEN 
-  Counter = 0
-  WHILE Counter <= LEquipaggi.Count
-  TRY TTempo = arrivi[LEquipaggi[Counter].Text] - partenze[LEquipaggi[Counter].Text]
-  sTempo = TTempo
-  
-  aUseful = Split(sTempo, ":")
-  sMinutes = aUseful[1]
-  sUseful = aUseful[2]
-  aUseful = Split(sUseful, ".")
-  sSeconds = aUseful[0]
-  TRY sCents = aUseful[1]
-  
-TRY FileOut = FileOut & "\n'" & LEquipaggi[Counter].Text & "','" & sMinutes & "','" & sSeconds & "','" & twoDecs(sCents) & "'"
-  Counter = Counter + 1
-  WEND 
-  ENDIF 
-  FileOut = Trim$(FileOut)
+  DIM iEqui AS Integer
+  DIM tDur AS Date
+  DIM sDur AS String
+  DIM aByColon AS String[]
+  DIM aByDot AS String[]
+  DIM sH AS String
+  DIM sM AS String
+  DIM sS AS String
+  DIM sMs AS String
+  DIM sOut AS String
+  DIM sPath AS String
 
-SHELL "zenity --title=\"Seleziona dove salvare il file CSV\" --file-selection --save  --confirm-overwrite --text=\"Seleziona dove salvare il file CSV\"" TO FileAddress
-FileAddress = Trim$(FileAddress)
-IF LCase$(Right$(FileAddress, 4)) <> ".csv" THEN 
-FileAddress = FileAddress & ".csv"
-ENDIF 
-SHELL "echo \"" & FileOut & "\" > " & FileAddress
+  FOR Counter = 0 TO LEquipaggi.Count - 1
+    iEqui = 0
+    TRY iEqui = LEquipaggi[Counter].Text
+    IF iEqui = 0 THEN CONTINUE
+    IF partenze[iEqui] = 0 OR arrivi[iEqui] = 0 THEN CONTINUE
+    tDur = arrivi[iEqui] - partenze[iEqui]
+    sDur = CStr(tDur)                  ' formato "hh:nn:ss.zzz" o "hh:nn:ss"
+    aByColon = Split(sDur, ":")
+    IF aByColon.Count < 3 THEN CONTINUE
+    sH = aByColon[0]
+    sM = aByColon[1]
+    aByDot = Split(aByColon[2], ".")
+    sS = aByDot[0]
+    IF aByDot.Count > 1 THEN
+      sMs = aByDot[1]
+    ELSE
+      sMs = "0"
+    ENDIF
+    sOut = sOut & iEqui & "," & sH & "," & sM & "," & sS & "," & PadMillis(sMs) & "\n"
+  NEXT
 
+  Dialog.Title = "Salva risultati gara"
+  Dialog.Filter = ["*.csv", "File CSV"]
+  Dialog.Path = User.Home &/ "brrm-arrivi.csv"
+  IF Dialog.SaveFile() THEN RETURN     ' utente ha annullato
+  sPath = Dialog.Path
+  IF LCase$(File.Ext(sPath)) <> "csv" THEN sPath = sPath & ".csv"
+  TRY File.Save(sPath, sOut)
+  IF Error THEN Message.Error("Impossibile salvare il file: " & Error.Text)
+END
+
+PUBLIC FUNCTION PadMillis(s AS String) AS String
+  ' Pad a destra con zeri a esattamente 3 cifre. "7" -> "700", "07" -> "070".
+  SELECT CASE Len(s)
+    CASE 0
+      RETURN "000"
+    CASE 1
+      RETURN s & "00"
+    CASE 2
+      RETURN s & "0"
+    CASE 3
+      RETURN s
+    CASE ELSE
+      RETURN Left$(s, 3)
+  END SELECT
+END
+
+PUBLIC SUB ButtonImporta_Click()
+  ' Importa orari di partenza da CSV (formato esportato da brrm-partenza:
+  ' numero,hh,mm,ss,mmm su ogni riga).
+  DIM sPath AS String
+  DIM aLines AS String[]
+  DIM sLine AS String
+  DIM aFields AS String[]
+  DIM iEqui AS Integer
+  DIM sDateStr AS String
+  DIM dPart AS Date
+  DIM iImportati AS Integer
+
+  Dialog.Title = "Importa orari di partenza"
+  Dialog.Filter = ["*.csv", "File CSV"]
+  Dialog.Path = User.Home &/ "brrm-partenze.csv"
+  IF Dialog.OpenFile() THEN RETURN     ' utente ha annullato
+  sPath = Dialog.Path
+  IF NOT Exist(sPath) THEN
+    Message.Error("File non trovato: " & sPath)
+    RETURN
+  ENDIF
+
+  Timer1.Stop
+  aLines = Split(File.Load(sPath), "\n")
+  FOR EACH sLine IN aLines
+    sLine = Trim$(sLine)
+    IF sLine = "" THEN CONTINUE
+    aFields = Split(sLine, ",")
+    IF aFields.Count < 5 THEN CONTINUE
+    iEqui = 0
+    TRY iEqui = CInt(Trim$(aFields[0]))
+    IF iEqui <= 0 OR iEqui >= 10000 THEN CONTINUE
+    sDateStr = Trim$(aFields[1]) & ":" & Trim$(aFields[2]) & ":" & Trim$(aFields[3]) & "." & PadMillis(Trim$(aFields[4]))
+    dPart = 0
+    TRY dPart = sDateStr
+    IF dPart = 0 THEN CONTINUE
+    partenze[iEqui] = dPart
+    IF LEquipaggi.Find(iEqui) < 0 THEN LEquipaggi.Add(iEqui)
+    iImportati = iImportati + 1
+  NEXT
+
+  UpgradeSessionFile()
+  Timer1.Start
+  Message.Info(iImportati & " orari di partenza importati.")
 END
 
 PUBLIC SUB twoDecs(number AS String) AS String
@@ -389,12 +455,6 @@ PUBLIC SUB Button2_Click()
 FPartenza.Show()
 END
 
-PUBLIC SUB ListBox1_Click()
-
-  
-
-END
-
 PUBLIC SUB Button3_Click()
 
 IF CurrAct = "annpart" THEN 
@@ -408,12 +468,6 @@ GridView1.Mouse = 2
 END IF
 END
   
-
-PUBLIC SUB RadioButton1_Click()
-
-  
-
-END
 
 PUBLIC SUB Button7_Click()
 

@@ -99,4 +99,8 @@
     MoveScaled(1,55,25,4)
     Text = ("MODIFICA ORDINE")
   }
+  { ButtonImporta Button
+    MoveScaled(27,55,21,4)
+    Text = ("IMPORTA PARTENZE")
+  }
 }
