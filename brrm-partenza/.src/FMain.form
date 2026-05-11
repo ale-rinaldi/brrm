@@ -2,7 +2,7 @@
 
 { Form Form
   MoveScaled(0,0,93,55)
-  Text = ("")
+  Text = ("BoxRally Race Manager - Partenza")
   { GridView1 GridView
     MoveScaled(1,1,91,38)
   }
