@@ -512,13 +512,14 @@ Private Function BuildBatchPayload() As String
   ' Equipaggio (scrivilo sempre: idempotente)
   parts.Add(MakeRange1($eqCol, CStr($curNumero)))
 
-  ' Partenza split (h,m,s,ms). Ms con padding "000" + apostrofo per forzare
-  ' interpretazione text su Sheets (altrimenti 001→1, perde lo 0 davanti).
+  ' Partenza split (h,m,s,ms). Valori numerici raw: la conversione da
+  ' Date.fraction a millisecondi e' semanticamente corretta (.1 sec → 100,
+  ' .001 sec → 1), Sheets si occupa della formattazione di visualizzazione.
   If $partSplitCol Then
     If dPart = 0 Then
       parts.Add(MakeRangeN($partSplitCol, 4, ["", "", "", ""]))
     Else
-      parts.Add(MakeRangeN($partSplitCol, 4, [CStr(Hour(dPart)), CStr(Minute(dPart)), CStr(Second(dPart)), "'" & Format$(MillisOf(dPart), "000")]))
+      parts.Add(MakeRangeN($partSplitCol, 4, [CStr(Hour(dPart)), CStr(Minute(dPart)), CStr(Second(dPart)), CStr(MillisOf(dPart))]))
     Endif
   Endif
 
@@ -536,7 +537,7 @@ Private Function BuildBatchPayload() As String
     If dArr = 0 Then
       parts.Add(MakeRangeN($arrSplitCol, 4, ["", "", "", ""]))
     Else
-      parts.Add(MakeRangeN($arrSplitCol, 4, [CStr(Hour(dArr)), CStr(Minute(dArr)), CStr(Second(dArr)), "'" & Format$(MillisOf(dArr), "000")]))
+      parts.Add(MakeRangeN($arrSplitCol, 4, [CStr(Hour(dArr)), CStr(Minute(dArr)), CStr(Second(dArr)), CStr(MillisOf(dArr))]))
     Endif
   Endif
 
@@ -558,7 +559,7 @@ Private Function BuildBatchPayload() As String
     ss = totalSec Mod 60
     msec = deltaMs Mod 1000
     If $tempoSplitCol Then
-      parts.Add(MakeRangeN($tempoSplitCol, 3, [CStr(mm), CStr(ss), "'" & Format$(msec, "000")]))
+      parts.Add(MakeRangeN($tempoSplitCol, 3, [CStr(mm), CStr(ss), CStr(msec)]))
     Endif
     If $tempoMsCol Then
       parts.Add(MakeRange1($tempoMsCol, CStr(deltaMs)))
