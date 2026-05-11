@@ -71,21 +71,26 @@ PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
 END
 
 PUBLIC SUB UpgradeSessionFile()
+  ' Formato v1: prima riga = magic header, righe successive numero|partenza|arrivo.
+  ' Campi vuoti = nessun dato. Str$() rende le date locale-indipendenti.
   DIM Counter AS Integer
-  DIM FileOut AS String
-  Counter = 0
-  TRY Counter = LEquipaggi[0].Text
-  IF Counter <> 0 THEN 
-  FileOut = LEquipaggi[0].Text & " " & partenze[LEquipaggi[0].Text] & " " & arrivi[LEquipaggi[0].Text]
-  Counter = 1
-  WHILE Counter < LEquipaggi.Count
-  FileOut = FileOut & "-" & LEquipaggi[Counter].Text & " " & partenze[LEquipaggi[Counter].Text] & " " & arrivi[LEquipaggi[Counter].Text]
-  Counter = Counter + 1
-  WEND 
-  ENDIF 
-  FileOut = Trim$(FileOut)
-  AtomicSave(User.Home &/ ".brrm-session", FileOut)
+  DIM iEqui AS Integer
+  DIM sFileOut AS String
+  DIM sPart AS String
+  DIM sArr AS String
 
+  sFileOut = "brrm-session v1" & gb.NewLine
+  FOR Counter = 0 TO LEquipaggi.Count - 1
+    iEqui = 0
+    TRY iEqui = LEquipaggi[Counter].Text
+    IF iEqui <= 0 THEN CONTINUE
+    sPart = ""
+    IF partenze[iEqui] <> 0 THEN sPart = Str$(partenze[iEqui])
+    sArr = ""
+    IF arrivi[iEqui] <> 0 THEN sArr = Str$(arrivi[iEqui])
+    sFileOut &= iEqui & "|" & sPart & "|" & sArr & gb.NewLine
+  NEXT
+  AtomicSave(User.Home &/ ".brrm-session", sFileOut)
 END
 
 
@@ -137,21 +142,28 @@ PUBLIC SUB Form_Open()
 DIM sTest AS String
 DIM aTest AS String[]
 DIM aTest2 AS String[]
+DIM iEqui AS Integer
+DIM iLoaded AS Integer
 FotON = TRUE
 FMain.Center()
 SetupGridHeader()
 TRY SerialPort1.Open
+' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 IF Exist(User.Home &/ ".brrm-session") THEN sTest = File.Load(User.Home &/ ".brrm-session")
-sTest = Trim$(sTest)
-aTest = Split(sTest, "-")
-FOR EACH sTest IN aTest
-  aTest2 = Split(sTest, " ")
-  IF aTest2.Count < 2 THEN CONTINUE
-  LEquipaggi.Add(aTest2[0])
-  partenze[aTest2[0]] = aTest2[1]
-  IF aTest2.Count >= 3 THEN arrivi[aTest2[0]] = aTest2[2]
-NEXT 
+aTest = Split(sTest, gb.NewLine)
+IF aTest.Count >= 1 AND IF aTest[0] = "brrm-session v1" THEN
+  FOR iEqui = 1 TO aTest.Max
+    aTest2 = Split(Trim$(aTest[iEqui]), "|")
+    IF aTest2.Count < 3 THEN CONTINUE
+    iLoaded = 0
+    TRY iLoaded = CInt(aTest2[0])
+    IF iLoaded <= 0 OR iLoaded >= 10000 THEN CONTINUE
+    LEquipaggi.Add(iLoaded)
+    IF aTest2[1] <> "" THEN TRY partenze[iLoaded] = aTest2[1]
+    IF aTest2[2] <> "" THEN TRY arrivi[iLoaded] = aTest2[2]
+  NEXT
+ENDIF
 Timer1.Start()
 END 
 

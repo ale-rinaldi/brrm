@@ -91,21 +91,22 @@ Public Sub AtomicSave(sPath As String, sContent As String)
 End
 
 Public Sub UpgradeSessionFile()
+  ' Formato v1: prima riga = magic header, righe successive numero|partenza.
   Dim Counter As Integer
-  Dim FileOut As String
-  Counter = 0
-  Try Counter = LEquipaggi[0].Text
-  If Counter <> 0 Then 
-  FileOut = LEquipaggi[0].Text & " " & partenze[LEquipaggi[0].Text] & " " & arrivi[LEquipaggi[0].Text]
-  Counter = 1
-  While Counter < LEquipaggi.Count
-  FileOut = FileOut & "-" & LEquipaggi[Counter].Text & " " & partenze[LEquipaggi[Counter].Text] & " " & arrivi[LEquipaggi[Counter].Text]
-  Counter = Counter + 1
-  Wend 
-  Endif 
-  FileOut = Trim$(FileOut)
-  AtomicSave(User.Home &/ ".brrm-partenza-session", FileOut)
+  Dim iEqui As Integer
+  Dim sFileOut As String
+  Dim sPart As String
 
+  sFileOut = "brrm-partenza-session v1" & gb.NewLine
+  For Counter = 0 To LEquipaggi.Count - 1
+    iEqui = 0
+    Try iEqui = LEquipaggi[Counter].Text
+    If iEqui <= 0 Then Continue
+    sPart = ""
+    If partenze[iEqui] <> 0 Then sPart = Str$(partenze[iEqui])
+    sFileOut &= iEqui & "|" & sPart & gb.NewLine
+  Next
+  AtomicSave(User.Home &/ ".brrm-partenza-session", sFileOut)
 End
 
 
@@ -147,21 +148,27 @@ Public Sub Form_Open()
 Dim sTest As String
 Dim aTest As String[]
 Dim aTest2 As String[]
+Dim iEqui As Integer
+Dim iLoaded As Integer
 FotON = True
 FMain.Center()
 SetupGridHeader()
 Try SerialPort1.Open
+' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 If Exist(User.Home &/ ".brrm-partenza-session") Then sTest = File.Load(User.Home &/ ".brrm-partenza-session")
-sTest = Trim$(sTest)
-aTest = Split(sTest, "-")
-For Each sTest In aTest
-  aTest2 = Split(sTest, " ")
-  If aTest2.Count < 2 Then Continue
-  LEquipaggi.Add(aTest2[0])
-  partenze[aTest2[0]] = aTest2[1]
-  If aTest2.Count >= 3 Then arrivi[aTest2[0]] = aTest2[2]
-Next 
+aTest = Split(sTest, gb.NewLine)
+If aTest.Count >= 1 And If aTest[0] = "brrm-partenza-session v1" Then
+  For iEqui = 1 To aTest.Max
+    aTest2 = Split(Trim$(aTest[iEqui]), "|")
+    If aTest2.Count < 2 Then Continue
+    iLoaded = 0
+    Try iLoaded = CInt(aTest2[0])
+    If iLoaded <= 0 Or iLoaded >= 10000 Then Continue
+    LEquipaggi.Add(iLoaded)
+    If aTest2[1] <> "" Then Try partenze[iLoaded] = aTest2[1]
+  Next
+Endif
 Timer1.Start()
 End 
 
