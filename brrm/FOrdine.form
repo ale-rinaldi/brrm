@@ -1,0 +1,21 @@
+# Gambas Form File 2.0
+
+{ Form Form
+  MoveScaled(0,0,66,42)
+  Text = ("")
+  { ListBox1 ListBox
+    MoveScaled(1,1,41,40)
+  }
+  { Button2 Button
+    MoveScaled(43,1,22,5)
+    Text = ("SPOSTA SU")
+  }
+  { Button3 Button
+    MoveScaled(43,7,22,5)
+    Text = ("SPOSTA GI\xC3\x99")
+  }
+  { Button5 Button
+    MoveScaled(43,35,22,6)
+    Text = ("OK")
+  }
+}

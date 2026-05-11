@@ -1,0 +1,95 @@
+# Gambas Form File 2.0
+
+{ Form Form
+  MoveScaled(0,0,101,60)
+  Text = ("")
+  { GridView1 GridView
+    MoveScaled(1,1,99,38)
+  }
+  { Timer1 #Timer
+    #X = 665
+    #Y = 322
+    Delay = 91
+  }
+  { Button2 Button
+    MoveScaled(1,40,25,6)
+    Text = ("PARTENZA")
+  }
+  { LEquipaggi ListBox
+    MoveScaled(1,1,90,3)
+    Visible = False
+  }
+  { Button3 Button
+    MoveScaled(27,40,21,4)
+    Text = ("Annulla partenza")
+  }
+  { Button4 Button
+    MoveScaled(27,50,21,4)
+    Text = ("Inverti arrivo")
+  }
+  { Button5 Button
+    MoveScaled(27,45,21,4)
+    Text = ("Annulla arrivo")
+  }
+  { Label1 Label
+    MoveScaled(50,41,11,3)
+    Text = ("IN ARRIVO:")
+  }
+  { Label2 Label
+    MoveScaled(50,45,25,9)
+    Font = Font["+15"]
+    Text = ("")
+  }
+  { Button6 Button
+    MoveScaled(76,44,18,5)
+    Text = ("ESPORTA")
+  }
+  { SerialPort1 #SerialPort
+    #X = 665
+    #Y = 280
+    PortName = "/dev/ttyUSB0"
+  }
+  { Button7 Button
+    MoveScaled(76,40,9,2)
+    Background = &H00FF00&
+    Text = ("FotON")
+  }
+  { Button8 Button
+    MoveScaled(86,40,8,1)
+    Background = &HFFFFFF&
+    Text = ("FotOFF")
+  }
+  { Timer2 #Timer
+    #X = 665
+    #Y = 329
+    Delay = 500
+  }
+  { Button1 Button
+    MoveScaled(76,50,18,4)
+    Text = ("RESET!")
+  }
+  { BArrivi ListBox
+    MoveScaled(1,4,90,3)
+    Visible = False
+  }
+  { Button9 Button
+    MoveScaled(1,47,25,7)
+    Text = ("ARRIVO")
+  }
+  { Timer3 #Timer
+    #X = 665
+    #Y = 336
+    Enabled = True
+    Delay = 100
+  }
+  { Timer4 #Timer
+    #X = 665
+    #Y = 343
+    Enabled = True
+    Delay = 100
+  }
+  { Button10 Button
+    MoveScaled(1,55,25,4)
+    Text = ("MODIFICA ORDINE")
+  }
+}

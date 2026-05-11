@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Gambas IDE backup files
+*~
+
+# Gambas compiled output
+.gambas/
+*.gambas

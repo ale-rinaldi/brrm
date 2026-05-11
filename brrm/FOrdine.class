@@ -1,0 +1,63 @@
+' Gambas class file
+
+
+PUBLIC SUB Button2_Click()
+DIM num AS Integer
+DIM p1 AS Integer
+DIM p2 AS Integer
+IF Listbox1.Index > 0 THEN 
+num = Listbox1.Index
+p1 = Listbox1[num].Text
+p2 = Listbox1[num - 1].Text
+Listbox1[num - 1].Text = p1
+Listbox1[num].Text = p2
+Listbox1.Index = Listbox1.Index - 1
+ENDIF
+END
+
+
+
+PUBLIC SUB Button3_Click()
+DIM num AS Integer
+DIM p1 AS Integer
+DIM p2 AS Integer
+IF Listbox1.Index < Listbox1.Count - 1 THEN 
+num = Listbox1.Index
+p1 = Listbox1[num].Text
+p2 = Listbox1[num + 1].Text
+Listbox1[num + 1].Text = p1
+Listbox1[num].Text = p2
+Listbox1.Index = Listbox1.Index + 1
+ENDIF
+END
+
+PUBLIC SUB Form_Open()
+DIM counter AS Integer
+Listbox1.Clear()
+counter = 0
+WHILE counter < FMain.LEquipaggi.Count 
+ListBox1.Add(FMain.LEquipaggi[counter].Text)
+counter = counter + 1
+WEND 
+END 
+
+PUBLIC SUB Button4_Click()
+
+  Listbox1.Remove(Listbox1.Index)
+END
+
+PUBLIC SUB Button5_Click()
+
+  DIM sOut AS String
+DIM counter AS Integer
+counter = 1
+IF Listbox1.Count > 0 THEN 
+ sOut = Listbox1[0].Text
+WHILE counter < Listbox1.Count
+sOut = sOut & "-" & Listbox1[counter].Text
+counter = counter + 1
+WEND 
+END IF
+FMain.EditOrder(sOut)
+FOrdine.Hide
+END

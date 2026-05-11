@@ -1,0 +1,27 @@
+# Gambas Form File 2.0
+
+{ Form Form
+  MoveScaled(0,0,64,17)
+  Text = ("")
+  { Label2 Label
+    MoveScaled(1,1,46,4)
+    Text = ("Inserire il numero della macchinina partita alle ore ")
+  }
+  { Label1 Label
+    MoveScaled(45,1,18,4)
+    Font = Font["Bold"]
+    Text = ("Label1")
+  }
+  { TextBox1 TextBox
+    MoveScaled(1,6,20,4)
+    Text = ("")
+  }
+  { Button1 Button
+    MoveScaled(44,11,19,5)
+    Text = ("OK")
+  }
+  { Button2 Button
+    MoveScaled(24,11,19,5)
+    Text = ("Annulla")
+  }
+}
