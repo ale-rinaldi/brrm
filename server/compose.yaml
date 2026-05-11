@@ -1,0 +1,27 @@
+services:
+  brrm-align:
+    build: .
+    image: brrm-align:latest
+    container_name: brrm-align
+    restart: unless-stopped
+    environment:
+      - BRRM_ALIGN_USER=${BRRM_ALIGN_USER:?BRRM_ALIGN_USER richiesto}
+      - BRRM_ALIGN_PASSWORD=${BRRM_ALIGN_PASSWORD:?BRRM_ALIGN_PASSWORD richiesto}
+      - BRRM_ALIGN_TTL_SEC=${BRRM_ALIGN_TTL_SEC:-300}
+      - BRRM_ALIGN_KEEPALIVE_SEC=${BRRM_ALIGN_KEEPALIVE_SEC:-10}
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.brrm-align.rule=Host(`www.boxrally.eu`) && PathPrefix(`/brrm-align`)"
+      - "traefik.http.routers.brrm-align.entrypoints=https"
+      - "traefik.http.routers.brrm-align.tls=true"
+      - "traefik.http.routers.brrm-align.tls.certresolver=httpcert"
+      # Striscia il prefisso /brrm-align prima di passare la richiesta all'app
+      - "traefik.http.routers.brrm-align.middlewares=brrm-align-strip"
+      - "traefik.http.middlewares.brrm-align-strip.stripprefix.prefixes=/brrm-align"
+      - "traefik.http.services.brrm-align.loadbalancer.server.port=8000"
+
+networks:
+  traefik:
+    external: true
