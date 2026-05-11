@@ -44,7 +44,12 @@ jobs:
             debian:trixie \
             bash -c "set -e
               apt-get update -qq
-              apt-get install -y -qq gambas3 fakeroot
+              apt-get install -y -qq \
+                gambas3-runtime \
+                gambas3-gb-qt6 \
+                gambas3-gb-form \
+                gambas3-gb-net \
+                fakeroot
               ./package.sh"
 
       - name: Installa tool per metadata APT e firma
