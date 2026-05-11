@@ -109,7 +109,12 @@ Private Function LoadConfig() As Boolean
 
   If Not Exist($cfgPath) Then Return False
 
-  For Each sLine In Split(File.Load($cfgPath), gb.NewLine)
+  Dim sCfg As String
+  sCfg = ""
+  Try sCfg = File.Load($cfgPath)
+  If sCfg = "" Then Return False
+
+  For Each sLine In Split(sCfg, gb.NewLine)
     sLine = Trim$(sLine)
     If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
     iEq = InStr(sLine, "=")
@@ -169,8 +174,12 @@ Private Function ParseCredentials(sPath As String) As Boolean
   sCacheDir = User.Home &/ ".cache/brrm"
   If Not Exist(sCacheDir) Then Try Mkdir sCacheDir
   $privKeyPath = sCacheDir &/ "sheet-privkey.pem"
-  File.Save($privKeyPath, sKey)
-  Shell "chmod 600 " & Shell$($privKeyPath) Wait
+  Try File.Save($privKeyPath, sKey)
+  If Error Then
+    LogLine("Cannot write privkey to " & $privKeyPath & ": " & Error.Text)
+    Return False
+  Endif
+  Try Shell "chmod 600 " & Shell$($privKeyPath) Wait
   Return True
 End
 
