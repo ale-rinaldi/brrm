@@ -150,6 +150,7 @@ Senza il file (o senza `credentials`/`document_id`/`sheet_name`/`equipaggio_colu
 - **Numeri validi:** 1 — 9999.
 - **Formato sessione persistente:** file `v1` con header magic + righe `numero|orario_partenza|orario_arrivo` (su `brrm`) o `numero|orario_partenza` (su `brrm-partenza`), scrittura atomica tramite tmp + `rename(2)`.
 - **Millisecondi:** catturati via `Format$(Time, "hh:nn:ss.uuu")` al momento dell'evento (Gambas `Str$` su Date time-only li tronca, quindi servono Format/uuu o math sulla rappresentazione interna). I delta tempo sono calcolati in int da `Hour*3.6e6 + Minute*60000 + Second*1000 + millis`, niente float.
+- **Limite cross-midnight:** `partenze[]` e `arrivi[]` sono `Date` *time-only* (HH:MM:SS.zzz, niente data). La differenza arrivo - partenza presume durata gara < 24h: se il time-of-day dell'arrivo e' minore di quello della partenza, brrm interpreta come "arrivo dopo mezzanotte" e somma 86_400_000 ms al delta. Lo stesso per l'UNIX timestamp scritto sul foglio: se l'orario di un evento e' successivo all'ora corrente di Now(), brrm assume che sia stato registrato il giorno prima. **Funziona finche' la gara dura < 24h** (sufficiente per Soap Box). Gare piu' lunghe richiederebbero di memorizzare full datetime invece di solo time-of-day.
 - **Polling UI:** `Timer1` aggiorna la griglia ogni 91 ms.
 - **Priorità real-time:** lo script di lancio installato dal pacchetto `.deb` usa `chrt -f 50` quando possibile (vedi `package.sh`), con permessi configurati via `/etc/security/limits.d/`.
 

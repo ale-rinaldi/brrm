@@ -723,9 +723,16 @@ Private Function DateToUnixMs(d As Date) As Long
   ' System.TimeZone e' in secondi a ovest di UTC (POSIX): CEST = -7200,
   ' quindi UNIX_ms = local_ms + System.TimeZone * 1000 (l'addendo e'
   ' negativo per fusi a est, e ci porta dal locale all'UTC).
+  '
+  ' Cross-midnight: partenze/arrivi sono Date time-only. Se il time-of-day
+  ' di `d` e' successivo a quello attuale, l'evento e' avvenuto IERI
+  ' (assunzione gara < 24h). Sottraggo un giorno cosi' l'UNIX ms assoluto
+  ' scritto sul foglio resta coerente con la durata calcolata via delta.
   Dim t As Date = Now
   Dim daysEpoch As Long = DaysFromEpoch(Year(t), Month(t), Day(t))
-  Return daysEpoch * 86400000 + MsInDay(d) + CLong(System.TimeZone) * 1000
+  Dim msEvent As Long = MsInDay(d)
+  If msEvent > MsInDay(t) Then daysEpoch = daysEpoch - 1
+  Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
 End
 
 Private Function MsInDay(d As Date) As Long
