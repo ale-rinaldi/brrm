@@ -131,6 +131,36 @@ Private Sub EnsureDirOf(sPath As String)
   Next
 End
 
+Public Function MsInDay(d As Date) As Long
+  ' Millisecondi trascorsi dalla mezzanotte locale (0..86399999). Int puro.
+  Dim iMs As Integer = 0
+  Try iMs = CInt(Format$(d, "uuu"))
+  Return Hour(d) * 3600000 + Minute(d) * 60000 + Second(d) * 1000 + iMs
+End
+
+Public Function DateToUnixMs(d As Date) As Long
+  ' Vedi brrm/FMain.DateToUnixMs (e CSheet.DateToUnixMs nel progetto arrivo)
+  ' per la spiegazione completa. Cross-midnight: se l'orario di d e' maggiore
+  ' di Now(), l'evento e' di IERI (assumiamo gara < 24h).
+  Dim t As Date = Now
+  Dim daysEpoch As Long = DaysFromEpoch(Year(t), Month(t), Day(t))
+  Dim msEvent As Long = MsInDay(d)
+  If msEvent > MsInDay(t) Then daysEpoch = daysEpoch - 1
+  Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
+End
+
+Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
+  ' Howard Hinnant civil_to_days: giorni dal 1970-01-01.
+  Dim era, yoe, mAdj, doy, doe As Long
+  If m <= 2 Then y = y - 1
+  If y >= 0 Then era = y \ 400 Else era = (y - 399) \ 400
+  yoe = y - era * 400
+  If m > 2 Then mAdj = m - 3 Else mAdj = m + 9
+  doy = (153 * mAdj + 2) \ 5 + d - 1
+  doe = yoe * 365 + yoe \ 4 - yoe \ 100 + doy
+  Return era * 146097 + doe - 719468
+End
+
 Public Sub ConfermaScartoOrario(che As String) As Boolean
   ' Conferma per chiudere senza salvare un dialog che contiene un orario
   ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
@@ -576,17 +606,18 @@ Endif
 End
 
 Public Sub Button6_Click()
-  ' Export CSV: numero,hh,mm,ss,mmm (orario di partenza). Estratti da
-  ' Hour/Minute/Second/Format$(uuu) — int puri, niente CStr che trunca i ms.
+  ' Export CSV partenze:
+  '   numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms
+  ' Stesso schema dei campi inviati a Google Sheets. Tutto int puro (niente
+  ' CStr di Date che truncherebbe i ms).
   Dim Counter As Integer
   Dim iEqui As Integer
   Dim tPart As Date
-  Dim iHr As Integer
-  Dim iMn As Integer
-  Dim iSec As Integer
   Dim iMillis As Integer
   Dim sOut As String
   Dim sPath As String
+
+  sOut = "numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms\n"
 
   For Counter = 0 To LEquipaggi.Count - 1
     iEqui = 0
@@ -594,12 +625,9 @@ Public Sub Button6_Click()
     If iEqui = 0 Then Continue
     If partenze[iEqui] = 0 Then Continue
     tPart = partenze[iEqui]
-    iHr = Hour(tPart)
-    iMn = Minute(tPart)
-    iSec = Second(tPart)
     iMillis = 0
     Try iMillis = CInt(Format$(tPart, "uuu"))
-    sOut = sOut & iEqui & "," & iHr & "," & iMn & "," & iSec & "," & Format$(iMillis, "000") & "\n"
+    sOut = sOut & iEqui & "," & Hour(tPart) & "," & Minute(tPart) & "," & Second(tPart) & "," & Format$(iMillis, "000") & "," & DateToUnixMs(tPart) & "\n"
   Next
 
   Dialog.Title = "Salva orari partenza"

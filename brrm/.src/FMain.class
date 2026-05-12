@@ -118,6 +118,31 @@ PUBLIC FUNCTION MsInDay(d AS Date) AS Long
   RETURN Hour(d) * 3600000 + Minute(d) * 60000 + Second(d) * 1000 + iMs
 END
 
+PUBLIC FUNCTION DateToUnixMs(d AS Date) AS Long
+  ' Converte un orario (Date time-only) in UNIX ms UTC. Stessa logica di
+  ' CSheet.DateToUnixMs — duplicata qui per usarla dall'export CSV senza
+  ' dipendere da $sheet. System.TimeZone (POSIX) e' negativo a est di UTC.
+  ' Cross-midnight: se l'orario di d e' successivo a quello attuale,
+  ' l'evento e' di IERI (assumiamo gara < 24h).
+  DIM t AS Date = Now
+  DIM daysEpoch AS Long = DaysFromEpoch(Year(t), Month(t), Day(t))
+  DIM msEvent AS Long = MsInDay(d)
+  IF msEvent > MsInDay(t) THEN daysEpoch = daysEpoch - 1
+  RETURN daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
+END
+
+Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
+  ' Howard Hinnant civil_to_days: giorni dal 1970-01-01. Int puro.
+  Dim era, yoe, mAdj, doy, doe As Long
+  If m <= 2 Then y = y - 1
+  If y >= 0 Then era = y \ 400 Else era = (y - 399) \ 400
+  yoe = y - era * 400
+  If m > 2 Then mAdj = m - 3 Else mAdj = m + 9
+  doy = (153 * mAdj + 2) \ 5 + d - 1
+  doe = yoe * 365 + yoe \ 4 - yoe \ 100 + doy
+  Return era * 146097 + doe - 719468
+End
+
 PUBLIC SUB ConfermaScartoOrario(che AS String) AS Boolean
   ' Conferma per chiudere senza salvare un dialog che contiene un orario
   ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
@@ -621,21 +646,42 @@ ENDIF
 END
 
 PUBLIC SUB Button6_Click()
-  ' Export CSV: numero,hh,mm,ss,mmm. Durata calcolata in ms interi.
+  ' Export CSV completo (stessi campi che scriviamo su Sheets):
+  '   numero,
+  '   partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms,
+  '   arrivo_hh,arrivo_mm,arrivo_ss,arrivo_ms,arrivo_unix_ms,
+  '   tempo_mm,tempo_ss,tempo_ms,tempo_total_ms
+  ' tempo_mm e' minuti totali (puo' essere >= 60, come su Sheets).
+  ' Esportate solo le righe con partenza E arrivo (file = risultati gara).
   DIM Counter AS Integer
   DIM iEqui AS Integer
+  DIM dPart AS Date
+  DIM dArr AS Date
+  DIM iPartMs AS Integer
+  DIM iArrMs AS Integer
   DIM delta AS Long
   DIM sOut AS String
   DIM sPath AS String
+
+  sOut = "numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms,arrivo_hh,arrivo_mm,arrivo_ss,arrivo_ms,arrivo_unix_ms,tempo_mm,tempo_ss,tempo_ms,tempo_total_ms\n"
 
   FOR Counter = 0 TO LEquipaggi.Count - 1
     iEqui = 0
     TRY iEqui = LEquipaggi[Counter].Text
     IF iEqui = 0 THEN CONTINUE
     IF partenze[iEqui] = 0 OR arrivi[iEqui] = 0 THEN CONTINUE
-    delta = MsInDay(arrivi[iEqui]) - MsInDay(partenze[iEqui])
+    dPart = partenze[iEqui]
+    dArr = arrivi[iEqui]
+    iPartMs = 0
+    TRY iPartMs = CInt(Format$(dPart, "uuu"))
+    iArrMs = 0
+    TRY iArrMs = CInt(Format$(dArr, "uuu"))
+    delta = MsInDay(dArr) - MsInDay(dPart)
     IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
-    sOut &= iEqui & "," & (delta \ 3600000) & "," & ((delta \ 60000) MOD 60) & "," & ((delta \ 1000) MOD 60) & "," & Format$(delta MOD 1000, "000") & "\n"
+    sOut &= iEqui & ","
+    sOut &= Hour(dPart) & "," & Minute(dPart) & "," & Second(dPart) & "," & Format$(iPartMs, "000") & "," & DateToUnixMs(dPart) & ","
+    sOut &= Hour(dArr) & "," & Minute(dArr) & "," & Second(dArr) & "," & Format$(iArrMs, "000") & "," & DateToUnixMs(dArr) & ","
+    sOut &= (delta \ 60000) & "," & ((delta \ 1000) MOD 60) & "," & Format$(delta MOD 1000, "000") & "," & delta & "\n"
   NEXT
 
   Dialog.Title = "Salva risultati gara"
@@ -666,7 +712,9 @@ END
 
 PUBLIC SUB ButtonImporta_Click()
   ' Importa orari di partenza da CSV (formato esportato da brrm-partenza:
-  ' numero,hh,mm,ss,mmm su ogni riga).
+  ' numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms;
+  ' colonne >5 vengono ignorate, righe con primo campo non numerico — incluso
+  ' l'header — vengono saltate automaticamente dal TRY CInt + check <= 0).
   DIM sPath AS String
   DIM aLines AS String[]
   DIM sLine AS String

@@ -62,8 +62,8 @@ Griglia principale con 4 colonne: **Equipaggio · Partenza · Arrivo · Tempo**.
 - **Inverti arrivo** — scambio degli orari di arrivo tra due equipaggi (per correggere assegnazioni errate).
 - **Cambia numero** — rinomina locale il numero equipaggio di una riga (sposta partenza+arrivo, valida che il nuovo numero non esista). Operazione solo locale: non viene propagata a brrm-partenza.
 - **MODIFICA ORDINE** — riordino manuale della lista equipaggi (sposta su / sposta giù / rimuovi).
-- **Importa partenze** — carica orari di partenza da CSV (utile quando il sync via web non è disponibile e si lavora offline con scambio file).
-- **ESPORTA** — esportazione risultati in CSV (formato `numero,hh,mm,ss,mmm` — durata gara con precisione al millisecondo, calcolata in int).
+- **Importa partenze** — carica orari di partenza da CSV (utile quando il sync via web non è disponibile e si lavora offline con scambio file). Compatibile con il CSV prodotto da `brrm-partenza` (sia vecchio formato 5-colonne sia nuovo 6-colonne con header e `partenza_unix_ms`); righe non numeriche (header inclusa) vengono saltate automaticamente.
+- **ESPORTA** — esportazione risultati in CSV con header. Colonne: `numero, partenza_hh, partenza_mm, partenza_ss, partenza_ms, partenza_unix_ms, arrivo_hh, arrivo_mm, arrivo_ss, arrivo_ms, arrivo_unix_ms, tempo_mm, tempo_ss, tempo_ms, tempo_total_ms` (stesso schema dei campi inviati a Google Sheets; `tempo_mm` sono minuti totali, può essere ≥ 60).
 - **RESET!** — azzera l'intera sessione, con doppia conferma.
 - **Indicatore IN ARRIVO** — etichetta grande che mostra il numero del prossimo equipaggio atteso (primo senza arrivo registrato).
 - **Tempo griglia** — durata gara aggiornata in tempo reale, formato `mm:ss.mmm`.
@@ -80,7 +80,7 @@ Versione ridotta dedicata al solo registro partenze.
 - **Annulla partenza** contestuale.
 - **Cambia numero** — riassegna una partenza ad un equipaggio diverso (verifica unicità; emette annullamento del vecchio + nuovo evento sincronizzato).
 - **Inverti partenze** — scambia gli orari di due equipaggi (stesso pattern UX di *Inverti arrivo* su brrm; sincronizza entrambi gli orari swappati).
-- **ESPORTA** — esportazione orari in CSV (formato `numero,hh,mm,ss,mmm`).
+- **ESPORTA** — esportazione orari in CSV con header. Colonne: `numero, partenza_hh, partenza_mm, partenza_ss, partenza_ms, partenza_unix_ms` (stesso schema dei campi inviati a Google Sheets).
 - **RESET!** — azzera la sessione (con doppia conferma).
 - **Impostazioni…** — apre la form di configurazione.
 - Persistenza in `~/.brrm-partenza-session` (formato v1, scrittura atomica).
