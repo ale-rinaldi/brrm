@@ -81,8 +81,27 @@ PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
   ' data/metadata e' garantito anche in caso di power cut.
   DIM sTmp AS String
   sTmp = sPath & ".tmp"
+  EnsureDirOf(sPath)
   File.Save(sTmp, sContent)
   Move sTmp DownTo sPath
+END
+
+PRIVATE SUB EnsureDirOf(sPath AS String)
+  ' Crea ricorsivamente i parent dirs di sPath se mancano. Idempotente.
+  DIM sDir AS String
+  DIM sCur AS String
+  DIM sPart AS String
+  sDir = File.Dir(sPath)
+  IF sDir = "" OR IF Exist(sDir) THEN RETURN
+  sCur = ""
+  FOR EACH sPart IN Split(sDir, "/")
+    IF sPart = "" THEN
+      sCur = "/"
+    ELSE
+      sCur = sCur &/ sPart
+    ENDIF
+    IF NOT Exist(sCur) THEN TRY Mkdir sCur
+  NEXT
 END
 
 Private Sub AlignLoadConfig() As Boolean
@@ -142,7 +161,7 @@ Public Sub AlignInit()
     Return
   Endif
   $alignLastSeq = 0
-  Try $alignLastSeq = CLong(Trim$(File.Load(User.Home &/ ".brrm-align-lastseq")))
+  Try $alignLastSeq = CLong(Trim$(File.Load(User.Home &/ ".local/share/brrm/arrivo-align-lastseq")))
   $alignBuffer = ""
   $alignBackoffSec = 1
   $alignWantReconnect = False
@@ -343,7 +362,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       iMinSeq = JsonGetInt(sData, "min_seq")
       If iMinSeq > 0 And If $alignLastSeq < iMinSeq - 1 Then
         $alignLastSeq = iMinSeq - 1
-        Try AtomicSave(User.Home &/ ".brrm-align-lastseq", CStr($alignLastSeq))
+        Try AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
       Endif
 
     Case "event"
@@ -365,7 +384,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
         Endif
       Endif
       $alignLastSeq = iSeq
-      Try AtomicSave(User.Home &/ ".brrm-align-lastseq", CStr($alignLastSeq))
+      Try AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
       UpgradeSessionFile()
       Timer1.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
@@ -395,7 +414,7 @@ PUBLIC SUB UpgradeSessionFile()
     IF arrivi[iEqui] <> 0 THEN sArr = Str$(arrivi[iEqui])
     sFileOut &= iEqui & "|" & sPart & "|" & sArr & gb.NewLine
   NEXT
-  AtomicSave(User.Home &/ ".brrm-session", sFileOut)
+  AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
 END
 
 
@@ -456,7 +475,7 @@ SetupGridHeader()
 TRY SerialPort1.Open
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
-IF Exist(User.Home &/ ".brrm-session") THEN sTest = File.Load(User.Home &/ ".brrm-session")
+IF Exist(User.Home &/ ".local/share/brrm/arrivo-session") THEN sTest = File.Load(User.Home &/ ".local/share/brrm/arrivo-session")
 aTest = Split(sTest, gb.NewLine)
 IF aTest.Count >= 1 AND IF aTest[0] = "brrm-session v1" THEN
   FOR iEqui = 1 TO aTest.Max

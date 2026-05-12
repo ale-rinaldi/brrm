@@ -99,8 +99,27 @@ Public Sub AtomicSave(sPath As String, sContent As String)
   ' data/metadata e' garantito anche in caso di power cut.
   Dim sTmp As String
   sTmp = sPath & ".tmp"
+  EnsureDirOf(sPath)
   File.Save(sTmp, sContent)
   Move sTmp DownTo sPath
+End
+
+Private Sub EnsureDirOf(sPath As String)
+  ' Crea ricorsivamente i parent dirs di sPath se mancano. Idempotente.
+  Dim sDir As String
+  Dim sCur As String
+  Dim sPart As String
+  sDir = File.Dir(sPath)
+  If sDir = "" Or If Exist(sDir) Then Return
+  sCur = ""
+  For Each sPart In Split(sDir, "/")
+    If sPart = "" Then
+      sCur = "/"
+    Else
+      sCur = sCur &/ sPart
+    Endif
+    If Not Exist(sCur) Then Try Mkdir sCur
+  Next
 End
 
 Private Sub AlignLoadConfig() As Boolean
@@ -161,10 +180,10 @@ Public Sub AlignInit()
     Return
   Endif
   $alignSeq = 0
-  Try $alignSeq = CLong(Trim$(File.Load(User.Home &/ ".brrm-partenza-align-seq")))
+  Try $alignSeq = CLong(Trim$(File.Load(User.Home &/ ".local/share/brrm/partenza-align-seq")))
   $alignOutbox = New String[]
-  If Exist(User.Home &/ ".brrm-partenza-outbox") Then
-    For Each sLine In Split(File.Load(User.Home &/ ".brrm-partenza-outbox"), gb.NewLine)
+  If Exist(User.Home &/ ".local/share/brrm/partenza-align-outbox") Then
+    For Each sLine In Split(File.Load(User.Home &/ ".local/share/brrm/partenza-align-outbox"), gb.NewLine)
       sLine = Trim$(sLine)
       If sLine <> "" Then $alignOutbox.Add(sLine)
     Next
@@ -240,8 +259,8 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
   sEvent &= "," & Chr(34) & "ts_origine" & Chr(34) & ":" & Chr(34) & sTsOrigine & Chr(34)
   sEvent &= "}"
   $alignOutbox.Add(sEvent)
-  AtomicSave(User.Home &/ ".brrm-partenza-align-seq", CStr($alignSeq))
-  AtomicSave(User.Home &/ ".brrm-partenza-outbox", $alignOutbox.Join(gb.NewLine))
+  AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-seq", CStr($alignSeq))
+  AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-outbox", $alignOutbox.Join(gb.NewLine))
   AlignTrySend()
 End
 
@@ -282,7 +301,7 @@ Public Sub AlignHttp_Finished()
   Endif
   If $hAlignHttp.Code = 200 Or $hAlignHttp.Code = 201 Then
     Try $alignOutbox.Remove(0)
-    Try AtomicSave(User.Home &/ ".brrm-partenza-outbox", $alignOutbox.Join(gb.NewLine))
+    Try AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-outbox", $alignOutbox.Join(gb.NewLine))
     AlignSetStatus(True, "Ultimo evento (seq=" & $alignSeq & ") sincronizzato")
     $alignBackoffSec = 1
     ' Se ci sono altri eventi pending, spedisci subito il prossimo
@@ -350,7 +369,7 @@ Public Sub UpgradeSessionFile()
     If partenze[iEqui] <> 0 Then sPart = Str$(partenze[iEqui])
     sFileOut &= iEqui & "|" & sPart & gb.NewLine
   Next
-  AtomicSave(User.Home &/ ".brrm-partenza-session", sFileOut)
+  AtomicSave(User.Home &/ ".local/share/brrm/partenza-session", sFileOut)
 End
 
 
@@ -401,7 +420,7 @@ SetupGridHeader()
 Try SerialPort1.Open
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
-If Exist(User.Home &/ ".brrm-partenza-session") Then sTest = File.Load(User.Home &/ ".brrm-partenza-session")
+If Exist(User.Home &/ ".local/share/brrm/partenza-session") Then sTest = File.Load(User.Home &/ ".local/share/brrm/partenza-session")
 aTest = Split(sTest, gb.NewLine)
 If aTest.Count >= 1 And If aTest[0] = "brrm-partenza-session v1" Then
   For iEqui = 1 To aTest.Max
