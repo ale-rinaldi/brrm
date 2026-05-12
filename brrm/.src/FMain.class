@@ -330,49 +330,7 @@ Private Sub AlignProcessBlock(sBlock As String)
   AlignApplyEvent(sEventType, sData)
 End
 
-Private Function JsonGetInt(s As String, field As String) As Long
-  ' Parser super-semplice per JSON flat: cerca "key": e legge il numero.
-  Dim i As Integer
-  Dim iStart As Integer
-  Dim iEnd As Integer
-  Dim sNeedle As String
-  sNeedle = Chr(34) & field & Chr(34) & ":"
-  i = InStr(s, sNeedle)
-  If i = 0 Then Return 0
-  iStart = i + Len(sNeedle)
-  While iStart <= Len(s) And Mid$(s, iStart, 1) = " "
-    Inc iStart
-  Wend
-  iEnd = iStart
-  While iEnd <= Len(s) And (Mid$(s, iEnd, 1) Like "[0-9-]")
-    Inc iEnd
-  Wend
-  If iEnd = iStart Then Return 0
-  Return CLong(Mid$(s, iStart, iEnd - iStart))
-End
 
-Private Function JsonGetStr(s As String, field As String) As String
-  ' Parser super-semplice per JSON flat: cerca "key": e legge la stringa
-  ' fra virgolette. Null → "". Assume nessun escape interno (sufficiente per
-  ' i nostri payload: orario HH:MM:SS.zzz, ts_origine ISO8601).
-  Dim i As Integer
-  Dim iStart As Integer
-  Dim iEnd As Integer
-  Dim sNeedle As String
-  sNeedle = Chr(34) & field & Chr(34) & ":"
-  i = InStr(s, sNeedle)
-  If i = 0 Then Return ""
-  i = i + Len(sNeedle)
-  While i <= Len(s) And Mid$(s, i, 1) = " "
-    Inc i
-  Wend
-  If Mid$(s, i, 4) = "null" Then Return ""
-  If Mid$(s, i, 1) <> Chr(34) Then Return ""
-  iStart = i + 1
-  iEnd = InStr(s, Chr(34), iStart)
-  If iEnd = 0 Then Return ""
-  Return Mid$(s, iStart, iEnd - iStart)
-End
 
 Private Sub AlignApplyEvent(sEventType As String, sData As String)
   ' Applica un evento SSE allo stato locale. Idempotente: scarta seq gia' visti.
@@ -381,23 +339,33 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
   Dim sOrario As String
   Dim dPartenza As Date
   Dim iMinSeq As Long
+  Dim ev As Variant
+
+  ev = Null
+  Try ev = JSON.Decode(sData)
+  If IsNull(ev) Then Return
 
   Select Case sEventType
     Case "meta"
       ' Gap detection: se la TTL server ha mangiato eventi sotto la nostra
       ' last_seq, allinea last_seq a min_seq-1 cosi' accettiamo lo snapshot.
-      iMinSeq = JsonGetInt(sData, "min_seq")
+      iMinSeq = 0
+      Try iMinSeq = CLong(ev["min_seq"])
       If iMinSeq > 0 And If $alignLastSeq < iMinSeq - 1 Then
         $alignLastSeq = iMinSeq - 1
         Try AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
       Endif
 
     Case "event"
-      iSeq = JsonGetInt(sData, "seq")
+      iSeq = 0
+      Try iSeq = CLong(ev["seq"])
       If iSeq <= $alignLastSeq Then Return
-      iNumero = JsonGetInt(sData, "numero")
+      iNumero = 0
+      Try iNumero = CInt(ev["numero"])
       If iNumero <= 0 Or iNumero >= MAX_NUMERO Then Return
-      sOrario = JsonGetStr(sData, "orario")
+      ' orario può essere null (annullamento) o stringa "hh:mm:ss.zzz"
+      sOrario = ""
+      Try sOrario = CStr(ev["orario"])
       Timer1.Stop
       If sOrario = "" Then
         ' orario=null → annullamento partenza
