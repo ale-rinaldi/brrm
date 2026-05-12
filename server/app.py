@@ -27,6 +27,7 @@ import os
 import secrets
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
@@ -158,7 +159,35 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)) -> str:
 
 # --- App --------------------------------------------------------------------
 
-app = FastAPI(title="brrm-align", description="Bridge partenza<->arrivo via Internet")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Eviction periodica della cache: ogni 60s rimuove eventi oltre TTL."""
+    async def evictor():
+        while True:
+            await asyncio.sleep(60)
+            async with cache._lock:
+                for session_id in list(cache._events.keys()):
+                    cache._evict_expired(session_id)
+                    if not cache._events[session_id]:
+                        del cache._events[session_id]
+
+    task = asyncio.create_task(evictor())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(
+    title="brrm-align",
+    description="Bridge partenza<->arrivo via Internet",
+    lifespan=lifespan,
+)
 
 
 @app.get("/health")
@@ -234,18 +263,3 @@ async def stream(
     return EventSourceResponse(event_generator())
 
 
-# --- Eviction periodica (background task) -----------------------------------
-
-
-@app.on_event("startup")
-async def start_evictor():
-    async def loop():
-        while True:
-            await asyncio.sleep(60)
-            async with cache._lock:
-                for session_id in list(cache._events.keys()):
-                    cache._evict_expired(session_id)
-                    if not cache._events[session_id]:
-                        del cache._events[session_id]
-
-    asyncio.create_task(loop())
