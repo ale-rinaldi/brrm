@@ -725,7 +725,7 @@ Private Function JsonEscape(s As String) As String
   Return out
 End
 
-Private Function JsonGetStr(s As String, key As String) As String
+Private Function JsonGetStr(s As String, field As String) As String
   ' Estrae una stringa "key":"valore". Gestisce escape \" e \\.
   ' Per altre escape (\n, \t, ecc.) le restituisce letterali (\n a due char).
   Dim sNeedle As String
@@ -735,7 +735,7 @@ Private Function JsonGetStr(s As String, key As String) As String
   Dim escape As Boolean
   Dim c As String
 
-  sNeedle = Chr(34) & key & Chr(34) & ":"
+  sNeedle = Chr(34) & field & Chr(34) & ":"
   i = InStr(s, sNeedle)
   If i = 0 Then Return ""
   i = i + Len(sNeedle)
@@ -771,11 +771,11 @@ Private Function JsonGetStr(s As String, key As String) As String
   Return ""
 End
 
-Private Function JsonGetInt(s As String, key As String) As Long
+Private Function JsonGetInt(s As String, field As String) As Long
   Dim sNeedle As String
   Dim i, iStart, iEnd As Integer
   Dim sVal As String
-  sNeedle = Chr(34) & key & Chr(34) & ":"
+  sNeedle = Chr(34) & field & Chr(34) & ":"
   i = InStr(s, sNeedle)
   If i = 0 Then Return 0
   i = i + Len(sNeedle)

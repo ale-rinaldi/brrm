@@ -1,13 +1,10 @@
 ' Gambas class file
 
-prow As Integer
 partenze As New Date[10000]
 arrivi As New Date[10000]
 startposindex As Integer
 stopposindex As Integer
-posingrid As New Integer[10000]
 CurrAct As String
-numingrid As New Integer[10000]
 ChangingN As Integer
 FotON As Boolean
 INV1 As Integer
@@ -443,7 +440,6 @@ If GridView1[0, 0].Background <> &H000000& Then SetupGridHeader()
 Dim concorrente As Integer
 Dim asd As Date
 Dim asdd As String
-Dim posgrid As Integer
 Dim indice As Integer
 Dim totale As Integer
 Dim Counter As Integer

@@ -1,13 +1,10 @@
 ' Gambas class file
 
-prow AS Integer
 partenze AS NEW Date[10000]
 arrivi AS NEW Date[10000]
 startposindex AS Integer
 stopposindex AS Integer
-posingrid AS NEW Integer[10000]
 CurrAct AS String
-numingrid AS NEW Integer[10000]
 ChangingN AS Integer
 FotON AS Boolean
 INV1 AS Integer
@@ -303,13 +300,13 @@ Private Sub AlignProcessBlock(sBlock As String)
   AlignApplyEvent(sEventType, sData)
 End
 
-Private Function JsonGetInt(s As String, key As String) As Long
+Private Function JsonGetInt(s As String, field As String) As Long
   ' Parser super-semplice per JSON flat: cerca "key": e legge il numero.
   Dim i As Integer
   Dim iStart As Integer
   Dim iEnd As Integer
   Dim sNeedle As String
-  sNeedle = Chr(34) & key & Chr(34) & ":"
+  sNeedle = Chr(34) & field & Chr(34) & ":"
   i = InStr(s, sNeedle)
   If i = 0 Then Return 0
   iStart = i + Len(sNeedle)
@@ -324,7 +321,7 @@ Private Function JsonGetInt(s As String, key As String) As Long
   Return CLong(Mid$(s, iStart, iEnd - iStart))
 End
 
-Private Function JsonGetStr(s As String, key As String) As String
+Private Function JsonGetStr(s As String, field As String) As String
   ' Parser super-semplice per JSON flat: cerca "key": e legge la stringa
   ' fra virgolette. Null → "". Assume nessun escape interno (sufficiente per
   ' i nostri payload: orario HH:MM:SS.zzz, ts_origine ISO8601).
@@ -332,7 +329,7 @@ Private Function JsonGetStr(s As String, key As String) As String
   Dim iStart As Integer
   Dim iEnd As Integer
   Dim sNeedle As String
-  sNeedle = Chr(34) & key & Chr(34) & ":"
+  sNeedle = Chr(34) & field & Chr(34) & ":"
   i = InStr(s, sNeedle)
   If i = 0 Then Return ""
   i = i + Len(sNeedle)
@@ -508,7 +505,6 @@ DIM concorrente AS Integer
 DIM asd AS Date
 DIM asdd AS String
 DIM aAsd AS String[]
-DIM posgrid AS Integer
 DIM indice AS Integer
 DIM totale AS Integer
 DIM Counter AS Integer
@@ -746,7 +742,6 @@ PUBLIC SUB ButtonImporta_Click()
 END
 
 PUBLIC SUB twoDecs(number AS String) AS String
-  DIM lol AS String
 IF Len(number) = 0 THEN 
 RETURN "00"
 ELSE IF Len(number) < 2 THEN 
