@@ -131,6 +131,19 @@ Private Sub EnsureDirOf(sPath As String)
   Next
 End
 
+Public Sub ConfermaScartoOrario(che As String) As Boolean
+  ' Conferma per chiudere senza salvare un dialog che contiene un orario
+  ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
+  ' lo scarto. Usata da FArrivo sul pulsante Annulla.
+  Dim sCosa As String
+  If che = "" Then
+    sCosa = "L'orario"
+  Else
+    sCosa = "L'orario di " & che
+  Endif
+  Return Message.Question("Sei sicuro di voler annullare l'inserimento? " & sCosa & " verrà perso definitivamente.", "Annulla l'inserimento", "Continua a inserire") = 1
+End
+
 Private Sub AlignLoadConfig() As Boolean
   Dim sPath As String
   Dim sLine As String
@@ -419,10 +432,10 @@ End
 
 Public Sub Form_Open()
 Dim sTest As String
-Dim aTest As String[]
-Dim aTest2 As String[]
+Dim aLines As String[]
+Dim aFields As String[]
 Dim iEqui As Integer
-Dim iLoaded As Integer
+Dim iNum As Integer
 FotON = True
 FMain.Center()
 SetupGridHeader()
@@ -430,16 +443,16 @@ Try SerialPort1.Open
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 If Exist(User.Home &/ ".local/share/brrm/partenza-session") Then sTest = File.Load(User.Home &/ ".local/share/brrm/partenza-session")
-aTest = Split(sTest, gb.NewLine)
-If aTest.Count >= 1 And If aTest[0] = "brrm-partenza-session v1" Then
-  For iEqui = 1 To aTest.Max
-    aTest2 = Split(Trim$(aTest[iEqui]), "|")
-    If aTest2.Count < 2 Then Continue
-    iLoaded = 0
-    Try iLoaded = CInt(aTest2[0])
-    If iLoaded <= 0 Or iLoaded >= MAX_NUMERO Then Continue
-    LEquipaggi.Add(iLoaded)
-    If aTest2[1] <> "" Then Try partenze[iLoaded] = aTest2[1]
+aLines = Split(sTest, gb.NewLine)
+If aLines.Count >= 1 And If aLines[0] = "brrm-partenza-session v1" Then
+  For iEqui = 1 To aLines.Max
+    aFields = Split(Trim$(aLines[iEqui]), "|")
+    If aFields.Count < 2 Then Continue
+    iNum = 0
+    Try iNum = CInt(aFields[0])
+    If iNum <= 0 Or iNum >= MAX_NUMERO Then Continue
+    LEquipaggi.Add(iNum)
+    If aFields[1] <> "" Then Try partenze[iNum] = aFields[1]
   Next
 Endif
 Timer1.Start()
@@ -450,14 +463,14 @@ Public Sub Timer1_Timer()
 ' Guard: ricontrolla header e riapplica se Message dialog l'ha resettato.
 If GridView1[0, 0].Background <> &H000000& Then SetupGridHeader()
 Dim concorrente As Integer
-Dim asd As Date
-Dim asdd As String
+Dim tDelta As Date
+Dim sDisplay As String
 Dim indice As Integer
 Dim totale As Integer
 Dim Counter As Integer
 totale = 0
 indice = 0
-asdd = ""
+sDisplay = ""
 totale = LEquipaggi.Count
 Counter = 0
 GridView1.Rows.Count = totale + 1
@@ -465,8 +478,8 @@ While Counter < totale
 Try concorrente = LEquipaggi[Counter].Text
 GridView1[Counter + 1, 0].Text = concorrente
 If partenze[concorrente] <> 0 Then
-asd = partenze[concorrente]
-asdd = asd
+tDelta = partenze[concorrente]
+sDisplay = tDelta
 Endif  
 If partenze[concorrente] = 0 Then 
   LEquipaggi.Remove(LEquipaggi.Find(concorrente))
@@ -476,7 +489,7 @@ If partenze[concorrente] = 0 Then
   Continue
 Endif 
 
-Try GridView1[Counter + 1, 1].Text = asdd
+Try GridView1[Counter + 1, 1].Text = sDisplay
 indice = indice + 1
 Counter = Counter + 1
 Wend

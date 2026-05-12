@@ -111,6 +111,19 @@ PRIVATE SUB EnsureDirOf(sPath AS String)
   NEXT
 END
 
+PUBLIC SUB ConfermaScartoOrario(che AS String) AS Boolean
+  ' Conferma per chiudere senza salvare un dialog che contiene un orario
+  ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
+  ' lo scarto. Usata da FArrivo/FPartenza sul pulsante Annulla.
+  DIM sCosa AS String
+  IF che = "" THEN
+    sCosa = "L'orario"
+  ELSE
+    sCosa = "L'orario di " & che
+  ENDIF
+  RETURN Message.Question("Sei sicuro di voler annullare l'inserimento? " & sCosa & " verrà perso definitivamente.", "Annulla l'inserimento", "Continua a inserire") = 1
+END
+
 Private Sub AlignLoadConfig() As Boolean
   ' Carica ~/.config/brrm/align.conf (key=value, # commento). Tutti i campi
   ' richiesti: url, username, password. Default per session: "default".
@@ -472,10 +485,10 @@ END
 
 PUBLIC SUB Form_Open()
 DIM sTest AS String
-DIM aTest AS String[]
-DIM aTest2 AS String[]
+DIM aLines AS String[]
+DIM aFields AS String[]
 DIM iEqui AS Integer
-DIM iLoaded AS Integer
+DIM iNum AS Integer
 FotON = TRUE
 FMain.Center()
 SetupGridHeader()
@@ -483,17 +496,17 @@ TRY SerialPort1.Open
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 IF Exist(User.Home &/ ".local/share/brrm/arrivo-session") THEN sTest = File.Load(User.Home &/ ".local/share/brrm/arrivo-session")
-aTest = Split(sTest, gb.NewLine)
-IF aTest.Count >= 1 AND IF aTest[0] = "brrm-session v1" THEN
-  FOR iEqui = 1 TO aTest.Max
-    aTest2 = Split(Trim$(aTest[iEqui]), "|")
-    IF aTest2.Count < 3 THEN CONTINUE
-    iLoaded = 0
-    TRY iLoaded = CInt(aTest2[0])
-    IF iLoaded <= 0 OR iLoaded >= MAX_NUMERO THEN CONTINUE
-    LEquipaggi.Add(iLoaded)
-    IF aTest2[1] <> "" THEN TRY partenze[iLoaded] = aTest2[1]
-    IF aTest2[2] <> "" THEN TRY arrivi[iLoaded] = aTest2[2]
+aLines = Split(sTest, gb.NewLine)
+IF aLines.Count >= 1 AND IF aLines[0] = "brrm-session v1" THEN
+  FOR iEqui = 1 TO aLines.Max
+    aFields = Split(Trim$(aLines[iEqui]), "|")
+    IF aFields.Count < 3 THEN CONTINUE
+    iNum = 0
+    TRY iNum = CInt(aFields[0])
+    IF iNum <= 0 OR iNum >= MAX_NUMERO THEN CONTINUE
+    LEquipaggi.Add(iNum)
+    IF aFields[1] <> "" THEN TRY partenze[iNum] = aFields[1]
+    IF aFields[2] <> "" THEN TRY arrivi[iNum] = aFields[2]
   NEXT
 ENDIF
 Timer1.Start()
@@ -512,15 +525,15 @@ PUBLIC SUB Timer1_Timer()
 ' delle celle del row 0. Ricontrolliamo qui e ri-applichiamo se serve.
 IF GridView1[0, 0].Background <> &H000000& THEN SetupGridHeader()
 DIM concorrente AS Integer
-DIM asd AS Date
-DIM asdd AS String
-DIM aAsd AS String[]
+DIM tDelta AS Date
+DIM sDisplay AS String
+DIM aParts AS String[]
 DIM indice AS Integer
 DIM totale AS Integer
 DIM Counter AS Integer
 totale = 0
 indice = 0
-asdd = ""
+sDisplay = ""
 totale = LEquipaggi.Count
 Counter = 0
 GridView1.Rows.Count = totale + 1
@@ -528,12 +541,12 @@ WHILE Counter < totale
 TRY concorrente = LEquipaggi[Counter].Text
 GridView1[Counter + 1, 0].Text = concorrente
 IF partenze[concorrente] <> 0 AND arrivi[concorrente] <> 0 THEN
-asd = arrivi[concorrente] - partenze[concorrente]
-asdd = asd
+tDelta = arrivi[concorrente] - partenze[concorrente]
+sDisplay = tDelta
 ENDIF  
 IF partenze[concorrente] <> 0 AND arrivi[concorrente] = 0 THEN 
-asd = Time - partenze[concorrente]
-asdd = asd
+tDelta = Time - partenze[concorrente]
+sDisplay = tDelta
 ENDIF 
 IF partenze[concorrente] = 0 AND arrivi[concorrente] = 0 THEN 
   LEquipaggi.Remove(LEquipaggi.Find(concorrente))
@@ -541,27 +554,27 @@ IF partenze[concorrente] = 0 AND arrivi[concorrente] = 0 THEN
   totale = totale - 1
   GridView1.Rows.Count = totale + 1
   ' Counter NON viene incrementato: il prossimo equipaggio si e' spostato
-  ' nella posizione corrente. Skippiamo il resto del body (parsing asdd).
+  ' nella posizione corrente. Skippiamo il resto del body (parsing sDisplay).
   CONTINUE
 ENDIF 
 IF partenze[concorrente] = 0 AND arrivi[concorrente] <> 0 THEN 
-asdd = "NO DATI PARTENZA"
+sDisplay = "NO DATI PARTENZA"
 ENDIF 
-aAsd = Split(asdd, ".")
-asdd = ""
-TRY asdd = aAsd[0] & "." & PadMillis(aAsd[1])
-IF asdd = "" THEN
-asdd = aAsd[0]
+aParts = Split(sDisplay, ".")
+sDisplay = ""
+TRY sDisplay = aParts[0] & "." & PadMillis(aParts[1])
+IF sDisplay = "" THEN
+sDisplay = aParts[0]
 ENDIF
-aAsd = Split(asdd, ":")
-asdd = ""
-TRY asdd = aAsd[1] & ":" & aAsd[2]
-IF asdd = "" THEN 
-asdd = aAsd[0]
+aParts = Split(sDisplay, ":")
+sDisplay = ""
+TRY sDisplay = aParts[1] & ":" & aParts[2]
+IF sDisplay = "" THEN 
+sDisplay = aParts[0]
 ENDIF 
 TRY GridView1[Counter + 1, 1].Text = partenze[concorrente]
 TRY GridView1[Counter + 1, 2].Text = arrivi[concorrente]
-TRY GridView1[Counter + 1, 3].Text = asdd
+TRY GridView1[Counter + 1, 3].Text = sDisplay
 indice = indice + 1
 Counter = Counter + 1
 WEND
