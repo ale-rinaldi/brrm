@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gambas3-gb-form-stock \
       gambas3-gb-net \
       gambas3-gb-net-curl \
+      gambas3-gb-util-web \
       gambas3-devel \
       libqt6gui6 \
       libxkbcommon-x11-0 \

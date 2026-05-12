@@ -163,12 +163,14 @@ Private Function ParseCredentials(sPath As String) As Boolean
   Try sJson = File.Load(sPath)
   If sJson = "" Then Return False
 
-  $clientEmail = JsonGetStr(sJson, "client_email")
-  sKey = JsonGetStr(sJson, "private_key")
-  ' Nel JSON i newline sono escape backslash+n letterali (non interpretati
-  ' dal nostro JsonGetStr); convertili a LF reali. In Gambas "\n" è già
-  ' un newline, "\\n" è due caratteri letterali backslash+n.
-  sKey = Replace(sKey, "\\n", Chr(10))
+  Dim cred As Variant
+  cred = Null
+  Try cred = JSON.Decode(sJson)
+  If IsNull(cred) Then Return False
+  $clientEmail = ""
+  sKey = ""
+  Try $clientEmail = CStr(cred["client_email"])
+  Try sKey = CStr(cred["private_key"])
   If $clientEmail = "" Or sKey = "" Then Return False
 
   sCacheDir = User.Home &/ ".cache/brrm"
@@ -281,8 +283,15 @@ Private Sub HandleTokenResponse()
 
   sBody = ""
   Try sBody = ReadAll($http)
-  $accessToken = JsonGetStr(sBody, "access_token")
-  expIn = JsonGetInt(sBody, "expires_in")
+  Dim tok As Variant
+  tok = Null
+  Try tok = JSON.Decode(sBody)
+  $accessToken = ""
+  expIn = 0
+  If Not IsNull(tok) Then
+    Try $accessToken = CStr(tok["access_token"])
+    Try expIn = CLong(tok["expires_in"])
+  Endif
   If $accessToken = "" Then
     $busy = False
     SetStatus(False, "Token: campo access_token mancante")
@@ -320,11 +329,20 @@ End
 
 Private Sub HandleProbeResponse()
   Dim sBody As String
+  Dim sTitle As String
+  Dim resp As Variant
   $busy = False
   sBody = ""
   Try sBody = ReadAll($http)
   If $http.Code = 200 Then
-    SetStatus(True, "Probe OK — " & JsonGetStr(sBody, "title"))
+    sTitle = ""
+    resp = Null
+    Try resp = JSON.Decode(sBody)
+    If Not IsNull(resp) Then
+      Try sTitle = CStr(resp["properties"]["title"])
+    Endif
+    If sTitle = "" Then sTitle = "?"
+    SetStatus(True, "Probe OK — " & sTitle)
     $backoffSec = 1
     If $queue.Count > 0 Then ProcessNext()
   Else
@@ -351,13 +369,17 @@ Private Sub StartScanRequest()
 End
 
 Private Sub HandleScanResponse()
+  ' La response values.get e' del tipo:
+  '   {"range":"...","majorDimension":"ROWS","values":[["42"],["99"],[],...]}
+  ' Colonna vuota → manca il campo "values". Riga vuota → array vuoto [].
   Dim sBody As String
-  Dim aValues As String[]
-  Dim i As Integer
+  Dim resp As Variant
+  Dim iRow As Integer
   Dim sVal As String
+  Dim iCount As Integer
+  Dim sNum As String
 
   If $http.Code = 401 Then
-    ' Token scaduto o invalidato — invalida e ritenta da capo
     $accessToken = ""
     $tokenExpiry = 0
     $busy = False
@@ -372,85 +394,33 @@ Private Sub HandleScanResponse()
 
   sBody = ""
   Try sBody = ReadAll($http)
-  aValues = ParseColumnValues(sBody)
+  resp = Null
+  Try resp = JSON.Decode(sBody)
   $curRow = -1
-  For i = 0 To aValues.Max
-    sVal = Trim$(aValues[i])
-    If sVal = CStr($curNumero) Then
-      $curRow = i + 1
-      Break
+  iCount = 0
+  sNum = CStr($curNumero)
+  If Not IsNull(resp) Then
+    Dim values As Variant
+    values = Null
+    Try values = resp["values"]
+    If Not IsNull(values) Then
+      iCount = values.Count
+      For iRow = 0 To iCount - 1
+        sVal = ""
+        Try sVal = Trim$(CStr(values[iRow][0]))
+        If sVal = sNum Then
+          $curRow = iRow + 1
+          Break
+        Endif
+      Next
     Endif
-  Next
-  If $curRow = -1 Then $curRow = aValues.Count + 1
+  Endif
+  If $curRow = -1 Then $curRow = iCount + 1
   $state = "write"
   StartWriteRequest()
 End
 
-Private Function ParseColumnValues(sBody As String) As String[]
-  ' Estrae i valori dalla risposta values.get. La risposta è del tipo:
-  '   {"range":"...","majorDimension":"ROWS","values":[["42"],["99"],...]}
-  ' Se la colonna è vuota, manca proprio il campo "values".
-  Dim result As New String[]
-  Dim i As Integer
-  Dim iEnd As Integer
-  Dim sList As String
-  Dim depth As Integer
-  Dim startRow As Integer
-  Dim sRow As String
-  Dim sVal As String
-  Dim j As Integer
-  Dim c As String
 
-  i = InStr(sBody, "\"values\":")
-  If i = 0 Then Return result
-  i = InStr(sBody, "[", i)   ' apertura dell'array esterno
-  If i = 0 Then Return result
-  ' Trova la chiusura matching del []
-  depth = 0
-  iEnd = i
-  While iEnd <= Len(sBody)
-    c = Mid$(sBody, iEnd, 1)
-    If c = "[" Then Inc depth
-    If c = "]" Then
-      Dec depth
-      If depth = 0 Then Break
-    Endif
-    Inc iEnd
-  Wend
-  sList = Mid$(sBody, i + 1, iEnd - i - 1)
-
-  ' sList è del tipo: ["42"],["99"],...   oppure  ["42"],[],["99"],...
-  ' Splittiamo a mano per gestire le righe annidate.
-  j = 1
-  While j <= Len(sList)
-    c = Mid$(sList, j, 1)
-    If c = "[" Then
-      ' Trova ]
-      startRow = j + 1
-      While j <= Len(sList) And Mid$(sList, j, 1) <> "]"
-        Inc j
-      Wend
-      sRow = Mid$(sList, startRow, j - startRow)
-      sVal = ExtractFirstString(sRow)
-      result.Add(sVal)
-    Endif
-    Inc j
-  Wend
-  Return result
-End
-
-Private Function ExtractFirstString(s As String) As String
-  ' Estrae la prima stringa JSON da una riga tipo: "42"  oppure  "42","13",...
-  ' Ritorna "" se non c'è nulla (riga vuota []).
-  Dim i As Integer
-  Dim iStart As Integer
-  i = InStr(s, Chr(34))
-  If i = 0 Then Return ""
-  iStart = i + 1
-  i = InStr(s, Chr(34), iStart)
-  If i = 0 Then Return ""
-  Return Mid$(s, iStart, i - iStart)
-End
 
 ' --- write (batchUpdate) --------------------------------------------------
 
@@ -725,72 +695,7 @@ Private Function JsonEscape(s As String) As String
   Return out
 End
 
-Private Function JsonGetStr(s As String, field As String) As String
-  ' Estrae una stringa "key":"valore". Gestisce escape \" e \\.
-  ' Per altre escape (\n, \t, ecc.) le restituisce letterali (\n a due char).
-  Dim sNeedle As String
-  Dim i As Integer
-  Dim iStart As Integer
-  Dim out As String
-  Dim escape As Boolean
-  Dim c As String
 
-  sNeedle = Chr(34) & field & Chr(34) & ":"
-  i = InStr(s, sNeedle)
-  If i = 0 Then Return ""
-  i = i + Len(sNeedle)
-  While i <= Len(s) And Mid$(s, i, 1) = " "
-    Inc i
-  Wend
-  If Mid$(s, i, 1) <> Chr(34) Then Return ""
-  iStart = i + 1
-  i = iStart
-  out = ""
-  escape = False
-  While i <= Len(s)
-    c = Mid$(s, i, 1)
-    If escape Then
-      Select Case c
-        Case Chr(34)
-          out &= Chr(34)
-        Case "\\"
-          out &= "\\"
-        Case Else
-          out &= "\\" & c   ' lascia la sequenza letterale
-      End Select
-      escape = False
-    Else If c = "\\" Then
-      escape = True
-    Else If c = Chr(34) Then
-      Return out
-    Else
-      out &= c
-    Endif
-    Inc i
-  Wend
-  Return ""
-End
-
-Private Function JsonGetInt(s As String, field As String) As Long
-  Dim sNeedle As String
-  Dim i, iStart, iEnd As Integer
-  Dim sVal As String
-  sNeedle = Chr(34) & field & Chr(34) & ":"
-  i = InStr(s, sNeedle)
-  If i = 0 Then Return 0
-  i = i + Len(sNeedle)
-  While i <= Len(s) And Mid$(s, i, 1) = " "
-    Inc i
-  Wend
-  iStart = i
-  iEnd = iStart
-  While iEnd <= Len(s) And (Mid$(s, iEnd, 1) Like "[0-9-]")
-    Inc iEnd
-  Wend
-  If iEnd = iStart Then Return 0
-  sVal = Mid$(s, iStart, iEnd - iStart)
-  Return CLong(sVal)
-End
 
 Private Function ReadAll(h As HttpClient) As String
   ' Legge tutto il body della risposta in una stringa.

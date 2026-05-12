@@ -55,6 +55,7 @@ jobs:
                 gambas3-gb-form \
                 gambas3-gb-net \
                 gambas3-gb-net-curl \
+                gambas3-gb-util-web \
                 fakeroot
               ./package.sh"
 
