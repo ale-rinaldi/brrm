@@ -32,7 +32,7 @@ Il repository contiene due progetti Gambas indipendenti:
 | `brrm/` | Postazione **arrivo** (cronometraggio completo) | 0.0.6 |
 | `brrm-partenza/` | Postazione **partenza** | 0.0.4 |
 
-Entrambi usano le componenti `gb.qt6`, `gb.form`, `gb.net`, `gb.net.curl`. Il codice originale era Gambas 2 (su `gb.qt`, `gb.qt.ext`); la migrazione a Gambas 3 + Qt6 è ora su `main`.
+Entrambi usano le componenti `gb.qt6`, `gb.form`, `gb.net`, `gb.net.curl`. Il codice originale era Gambas 2 (su `gb.qt`, `gb.qt.ext`); la migrazione a Gambas 3 + Qt6 è ora su `main`. La firma RSA-SHA256 dei JWT per Google Sheets richiede `openssl` da CLI (dipendenza del `.deb`).
 
 ## Architettura
 
@@ -63,11 +63,11 @@ Griglia principale con 4 colonne: **Equipaggio · Partenza · Arrivo · Tempo**.
 - **Cambia numero** — rinomina locale il numero equipaggio di una riga (sposta partenza+arrivo, valida che il nuovo numero non esista). Operazione solo locale: non viene propagata a brrm-partenza.
 - **MODIFICA ORDINE** — riordino manuale della lista equipaggi (sposta su / sposta giù / rimuovi).
 - **Importa partenze** — carica orari di partenza da CSV (utile quando il sync via web non è disponibile e si lavora offline con scambio file).
-- **ESPORTA** — esportazione risultati in CSV con dialog di selezione file via `zenity` (formato: `numero,hh,mm,ss,mmm` — durata gara con precisione al millisecondo).
+- **ESPORTA** — esportazione risultati in CSV (formato `numero,hh,mm,ss,mmm` — durata gara con precisione al millisecondo, calcolata in int).
 - **RESET!** — azzera l'intera sessione, con doppia conferma.
 - **Indicatore IN ARRIVO** — etichetta grande che mostra il numero del prossimo equipaggio atteso (primo senza arrivo registrato).
 - **Tempo griglia** — durata gara aggiornata in tempo reale, formato `mm:ss.mmm`.
-- **Impostazioni…** — apre la form di configurazione (per ora solo sync).
+- **Impostazioni…** — apre la form di configurazione (sync + foglio Google).
 - **Persistenza sessione** — lo stato viene salvato continuamente in `~/.brrm-session` (formato v1, scrittura atomica) e ricaricato all'avvio.
 
 ## Funzionalità — postazione partenza (`brrm-partenza/`)
@@ -110,22 +110,55 @@ session = gara-2026-05-11
 
 La stessa `session` deve essere usata sia su partenza che su arrivo. Senza il file (o con campi vuoti), l'etichetta `SYNC` resta nascosta e il software funziona esattamente come prima.
 
+## Scrittura su Google Sheets (opzionale)
+
+Lato **arrivo**, brrm può aggiornare un foglio Google in tempo reale ad ogni evento (registrazione/annullamento partenza, registrazione/annullamento arrivo, cambio numero, inversione arrivi). Il foglio funge da classifica live condivisibile con organizzazione/pubblico senza esporre il software stesso. L'integrazione è opzionale, **fire-and-forget**: la scrittura è async, un guasto di rete non blocca mai brrm.
+
+Una label `SHEET OK` (verde) / `SHEET FAIL` (rosso) sotto a `SYNC` indica lo stato; il tooltip riporta il dettaglio dell'ultimo esito.
+
+**Eventi sincronizzati al foglio:** ogni `SetArrivo`, `SetPartenza` (anche da sync), annullamento, `Cambia numero`, `Inverti arrivi`. Idempotente: brrm cerca il numero equipaggio nella colonna configurata e o aggiorna la riga trovata, o appende sulla prima riga con cella equipaggio vuota.
+
+**Autenticazione:** Service Account Google Cloud (JSON key). Il file JSON contiene `client_email` e una `private_key` RSA. brrm firma localmente un JWT RS256 (via `openssl dgst` — unica via in Gambas, gb.openssl non espone primitive di firma asimmetrica), lo scambia con Google per un access token OAuth2 con cache 1h, e usa quel token negli header `Authorization: Bearer …` delle chiamate REST a Sheets v4 API. Niente flusso browser, niente refresh token. Per creare il SA: Google Cloud Console → enable Sheets API → Service Account → Keys → JSON, poi condividere il foglio col `client_email` del SA con ruolo Editor.
+
+**Affidabilità:** ogni errore HTTP (4xx, 5xx, timeout, rete giù) schedula un retry con backoff esponenziale 1→60 s. La coda eventi in memoria non viene svuotata su fallimento — gli eventi rimangono pending finché non passa. Il token scaduto (401) viene invalidato e ri-richiesto trasparentemente.
+
+**Configurazione** — dalla form *Impostazioni…* o scrivendo `~/.config/brrm/sheet.conf`:
+
+```ini
+credentials = /percorso/al/service-account.json
+document_id = <ID del foglio (segmento URL fra /d/ e /edit)>
+sheet_name = <nome della scheda>
+equipaggio_column = A
+# Colonne opzionali (vuoto = disattivata). I range "split" indicano la prima
+# colonna; le tre o quattro successive vengono usate in sequenza.
+partenza_split_column = B      # B,C,D,E = h,m,s,ms
+partenza_unixms_column = F     # singola colonna con timestamp UNIX in ms
+arrivo_split_column = G        # G,H,I,J = h,m,s,ms
+arrivo_unixms_column = K
+tempo_split_column = L         # L,M,N = m,s,ms (m può superare 60)
+tempo_ms_column = O            # totale durata in ms
+```
+
+Senza il file (o senza `credentials`/`document_id`/`sheet_name`/`equipaggio_column`), la label `SHEET` resta nascosta.
+
+**Precisione:** tutta la matematica dei timestamp e dei delta è su interi (millisecondi). I valori scritti sul foglio coincidono al ms con quelli mostrati nella UI di brrm.
+
 ## Dettagli tecnici
 
 - **Porta seriale:** auto-discovery del primo `/dev/ttyUSB*` o `/dev/ttyACM*` disponibile; `Timer4` controlla ogni 2 s e ricollega in caso di disconnessione.
 - **Capienza:** fino a 10000 equipaggi/numeri (array statici).
 - **Numeri validi:** 1 — 9999.
 - **Formato sessione persistente:** file `v1` con header magic + righe `numero|orario_partenza|orario_arrivo` (su `brrm`) o `numero|orario_partenza` (su `brrm-partenza`), scrittura atomica tramite tmp + `rename(2)`.
-- **Helper millis:** `PadMillis` produce esattamente 3 cifre per la frazione di secondo (export CSV e visualizzazione `Tempo`).
+- **Millisecondi:** catturati via `Format$(Time, "hh:nn:ss.uuu")` al momento dell'evento (Gambas `Str$` su Date time-only li tronca, quindi servono Format/uuu o math sulla rappresentazione interna). I delta tempo sono calcolati in int da `Hour*3.6e6 + Minute*60000 + Second*1000 + millis`, niente float.
 - **Polling UI:** `Timer1` aggiorna la griglia ogni 91 ms.
 - **Priorità real-time:** lo script di lancio installato dal pacchetto `.deb` usa `chrt -f 50` quando possibile (vedi `package.sh`), con permessi configurati via `/etc/security/limits.d/`.
 
 ## Requisiti
 
-- Linux (per i device `/dev/tty*` e `zenity`)
+- Linux (per i device `/dev/tty*`)
 - Gambas 3 + Qt6 (es. Debian 13 trixie con `gambas3-runtime`, `gambas3-gb-qt6`, `gambas3-gb-form`, `gambas3-gb-net`, `gambas3-gb-net-curl`)
+- `openssl` CLI (per la firma JWT del flusso Google Sheets — dichiarato come dipendenza del `.deb`)
 - Arduino collegato via USB con firmware che emetta un byte sulla seriale al trigger fotocellula (opzionale: senza Arduino l'app gira ma la coda fotocellula resta vuota)
-- `zenity` (per i dialog di file CSV)
 
 ## Come si esegue
 
