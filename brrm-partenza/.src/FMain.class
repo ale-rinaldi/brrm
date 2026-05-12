@@ -1,14 +1,26 @@
 ' Gambas class file
 
-partenze As New Date[10000]
-arrivi As New Date[10000]
-startposindex As Integer
-stopposindex As Integer
-CurrAct As String
-ChangingN As Integer
-FotON As Boolean
-INV1 As Integer
-INV2 As Integer
+' Stati di interazione (CurrAct). I pulsanti di azione "contestuale" su
+' griglia (Annulla partenza, Inverti partenze, Cambia numero) settano un
+' valore qui; GridView1_Click esegue l'azione corrispondente al click.
+Private Const ACT_NONE As String = ""
+Private Const ACT_ANNPART As String = "annpart"
+Private Const ACT_ANNARR As String = "annarr"
+Private Const ACT_INVARR1 As String = "invarr1"
+Private Const ACT_INVARR2 As String = "invarr2"
+Private Const ACT_INVPART1 As String = "invpart1"
+Private Const ACT_INVPART2 As String = "invpart2"
+Private Const ACT_MODNUM As String = "modnum"
+
+' Limite massimo numero equipaggio (e dimensione array statici).
+Private Const MAX_NUMERO As Integer = 10000
+
+Private partenze As New Date[MAX_NUMERO]
+Private arrivi As New Date[MAX_NUMERO]
+Private CurrAct As String
+Private FotON As Boolean
+Private INV1 As Integer
+Private INV2 As Integer
 
 ' --- Align (sync via web) ---
 Private $alignEnabled As Boolean
@@ -425,7 +437,7 @@ If aTest.Count >= 1 And If aTest[0] = "brrm-partenza-session v1" Then
     If aTest2.Count < 2 Then Continue
     iLoaded = 0
     Try iLoaded = CInt(aTest2[0])
-    If iLoaded <= 0 Or iLoaded >= 10000 Then Continue
+    If iLoaded <= 0 Or iLoaded >= MAX_NUMERO Then Continue
     LEquipaggi.Add(iLoaded)
     If aTest2[1] <> "" Then Try partenze[iLoaded] = aTest2[1]
   Next
@@ -493,7 +505,7 @@ For Counter = 0 To LEquipaggi.Count - 1
 Next
 LEquipaggi.Clear
 Counter = 0
-While Counter < 1000
+While Counter < MAX_NUMERO
 partenze[Counter] = 0
 arrivi[Counter] = 0
 Counter = Counter + 1
@@ -517,36 +529,34 @@ Public Sub EditOrder(Order As String)
   For Each iEqui In aOrdine
   LEquipaggi.Add(iEqui)
   Next 
-  startposindex = 1
-  stopposindex = 1
   Timer1.Start
 End
 
 
 Public Sub Button5_Click()
 
-If CurrAct = "annarr" Then 
+If CurrAct = ACT_ANNARR Then 
   GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Else 
-CurrAct = "annarr"
+CurrAct = ACT_ANNARR
 GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 End If
 End
 
 Public Sub Button4_Click()
-If CurrAct = "invarr1" Then 
+If CurrAct = ACT_INVARR1 Then 
   GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
-  Else If CurrAct = "invarr2"
+  CurrAct = ACT_NONE
+  Else If CurrAct = ACT_INVARR2
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Else 
-  CurrAct = "invarr1"
+  CurrAct = ACT_INVARR1
 GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 Endif 
@@ -608,18 +618,8 @@ End
 Public Sub GridView1_Click()
 Dim pt1 As Date
 Dim pt2 As Date
-  If GridView1.Row > 0 Then 
-  If CurrAct = "part" Then 
-  Timer1.Stop
-  ChangingN = LEquipaggi[GridView1.Row - 1].Text
-  FPartenza.Show
-  GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-    CurrAct = ""
-    Timer1.Start
-  End If
-    
-  If CurrAct = "annpart" Then 
+  If GridView1.Row > 0 Then
+  If CurrAct = ACT_ANNPART Then 
   If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
   Timer1.Stop
   Dim iAnnNum As Integer = LEquipaggi[GridView1.Row - 1].Text
@@ -628,22 +628,22 @@ Dim pt2 As Date
   Endif 
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Timer1.Start
   End If
   
-    If CurrAct = "annarr" Then 
+    If CurrAct = ACT_ANNARR Then 
     If Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
   Timer1.Stop
   arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
   Endif 
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Timer1.Start
   End If
   
-    If CurrAct = "invarr2" Then 
+    If CurrAct = ACT_INVARR2 Then 
     
   INV2 = LEquipaggi[GridView1.Row - 1].Text
   If Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then 
@@ -655,18 +655,18 @@ Dim pt2 As Date
   Endif 
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Timer1.Start
   End If
   
-  If CurrAct = "invarr1" Then
+  If CurrAct = ACT_INVARR1 Then
   INV1 = LEquipaggi[GridView1.Row - 1].Text
-  CurrAct = "invarr2"
+  CurrAct = ACT_INVARR2
     GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   End If
 
-  If CurrAct = "modnum" Then
+  If CurrAct = ACT_MODNUM Then
     Dim iOld As Integer
     Dim sNew As String
     Dim iNew As Integer
@@ -679,7 +679,7 @@ Dim pt2 As Date
       If sNew <> "" Then
         iNew = 0
         Try iNew = CInt(Trim$(sNew))
-        If iNew <= 0 Or iNew >= 10000 Then
+        If iNew <= 0 Or iNew >= MAX_NUMERO Then
           Message.Error("Numero non valido. Deve essere fra 1 e 9999.")
         Else If iNew = iOld Then
           ' no-op
@@ -693,10 +693,10 @@ Dim pt2 As Date
     Endif
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
-    CurrAct = ""
+    CurrAct = ACT_NONE
   End If
 
-  If CurrAct = "invpart2" Then
+  If CurrAct = ACT_INVPART2 Then
     INV2 = LEquipaggi[GridView1.Row - 1].Text
     If INV2 = INV1 Then
       Message.Error("Non posso invertire un equipaggio con se stesso.")
@@ -707,12 +707,12 @@ Dim pt2 As Date
     Endif
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
-    CurrAct = ""
+    CurrAct = ACT_NONE
   End If
 
-  If CurrAct = "invpart1" Then
+  If CurrAct = ACT_INVPART1 Then
     INV1 = LEquipaggi[GridView1.Row - 1].Text
-    CurrAct = "invpart2"
+    CurrAct = ACT_INVPART2
     GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
   End If
@@ -727,12 +727,12 @@ End
 
 Public Sub Button3_Click()
 
-If CurrAct = "annpart" Then
+If CurrAct = ACT_ANNPART Then
   GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
-  CurrAct = ""
+  CurrAct = ACT_NONE
   Else
-CurrAct = "annpart"
+CurrAct = ACT_ANNPART
 GridView1.Background = &H00FFFF7F&
 GridView1.Mouse = 2
 End If
@@ -740,12 +740,12 @@ End
 
 Public Sub ButtonChangeNum_Click()
   ' Toggle: clicco di nuovo per annullare il "pick row" pendente.
-  If CurrAct = "modnum" Then
+  If CurrAct = ACT_MODNUM Then
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
-    CurrAct = ""
+    CurrAct = ACT_NONE
   Else
-    CurrAct = "modnum"
+    CurrAct = ACT_MODNUM
     GridView1.Background = &H00FFFF7F&
     GridView1.Mouse = 2
   Endif
@@ -753,12 +753,12 @@ End
 
 Public Sub ButtonInvert_Click()
   ' Toggle: clic ulteriore (in qualsiasi fase invpart1/invpart2) annulla.
-  If CurrAct = "invpart1" Or CurrAct = "invpart2" Then
+  If CurrAct = ACT_INVPART1 Or CurrAct = ACT_INVPART2 Then
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
-    CurrAct = ""
+    CurrAct = ACT_NONE
   Else
-    CurrAct = "invpart1"
+    CurrAct = ACT_INVPART1
     GridView1.Background = &H00FFFF7F&
     GridView1.Mouse = 2
   Endif
@@ -849,7 +849,7 @@ End
 
 Public Sub Timer3_Timer()
 
-  If FArrivo.Visible = False And BArrivi.Count > 0 And FPartenza.Visible = False And CurrAct = "" Then 
+  If FArrivo.Visible = False And BArrivi.Count > 0 And FPartenza.Visible = False And CurrAct = ACT_NONE Then 
   FArrivo.Show
   FArrivo.setOrario(BArrivi[0].Text)
   BArrivi.Remove(0)
