@@ -176,7 +176,6 @@ Private Function ParseCredentials(sPath As String) As Boolean
   $privKeyPath = sCacheDir &/ "sheet-privkey.pem"
   Try File.Save($privKeyPath, sKey)
   If Error Then
-    LogLine("Cannot write privkey to " & $privKeyPath & ": " & Error.Text)
     Return False
   Endif
   Try Chmod $privKeyPath To "rw-------"
@@ -274,7 +273,6 @@ Private Sub HandleTokenResponse()
   If $http.Code <> 200 Then
     sBody = ""
     Try sBody = ReadAll($http)
-    LogLine("Token failed code=" & $http.Code & " body=" & sBody)
     $busy = False
     SetStatus(False, "Token HTTP " & $http.Code)
     ScheduleRetry()
@@ -314,7 +312,6 @@ Private Sub DoProbe()
   $http.Timeout = 10
   Try $http.Get(["Authorization: Bearer " & $accessToken])
   If Error Then
-    LogLine("Probe Get failed: " & Error.Text)
     $busy = False
     SetStatus(False, "Errore probe: " & Error.Text)
     ScheduleRetry()
@@ -347,7 +344,6 @@ Private Sub StartScanRequest()
   $http.Timeout = 10
   Try $http.Get(["Authorization: Bearer " & $accessToken])
   If Error Then
-    LogLine("Scan Get failed: " & Error.Text)
     $busy = False
     SetStatus(False, "Errore scan: " & Error.Text)
     ScheduleRetry()
@@ -463,7 +459,6 @@ Private Sub StartWriteRequest()
   sPayload = ""
   Try sPayload = BuildBatchPayload()
   If Error Then
-    LogLine("BuildBatchPayload error: " & Error.Text & " at " & Error.Where)
     $busy = False
     SetStatus(False, "Errore costruzione payload: " & Error.Text)
     ScheduleRetry()
@@ -474,7 +469,6 @@ Private Sub StartWriteRequest()
   $http.Timeout = 10
   Try $http.Post("application/json", sPayload, ["Authorization: Bearer " & $accessToken])
   If Error Then
-    LogLine("Write Post failed: " & Error.Text)
     $busy = False
     SetStatus(False, "Errore write: " & Error.Text)
     ScheduleRetry()
@@ -623,7 +617,6 @@ End
 ' --- HTTP event handlers ---------------------------------------------------
 
 Public Sub Http_Finished()
-  LogLine("Http_Finished entry state=" & $state & " code=" & $http.Code)
   Select Case $state
     Case "token", "probe-token"
       HandleTokenResponse()
@@ -638,21 +631,11 @@ End
 
 Public Sub Http_Error()
   Dim wasState As String = $state
-  LogLine("HTTP error in state=" & wasState & " code=" & $http.Code & " status=" & $http.Status)
   $busy = False
   SetStatus(False, "Errore di rete su " & wasState)
   ScheduleRetry()
 End
 
-' --- debug log ------------------------------------------------------------
-
-Private Sub LogLine(s As String)
-  Dim hLog As Stream
-  Try hLog = Open "/tmp/csheet.log" For Append
-  If Error Then Return
-  Try Print #hLog, "[" & Str$(Time(Now)) & "] " & s
-  Try Close #hLog
-End
 
 ' --- retry / scheduling ----------------------------------------------------
 
