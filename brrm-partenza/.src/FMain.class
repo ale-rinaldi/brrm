@@ -75,15 +75,40 @@ Public Sub Timer4_Timer()
     Return
   Endif
   ' Non connesso: ferma la porta vecchia, prova a trovare un nuovo device.
+  ' Wait dopo Close serve al kernel/udev per liberare il vecchio fd
+  ' quando il device e' stato staccato-riattaccato.
   Try SerialPort1.Close
+  Wait 0.1
   sDevice = MFile.FindArduinoDevice()
   If sDevice = "" Then
     SetArduinoStatus(False)
     Return
   Endif
+  ' Esplicita i parametri seriali a ogni Open: Linux puo' resettare
+  ' il device a default differenti quando viene riconnesso, e l'oggetto
+  ' SerialPort di Gambas non li ri-applica da solo dopo Close+Open.
   SerialPort1.PortName = sDevice
+  SerialPort1.Speed = 9600
+  SerialPort1.Parity = SerialPort.None
+  SerialPort1.DataBits = 8
+  SerialPort1.StopBits = 1
+  SerialPort1.FlowControl = SerialPort.None
   Try SerialPort1.Open
   SetArduinoStatus(SerialPort1.Status >= 1)
+End
+
+Public Sub Form_Close()
+  ' Stop dei timer e chiusura SerialPort prima che la form muoia:
+  ' senza questo, se il fd del SerialPort e' in stato HUP (device
+  ' staccato), il loop _Read/Timer4-reopen continua durante la fase
+  ' di shutdown tenendo il processo appeso al 100% CPU.
+  Try Timer1.Stop
+  Try Timer2.Stop
+  Try Timer3.Stop
+  Try Timer4.Stop
+  Try TimerAlign.Stop
+  Try TimerAlignHeartbeat.Stop
+  Try SerialPort1.Close
 End
 
 Public Sub ConfermaScartoOrario(che As String) As Boolean
