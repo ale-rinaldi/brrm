@@ -53,21 +53,6 @@ ENDIF
 
 END
 
-PUBLIC FUNCTION FindArduinoDevice() AS String
-  ' Ritorna il primo /dev/ttyUSB* o /dev/ttyACM* disponibile, o "" se nessuno.
-  DIM aFiles AS String[]
-  DIM sFile AS String
-  aFiles = Dir("/dev", "ttyUSB*")
-  FOR EACH sFile IN aFiles
-    RETURN "/dev/" & sFile
-  NEXT
-  aFiles = Dir("/dev", "ttyACM*")
-  FOR EACH sFile IN aFiles
-    RETURN "/dev/" & sFile
-  NEXT
-  RETURN ""
-END
-
 PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
   IF bConnected THEN
     LabelArduino.Background = &H00CC00&
@@ -78,37 +63,6 @@ PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
     LabelArduino.Foreground = &HFFFFFF&
     LabelArduino.Text = "NO ARDUINO"
   ENDIF
-END
-
-PUBLIC SUB AtomicSave(sPath AS String, sContent AS String)
-  ' Scrittura atomica: scrive in <path>.tmp, poi rinomina su <path>.
-  ' Il Move di Gambas usa rename(2) POSIX che e' atomico nello stesso
-  ' filesystem - quindi <path> contiene sempre o il vecchio o il nuovo
-  ' contenuto, mai un troncato. Su ext4 (default Debian) l'ordine
-  ' data/metadata e' garantito anche in caso di power cut.
-  DIM sTmp AS String
-  sTmp = sPath & ".tmp"
-  EnsureDirOf(sPath)
-  File.Save(sTmp, sContent)
-  Move sTmp DownTo sPath
-END
-
-PRIVATE SUB EnsureDirOf(sPath AS String)
-  ' Crea ricorsivamente i parent dirs di sPath se mancano. Idempotente.
-  DIM sDir AS String
-  DIM sCur AS String
-  DIM sPart AS String
-  sDir = File.Dir(sPath)
-  IF sDir = "" OR IF Exist(sDir) THEN RETURN
-  sCur = ""
-  FOR EACH sPart IN Split(sDir, "/")
-    IF sPart = "" THEN
-      sCur = "/"
-    ELSE
-      sCur = sCur &/ sPart
-    ENDIF
-    IF NOT Exist(sCur) THEN TRY Mkdir sCur
-  NEXT
 END
 
 PUBLIC SUB ConfermaScartoOrario(che AS String) AS Boolean
@@ -344,7 +298,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       Try iMinSeq = CLong(ev["min_seq"])
       If iMinSeq > 0 And If $alignLastSeq < iMinSeq - 1 Then
         $alignLastSeq = iMinSeq - 1
-        Try AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
+        Try MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
       Endif
 
     Case "event"
@@ -370,7 +324,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
         Endif
       Endif
       $alignLastSeq = iSeq
-      Try AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
+      Try MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
       UpgradeSessionFile()
       Timer1.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
@@ -400,7 +354,7 @@ PUBLIC SUB UpgradeSessionFile()
     IF arrivi[iEqui] <> 0 THEN sArr = Str$(arrivi[iEqui])
     sFileOut &= iEqui & "|" & sPart & "|" & sArr & gb.NewLine
   NEXT
-  AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
+  MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
 END
 
 PUBLIC SUB SetPartenza(Equipaggio AS Integer, Partenza AS Date)
@@ -658,22 +612,6 @@ PUBLIC SUB Button6_Click()
   IF Error THEN Message.Error("Impossibile salvare il file: " & Error.Text)
 END
 
-PUBLIC FUNCTION PadMillis(s AS String) AS String
-  ' Pad a destra con zeri a esattamente 3 cifre. "7" -> "700", "07" -> "070".
-  SELECT CASE Len(s)
-    CASE 0
-      RETURN "000"
-    CASE 1
-      RETURN s & "00"
-    CASE 2
-      RETURN s & "0"
-    CASE 3
-      RETURN s
-    CASE ELSE
-      RETURN Left$(s, 3)
-  END SELECT
-END
-
 PUBLIC SUB ButtonImporta_Click()
   ' Importa orari di partenza da CSV (formato esportato da brrm-partenza:
   ' numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms;
@@ -708,7 +646,7 @@ PUBLIC SUB ButtonImporta_Click()
     iEqui = 0
     TRY iEqui = CInt(Trim$(aFields[0]))
     IF iEqui <= 0 OR iEqui >= MAX_NUMERO THEN CONTINUE
-    sDateStr = Trim$(aFields[1]) & ":" & Trim$(aFields[2]) & ":" & Trim$(aFields[3]) & "." & PadMillis(Trim$(aFields[4]))
+    sDateStr = Trim$(aFields[1]) & ":" & Trim$(aFields[2]) & ":" & Trim$(aFields[3]) & "." & MTime.PadMillis(Trim$(aFields[4]))
     dPart = 0
     TRY dPart = sDateStr
     IF dPart = 0 THEN CONTINUE
@@ -894,7 +832,7 @@ PUBLIC SUB Timer4_Timer()
   ENDIF
   ' Non connesso: ferma la porta vecchia, prova a trovare un nuovo device.
   TRY SerialPort1.Close
-  sDevice = FindArduinoDevice()
+  sDevice = MFile.FindArduinoDevice()
   IF sDevice = "" THEN
     SetArduinoStatus(FALSE)
     RETURN

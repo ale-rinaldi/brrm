@@ -1,0 +1,49 @@
+' MFile — helper di filesystem e device-scan condivisi tra brrm e
+' brrm-partenza. Source-of-truth: gli altri progetti symlinkano qui.
+
+Public Sub AtomicSave(sPath As String, sContent As String)
+  ' Scrittura atomica: scrive in <path>.tmp, poi rinomina su <path>.
+  ' Il Move di Gambas usa rename(2) POSIX che e' atomico nello stesso
+  ' filesystem - quindi <path> contiene sempre o il vecchio o il nuovo
+  ' contenuto, mai un troncato. Su ext4 (default Debian) l'ordine
+  ' data/metadata e' garantito anche in caso di power cut.
+  Dim sTmp As String
+  sTmp = sPath & ".tmp"
+  EnsureDirOf(sPath)
+  File.Save(sTmp, sContent)
+  Move sTmp DownTo sPath
+End
+
+Public Sub EnsureDirOf(sPath As String)
+  ' Crea ricorsivamente i parent dirs di sPath se mancano. Idempotente.
+  Dim sDir As String
+  Dim sCur As String
+  Dim sPart As String
+  sDir = File.Dir(sPath)
+  If sDir = "" Or If Exist(sDir) Then Return
+  sCur = ""
+  For Each sPart In Split(sDir, "/")
+    If sPart = "" Then
+      sCur = "/"
+    Else
+      sCur = sCur &/ sPart
+    Endif
+    If Not Exist(sCur) Then Try Mkdir sCur
+  Next
+End
+
+Public Function FindArduinoDevice() As String
+  ' Ritorna il primo /dev/ttyUSB* o /dev/ttyACM* disponibile, o "" se
+  ' nessuno.
+  Dim aFiles As String[]
+  Dim sFile As String
+  aFiles = Dir("/dev", "ttyUSB*")
+  For Each sFile In aFiles
+    Return "/dev/" & sFile
+  Next
+  aFiles = Dir("/dev", "ttyACM*")
+  For Each sFile In aFiles
+    Return "/dev/" & sFile
+  Next
+  Return ""
+End

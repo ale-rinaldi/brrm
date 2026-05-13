@@ -48,7 +48,7 @@ Public Sub ButtonSave_Click()
   sOut &= "username = " & Trim$(TextUser.Text) & gb.NewLine
   sOut &= "password = " & Trim$(TextPass.Text) & gb.NewLine
   sOut &= "session = " & Trim$(TextSession.Text) & gb.NewLine
-  Try FMain.AtomicSave(sPath, sOut)
+  Try MFile.AtomicSave(sPath, sOut)
   If Error Then
     Message.Error("Impossibile salvare le impostazioni: " & Error.Text)
     Return

@@ -1,0 +1,39 @@
+' Test per MFile — atomicita' scrittura, mkdir ricorsivo, Arduino scan.
+Public Sub RunAll()
+  ' --- AtomicSave + EnsureDirOf: round-trip in /tmp ---
+  Dim sBase As String = "/tmp/brrm-test-" & CStr(Now())
+  Dim sDeep As String = sBase &/ "a/b/c/file.txt"
+  Try Kill sDeep
+  MFile.AtomicSave(sDeep, "hello world")
+  Assert.Ok(Exist(sDeep), "AtomicSave crea il file in path profondo")
+  Assert.Equals(File.Load(sDeep), "hello world", "content scritto correttamente")
+  Assert.Ok(Exist(sBase &/ "a/b/c"), "EnsureDirOf ha creato i parent dirs")
+
+  ' Sovrascrittura: AtomicSave deve poter rimpiazzare un file esistente
+  MFile.AtomicSave(sDeep, "second write")
+  Assert.Equals(File.Load(sDeep), "second write", "AtomicSave sovrascrive")
+
+  ' Cleanup
+  Try Kill sDeep
+  Try Rmdir sBase &/ "a/b/c"
+  Try Rmdir sBase &/ "a/b"
+  Try Rmdir sBase &/ "a"
+  Try Rmdir sBase
+
+  ' --- EnsureDirOf direttamente con path di file inesistente ---
+  Dim sBase2 As String = "/tmp/brrm-test-dir-" & CStr(Int(Timer * 1000))
+  Dim sDeep2 As String = sBase2 &/ "x/y/z/file.txt"
+  MFile.EnsureDirOf(sDeep2)
+  Assert.Ok(Exist(sBase2 &/ "x/y/z"), "EnsureDirOf crea dir senza scrivere il file")
+  Assert.NotOk(Exist(sDeep2), "il file stesso non viene creato")
+  ' Cleanup parziale (best effort)
+  Try Rmdir sBase2 &/ "x/y/z"
+  Try Rmdir sBase2 &/ "x/y"
+  Try Rmdir sBase2 &/ "x"
+  Try Rmdir sBase2
+
+  ' --- FindArduinoDevice: dipende dal sistema. Nel container test non
+  '     c'e' Arduino, quindi ritorna ""; non possiamo fare di meglio.
+  Dim sDev As String = MFile.FindArduinoDevice()
+  Assert.Equals(sDev, "", "FindArduinoDevice = '' senza Arduino nel container")
+End

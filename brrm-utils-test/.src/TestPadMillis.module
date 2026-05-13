@@ -1,0 +1,10 @@
+' Test per MTime.PadMillis — pad/troncamento di una stringa numerica a
+' 3 cifre per il display dei millisecondi.
+Public Sub RunAll()
+  Assert.Equals(MTime.PadMillis(""),     "000", "empty -> 000")
+  Assert.Equals(MTime.PadMillis("0"),    "000", "'0' -> 000")
+  Assert.Equals(MTime.PadMillis("5"),    "500", "'5' -> 500 (left-pad-zero-suffix)")
+  Assert.Equals(MTime.PadMillis("12"),   "120", "'12' -> 120")
+  Assert.Equals(MTime.PadMillis("123"),  "123", "'123' invariato")
+  Assert.Equals(MTime.PadMillis("1234"), "123", "'1234' troncato a 3")
+End
