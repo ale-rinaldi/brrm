@@ -465,7 +465,7 @@ Public Sub Test_PKey_Generate_Returns2048BitKey()
   Assert.NotNull(k, "Generate returns an object")
   Assert.Equals(k.Type, "RSA", "Generated key has Type RSA")
   Assert.Equals(k.Bits, 2048, "Generated key has 2048 bits")
-  Assert.True(k.IsPrivate, "Generated key has private material")
+  Assert.Ok(k.IsPrivate, "Generated key has private material")
 End
 ```
 
@@ -575,7 +575,7 @@ Public Sub Test_PKey_PemRoundTrip()
 
   k1 = PKey.Generate(2048)
   pem1 = k1.ToPem()
-  Assert.True(InStr(pem1, "-----BEGIN") > 0, "ToPem produces a PEM blob")
+  Assert.Ok(InStr(pem1, "-----BEGIN") > 0, "ToPem produces a PEM blob")
 
   k2 = PKey.LoadPrivate(pem1)
   pem2 = k2.ToPem()
@@ -726,7 +726,7 @@ Public Sub Test_PKey_EncryptedPemRoundTrip()
 
   k1 = PKey.Generate(2048)
   pem = k1.ToPem(passphrase)
-  Assert.True(InStr(pem, "ENCRYPTED") > 0, "Encrypted PEM contains ENCRYPTED marker")
+  Assert.Ok(InStr(pem, "ENCRYPTED") > 0, "Encrypted PEM contains ENCRYPTED marker")
 
   k2 = PKey.LoadPrivate(pem, passphrase)
   Assert.Equals(k2.Bits, 2048, "Loaded encrypted key has 2048 bits")
@@ -740,7 +740,7 @@ Public Sub Test_PKey_LoadPrivate_WrongPassphraseRaisesError()
   Dim k As PKey = PKey.Generate(2048)
   Dim pem As String = k.ToPem("right")
   Try k = PKey.LoadPrivate(pem, "wrong")
-  Assert.True(Error, "Loading with wrong passphrase raises an error")
+  Assert.Error("Loading with wrong passphrase raises an error")
 End
 ```
 
@@ -774,11 +774,11 @@ git commit -m "WIP: tests for PKey encrypted PEM round-trip"
 Public Sub Test_PKey_PublicPemRoundTrip()
   Dim k As PKey = PKey.Generate(2048)
   Dim pubPem As String = k.ToPublicPem()
-  Assert.True(InStr(pubPem, "BEGIN PUBLIC KEY") > 0, "ToPublicPem produces SPKI PEM")
+  Assert.Ok(InStr(pubPem, "BEGIN PUBLIC KEY") > 0, "ToPublicPem produces SPKI PEM")
 
   Dim k2 As PKey = PKey.LoadPublic(pubPem)
   Assert.Equals(k2.Bits, 2048, "Loaded public key has correct bits")
-  Assert.False(k2.IsPrivate, "Loaded public key is not private")
+  Assert.NotOk(k2.IsPrivate, "Loaded public key is not private")
 End
 ```
 
@@ -874,10 +874,10 @@ git commit -m "WIP: PKey.LoadPublic + PKey.ToPublicPem"
 ```gambas
 Public Sub Test_PKey_PublicPart_ExtractsPublic()
   Dim priv As PKey = PKey.Generate(2048)
-  Assert.True(priv.IsPrivate, "Original is private")
+  Assert.Ok(priv.IsPrivate, "Original is private")
 
   Dim pub As PKey = priv.PublicPart
-  Assert.False(pub.IsPrivate, "PublicPart is not private")
+  Assert.NotOk(pub.IsPrivate, "PublicPart is not private")
   Assert.Equals(pub.Bits, 2048, "PublicPart has same bits")
 
   ' Same public modulus → same SPKI export
@@ -958,10 +958,10 @@ git commit -m "WIP: PKey.PublicPart"
 Public Sub Test_PKey_DerRoundTrip()
   Dim k1 As PKey = PKey.Generate(2048)
   Dim der As String = k1.ToDer()
-  Assert.True(Len(der) > 1000, "DER private key is substantial in size")
+  Assert.Ok(Len(der) > 1000, "DER private key is substantial in size")
 
   Dim k2 As PKey = PKey.LoadPrivateDer(der)
-  Assert.True(k2.IsPrivate, "Loaded DER private key is private")
+  Assert.Ok(k2.IsPrivate, "Loaded DER private key is private")
   Assert.Equals(k2.Bits, 2048, "DER round-trip preserves Bits")
   Assert.Equals(k2.ToDer(), der, "DER round-trip is byte-stable")
 End
@@ -970,7 +970,7 @@ Public Sub Test_PKey_PublicDerRoundTrip()
   Dim k1 As PKey = PKey.Generate(2048).PublicPart
   Dim der As String = k1.ToPublicDer()
   Dim k2 As PKey = PKey.LoadPublicDer(der)
-  Assert.False(k2.IsPrivate, "Loaded public DER is not private")
+  Assert.NotOk(k2.IsPrivate, "Loaded public DER is not private")
   Assert.Equals(k2.ToPublicDer(), der, "Public DER round-trip is byte-stable")
 End
 ```
@@ -1088,20 +1088,20 @@ git commit -m "WIP: PKey DER import/export"
 Public Sub Test_PKey_LoadInvalidPem_RaisesError()
   Dim k As PKey
   Try k = PKey.LoadPrivate("this is not a PEM")
-  Assert.True(Error, "Garbage input raises error")
+  Assert.Error("Garbage input raises error")
 End
 
 Public Sub Test_PKey_GenerateZeroBits_RaisesError()
   Dim k As PKey
   Try k = PKey.Generate(0)
-  Assert.True(Error, "Generate(0) raises error")
+  Assert.Error("Generate(0) raises error")
 End
 
 Public Sub Test_PKey_ToDer_OnPublicKey_RaisesError()
   Dim pub As PKey = PKey.Generate(2048).PublicPart
   Dim der As String
   Try der = pub.ToDer()
-  Assert.True(Error, "ToDer on public-only key raises error")
+  Assert.Error("ToDer on public-only key raises error")
 End
 ```
 
@@ -1292,14 +1292,14 @@ Public Sub Test_Signature_List_ContainsExpectedMethods()
   Dim names As String[] = Signature.List
   Assert.Contains(names, "rsa-pkcs1-sha256", "List contains rsa-pkcs1-sha256")
   Assert.Contains(names, "rsa-pss-sha256",   "List contains rsa-pss-sha256")
-  Assert.True(Signature.IsSupported("rsa-pkcs1-sha256"), "IsSupported true for known")
-  Assert.False(Signature.IsSupported("nope-md5"),        "IsSupported false for unknown")
+  Assert.Ok(Signature.IsSupported("rsa-pkcs1-sha256"), "IsSupported true for known")
+  Assert.NotOk(Signature.IsSupported("nope-md5"),        "IsSupported false for unknown")
 End
 
 Public Sub Test_Signature_UnknownMethod_RaisesError()
   Dim m As Object
   Try m = Signature["nope-md5"]
-  Assert.True(Error, "Unknown method raises on indexer")
+  Assert.Error("Unknown method raises on indexer")
 End
 ```
 
@@ -1309,9 +1309,9 @@ End
 Public Sub AssertContains(arr As String[], target As String, message As String)
   Dim s As String
   For Each s In arr
-    If s = target Then Assert.True(True, message): Return
+    If s = target Then Assert.Ok(True, message): Return
   Next
-  Assert.True(False, message)
+  Assert.Ok(False, message)
 End
 ```
 
@@ -1420,9 +1420,9 @@ Public Sub Test_Signature_RoundTrip()
 
   For Each m In methods
     sig = Signature[m].Sign(data, k)
-    Assert.True(Len(sig) >= 256, "Sig length reasonable for " & m)
-    Assert.True(Signature[m].Verify(data, sig, k.PublicPart), "Round-trip Verify true for " & m)
-    Assert.False(Signature[m].Verify(data & "x", sig, k.PublicPart), "Tampered data: Verify false for " & m)
+    Assert.Ok(Len(sig) >= 256, "Sig length reasonable for " & m)
+    Assert.Ok(Signature[m].Verify(data, sig, k.PublicPart), "Round-trip Verify true for " & m)
+    Assert.NotOk(Signature[m].Verify(data & "x", sig, k.PublicPart), "Tampered data: Verify false for " & m)
   Next
 End
 ```
@@ -1597,7 +1597,7 @@ Public Sub Test_Signature_VerifyWrongKey_ReturnsFalse()
   Dim k1 As PKey = PKey.Generate(2048)
   Dim k2 As PKey = PKey.Generate(2048)
   Dim sig As String = Signature["rsa-pkcs1-sha256"].Sign("hello", k1)
-  Assert.False(Signature["rsa-pkcs1-sha256"].Verify("hello", sig, k2.PublicPart), _
+  Assert.NotOk(Signature["rsa-pkcs1-sha256"].Verify("hello", sig, k2.PublicPart), _
                "Verify with wrong public key returns FALSE")
 End
 
@@ -1605,7 +1605,7 @@ Public Sub Test_Signature_VerifyWithPublicKeyForSign_RaisesError()
   Dim pub As PKey = PKey.Generate(2048).PublicPart
   Dim sig As String
   Try sig = Signature["rsa-pkcs1-sha256"].Sign("hello", pub)
-  Assert.True(Error, "Signing with public-only key raises error")
+  Assert.Error("Signing with public-only key raises error")
 End
 ```
 
@@ -1666,7 +1666,7 @@ End
 Public Sub Test_Signature_VerifyKnownVector_Jwt()
   Dim pub As PKey = PKey.LoadPublic(RFC7515_A2_PUB_PEM)
   Dim sig As String = Base64UrlDecode(RFC7515_A2_SIGNATURE_BASE64URL)
-  Assert.True(Signature["rsa-pkcs1-sha256"].Verify(RFC7515_A2_SIGNED_INPUT, sig, pub), _
+  Assert.Ok(Signature["rsa-pkcs1-sha256"].Verify(RFC7515_A2_SIGNED_INPUT, sig, pub), _
               "RFC 7515 §A.2 (RS256) golden vector verifies")
 End
 ```
