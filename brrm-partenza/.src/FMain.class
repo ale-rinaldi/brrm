@@ -43,15 +43,31 @@ End
 Public Sub SerialPort1_Read()
 
 Dim s As String
-Try Read #SerialPort1, s, Lof(SerialPort1)
+Dim iLof As Integer = Lof(SerialPort1)
+LogArduino("READ enter lof=" & iLof)
+Try Read #SerialPort1, s, iLof
 If Error Then
+  LogArduino("READ error: " & Error.Text & " -> Close")
   Try SerialPort1.Close   ' Timer4 lo riaprira quando torna disponibile
   Return
 Endif
+LogArduino("READ ok len=" & Len(s) & " FotON=" & FotON)
 If FotON = True Then
 BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 Endif
 
+End
+
+Private Sub LogArduino(sMsg As String)
+  ' Logger temporaneo per diagnosticare il bug "re-attach: detect OK ma
+  ' niente dati". Tail con: tail -f ~/.local/share/brrm/arduino-debug.log
+  Dim hLog As File
+  Try Mkdir User.Home &/ ".local/share/brrm"
+  Try hLog = Open User.Home &/ ".local/share/brrm/arduino-debug.log" For Append
+  If hLog Then
+    Try Print #hLog, Format$(Now, "hh:nn:ss.uuu") & " " & sMsg
+    Try Close #hLog
+  Endif
 End
 
 Private Sub SetArduinoStatus(bConnected As Boolean)
@@ -70,6 +86,7 @@ Public Sub Timer4_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   Dim sDevice As String
+  LogArduino("T4 enter status=" & SerialPort1.Status & " port=" & SerialPort1.PortName & " exist=" & CStr(Exist(SerialPort1.PortName)))
   If SerialPort1.Status >= 1 And Exist(SerialPort1.PortName) Then
     SetArduinoStatus(True)
     Return
@@ -80,6 +97,7 @@ Public Sub Timer4_Timer()
   Try SerialPort1.Close
   Wait 0.1
   sDevice = MFile.FindArduinoDevice()
+  LogArduino("T4 after-close-find sDevice=" & sDevice)
   If sDevice = "" Then
     SetArduinoStatus(False)
     Return
@@ -94,6 +112,11 @@ Public Sub Timer4_Timer()
   SerialPort1.StopBits = 1
   SerialPort1.FlowControl = SerialPort.None
   Try SerialPort1.Open
+  If Error Then
+    LogArduino("T4 Open error: " & Error.Text)
+  Else
+    LogArduino("T4 Open ok status=" & SerialPort1.Status & " port=" & SerialPort1.PortName)
+  Endif
   SetArduinoStatus(SerialPort1.Status >= 1)
 End
 
