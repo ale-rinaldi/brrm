@@ -131,7 +131,7 @@ PUBLIC FUNCTION DateToUnixMs(d AS Date) AS Long
   RETURN daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
 END
 
-Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
+Public Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
   ' Howard Hinnant civil_to_days: giorni dal 1970-01-01. Int puro.
   Dim era, yoe, mAdj, doy, doe As Long
   If m <= 2 Then y = y - 1
