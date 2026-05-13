@@ -51,44 +51,21 @@ Public Sub Arduino_Read()
 
 Dim s As String
 Dim iLof As Integer
-Dim bLofErr As Boolean
-Dim sLofErrTxt As String
 iLof = 0
-bLofErr = False
-sLofErrTxt = ""
 Try iLof = Lof($hSerial)
 If Error Then
-  bLofErr = True
-  sLofErrTxt = Error.Text
-Endif
-LogArduino("READ enter lof=" & iLof & " lofErr=" & sLofErrTxt)
-If bLofErr Then
   ArduinoClose()
   Return
 Endif
 Try Read #$hSerial, s, iLof
 If Error Then
-  LogArduino("READ error: " & Error.Text & " -> Close")
   ArduinoClose()
   Return
 Endif
-LogArduino("READ ok len=" & Len(s) & " FotON=" & FotON)
 If FotON = True Then
 BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 Endif
 
-End
-
-Private Sub LogArduino(sMsg As String)
-  ' Logger temporaneo per diagnosticare il bug "re-attach: detect OK ma
-  ' niente dati". Tail con: tail -f ~/.local/share/brrm/arduino-debug.log
-  Dim hLog As File
-  Try Mkdir User.Home &/ ".local/share/brrm"
-  Try hLog = Open User.Home &/ ".local/share/brrm/arduino-debug.log" For Append
-  If hLog Then
-    Try Print #hLog, Format$(Now, "hh:nn:ss.uuu") & " " & sMsg
-    Try Close #hLog
-  Endif
 End
 
 Private Sub SetArduinoStatus(bConnected As Boolean)
@@ -107,15 +84,11 @@ Public Sub Timer4_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   Dim sDevice As String
-  Dim bOk As Boolean
-  bOk = False
   If $hSerial <> Null Then
-    If $hSerial.Status >= 1 And Exist($hSerial.PortName) Then bOk = True
-  Endif
-  LogArduino("T4 enter ok=" & CStr(bOk) & " has=" & CStr($hSerial <> Null))
-  If bOk Then
-    SetArduinoStatus(True)
-    Return
+    If $hSerial.Status >= 1 And Exist($hSerial.PortName) Then
+      SetArduinoStatus(True)
+      Return
+    Endif
   Endif
   ' Non connesso: distruggi l'oggetto e ricrea uno nuovo al prossimo Open.
   ' Senza ricreazione, SerialPort.Open su istanza riusata non riarma il
@@ -123,7 +96,6 @@ Public Sub Timer4_Timer()
   ArduinoClose()
   Wait 0.1
   sDevice = MFile.FindArduinoDevice()
-  LogArduino("T4 find sDevice=" & sDevice)
   If sDevice = "" Then
     SetArduinoStatus(False)
     Return
@@ -133,8 +105,7 @@ End
 
 Private Function ArduinoOpen(sDevice As String) As Boolean
   ' Crea un nuovo SerialPort dynamic, attacca gli event handler con
-  ' prefix "Arduino" e apre. Workaround per il bug Gambas 3.20 in cui
-  ' Open su istanza riusata non riarma il listener di _Read.
+  ' prefix "Arduino" e apre. Workaround bug Gambas 3.20.
   ArduinoClose()
   $hSerial = New SerialPort
   Object.Attach($hSerial, Me, "Arduino")
@@ -146,11 +117,9 @@ Private Function ArduinoOpen(sDevice As String) As Boolean
   $hSerial.FlowControl = SerialPort.None
   Try $hSerial.Open
   If Error Then
-    LogArduino("Open error: " & Error.Text)
     ArduinoClose()
     Return False
   Endif
-  LogArduino("Open ok status=" & $hSerial.Status & " port=" & $hSerial.PortName)
   Return ($hSerial.Status >= 1)
 End
 

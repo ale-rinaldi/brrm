@@ -63,11 +63,6 @@
     MoveScaled(76,50,18,4)
     Text = ("Importa partenze")
   }
-  { SerialPort1 #SerialPort
-    #X = 665
-    #Y = 280
-    PortName = "/dev/ttyUSB0"
-  }
   { Button7 Button
     MoveScaled(76,40,9,2)
     Background = &H00FF00&
