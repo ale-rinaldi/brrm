@@ -22,7 +22,7 @@ Private $enabled As Boolean
 Private $cfgPath As String
 
 Private $clientEmail As String
-Private $privKeyPath As String        ' percorso del file PEM estratto
+Private $pkey As PKey                 ' chiave RSA privata in memoria
 
 Private $documentId As String
 Private $sheetName As String
@@ -153,11 +153,10 @@ End
 
 Private Function ParseCredentials(sPath As String) As Boolean
   ' Estrae client_email e private_key dal JSON del service account.
-  ' Salva la private_key in ~/.cache/brrm/sheet-privkey.pem (chmod 600) cosi'
-  ' openssl la puo' usare per firmare i JWT senza ulteriore IO sul file utente.
+  ' La private_key viene parsata in memoria via gb.openssl: niente file su
+  ' disco, niente shell openssl, niente quoting.
   Dim sJson As String
   Dim sKey As String
-  Dim sCacheDir As String
 
   sJson = ""
   Try sJson = File.Load(sPath)
@@ -173,14 +172,14 @@ Private Function ParseCredentials(sPath As String) As Boolean
   Try sKey = CStr(cred["private_key"])
   If $clientEmail = "" Or sKey = "" Then Return False
 
-  sCacheDir = User.Home &/ ".cache/brrm"
-  If Not Exist(sCacheDir) Then Try Mkdir sCacheDir
-  $privKeyPath = sCacheDir &/ "sheet-privkey.pem"
-  Try File.Save($privKeyPath, sKey)
-  If Error Then
+  $pkey = Null
+  Try $pkey = PKey.LoadPrivate(sKey)
+  If Error Or IsNull($pkey) Then
     Return False
   Endif
-  Try Chmod $privKeyPath To "rw-------"
+  ' Migrazione: vecchie versioni cachevano la PEM su disco. Ora che la
+  ' chiave vive solo in memoria, rimuovi l'eventuale residuo.
+  Try Kill User.Home &/ ".cache/brrm/sheet-privkey.pem"
   Return True
 End
 
@@ -244,10 +243,10 @@ Private Sub StartTokenRequest()
   sClaim &= "\"iat\":" & CStr(iNow) & "}"
   sClaim = Base64URLStr(sClaim)
 
-  sSig = SignWithOpenSSL(sHeader & "." & sClaim)
+  sSig = SignJwt(sHeader & "." & sClaim)
   If sSig = "" Then
     $busy = False
-    SetStatus(False, "Errore firma JWT: openssl non disponibile?")
+    SetStatus(False, "Errore firma JWT")
     ScheduleRetry()
     Return
   Endif
@@ -630,21 +629,13 @@ End
 
 ' --- helpers: JWT signing --------------------------------------------------
 
-Private Function SignWithOpenSSL(sData As String) As String
-  ' Firma sData con la private key (RSA-SHA256) usando openssl CLI. Ritorna
-  ' la firma base64url-encoded, o "" se openssl non è disponibile.
-  Dim sFileIn, sFileOut, sSig As String
-  sFileIn = Temp$()
-  sFileOut = Temp$()
-  Try File.Save(sFileIn, sData)
-  ' Nota: openssl 3 non accetta più -in con dgst; il file di input va come
-  ' argomento posizionale.
-  Shell "openssl dgst -sha256 -sign " & Shell$($privKeyPath) & " -out " & Shell$(sFileOut) & " " & Shell$(sFileIn) Wait
-  sSig = ""
-  Try sSig = File.Load(sFileOut)
-  Try Kill sFileIn
-  Try Kill sFileOut
-  If sSig = "" Then Return ""
+Private Function SignJwt(sData As String) As String
+  ' Firma sData con la private key (RSA-SHA256, PKCS#1 v1.5) tramite
+  ' gb.openssl. Ritorna la firma base64url-encoded, o "" su errore.
+  Dim sSig As String
+  If IsNull($pkey) Then Return ""
+  Try sSig = Signature["rsa-pkcs1-sha256"].Sign(sData, $pkey)
+  If Error Or sSig = "" Then Return ""
   Return Base64URLStr(sSig)
 End
 
