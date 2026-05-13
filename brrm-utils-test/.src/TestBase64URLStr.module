@@ -1,0 +1,25 @@
+' Test per CSheet.Base64URLStr — base64url di RFC 4648 §5: alfabeto
+' standard con '+' -> '-' e '/' -> '_', senza padding '='.
+Public Sub RunAll()
+
+  Assert.Equals(JsonHelpers.Base64URLStr(""),     "",        "empty -> empty")
+  Assert.Equals(JsonHelpers.Base64URLStr("f"),    "Zg",      "'f' senza padding")
+  Assert.Equals(JsonHelpers.Base64URLStr("fo"),   "Zm8",     "'fo'")
+  Assert.Equals(JsonHelpers.Base64URLStr("foo"),  "Zm9v",    "'foo' (multiplo di 3)")
+  Assert.Equals(JsonHelpers.Base64URLStr("foob"), "Zm9vYg",  "'foob' senza '='")
+  Assert.Equals(JsonHelpers.Base64URLStr("fooba"),"Zm9vYmE", "'fooba'")
+  Assert.Equals(JsonHelpers.Base64URLStr("foobar"),"Zm9vYmFy","'foobar' (multiplo di 3)")
+
+  ' Bytes che generano '+' e '/' in base64 standard
+  ' "\xff\xff\xff" -> base64 "////" -> base64url "____"
+  Assert.Equals(JsonHelpers.Base64URLStr(Chr(255) & Chr(255) & Chr(255)), "____", "+/ vs -_ remap (255*3 -> '_'*4)")
+
+  ' Bytes che hanno '+' in base64
+  ' \x00\xff\x00 -> base64 "AP8A" non ha + - non test efficace
+  ' \xfb\xef\xff -> base64 "++//" -> base64url "--__"
+  Assert.Equals(JsonHelpers.Base64URLStr(Chr(251) & Chr(239) & Chr(255)), "--__", "remap di '+' e '/' insieme")
+
+  ' Header JWT canonico {"alg":"RS256","typ":"JWT"}
+  Assert.Equals(JsonHelpers.Base64URLStr("{\"alg\":\"RS256\",\"typ\":\"JWT\"}"), "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9", "header JWT RFC")
+
+End

@@ -1,0 +1,37 @@
+' Test per CSheet.JsonEscape. NOTA: la funzione attuale gestisce solo
+' backslash, quote, LF e rimuove CR. Tab e altri control char < 0x20
+' NON vengono escaped (gap noto rispetto a RFC 8259); per brrm i payload
+' sono numerici e nomi-foglio senza control chars, quindi in pratica OK.
+' I test riflettono il comportamento attuale; se in futuro espanderemo
+' la copertura RFC, aggiornare anche qui.
+Public Sub RunAll()
+
+  Assert.Equals(JsonHelpers.JsonEscape(""), "", "empty")
+  Assert.Equals(JsonHelpers.JsonEscape("abc"), "abc", "ascii pulito invariato")
+  Assert.Equals(JsonHelpers.JsonEscape("Prova"), "Prova", "nome foglio tipico invariato")
+
+  ' Backslash: 1 -> 2 (output e' Gambas string con 2 backslash effettivi)
+  Assert.Equals(JsonHelpers.JsonEscape("\\"), "\\\\", "backslash raddoppiato")
+
+  ' Quote -> backslash-quote
+  Assert.Equals(JsonHelpers.JsonEscape(Chr(34)), "\\" & Chr(34), "double quote escaped")
+
+  ' Newline -> letterali backslash+n
+  Assert.Equals(JsonHelpers.JsonEscape(Chr(10)), "\\n", "LF -> \\n")
+
+  ' CR rimosso del tutto (intenzionale)
+  Assert.Equals(JsonHelpers.JsonEscape(Chr(13)), "", "CR rimosso")
+  Assert.Equals(JsonHelpers.JsonEscape("a" & Chr(13) & Chr(10) & "b"), "a\\nb", "CRLF -> \\n")
+
+  ' Combo realistica
+  Assert.Equals(JsonHelpers.JsonEscape("a\"b"), "a\\" & Chr(34) & "b", "ascii + quote")
+
+
+  ' Tab (Chr(9)): RFC 8259 richiede \\t; il codice attuale lo lascia raw.
+  ' Atteso: se il test FALLA, e' un bug latente (in pratica brrm non passa
+  ' mai tab a JsonEscape, ma vale la pena segnalarlo).
+
+  Assert.Equals(JsonHelpers.JsonEscape("a" & Chr(8) & "b"), "a\\bb", "backspace -> \\b (RFC 8259)")
+  Assert.Equals(JsonHelpers.JsonEscape("a" & Chr(12) & "b"), "a\\fb", "form-feed -> \\f")
+  Assert.Equals(JsonHelpers.JsonEscape("a" & Chr(9) & "b"), "a\\tb", "tab -> \\t (RFC 8259)")
+End

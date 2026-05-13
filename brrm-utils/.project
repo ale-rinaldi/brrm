@@ -1,0 +1,6 @@
+# Gambas Project File 3.0
+Title=brrm shared utilities
+Version=0.0.1
+TabSize=2
+ControlPublic=1
+ModulePublic=1

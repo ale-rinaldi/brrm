@@ -111,38 +111,6 @@ PRIVATE SUB EnsureDirOf(sPath AS String)
   NEXT
 END
 
-PUBLIC FUNCTION MsInDay(d AS Date) AS Long
-  ' Millisecondi trascorsi dalla mezzanotte locale (0..86399999). Int puro.
-  DIM iMs AS Integer = 0
-  TRY iMs = CInt(Format$(d, "uuu"))
-  RETURN Hour(d) * 3600000 + Minute(d) * 60000 + Second(d) * 1000 + iMs
-END
-
-PUBLIC FUNCTION DateToUnixMs(d AS Date) AS Long
-  ' Converte un orario (Date time-only) in UNIX ms UTC. Stessa logica di
-  ' CSheet.DateToUnixMs — duplicata qui per usarla dall'export CSV senza
-  ' dipendere da $sheet. System.TimeZone (POSIX) e' negativo a est di UTC.
-  ' Cross-midnight: se l'orario di d e' successivo a quello attuale,
-  ' l'evento e' di IERI (assumiamo gara < 24h).
-  DIM t AS Date = Now
-  DIM daysEpoch AS Long = DaysFromEpoch(Year(t), Month(t), Day(t))
-  DIM msEvent AS Long = MsInDay(d)
-  IF msEvent > MsInDay(t) THEN daysEpoch = daysEpoch - 1
-  RETURN daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
-END
-
-Public Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
-  ' Howard Hinnant civil_to_days: giorni dal 1970-01-01. Int puro.
-  Dim era, yoe, mAdj, doy, doe As Long
-  If m <= 2 Then y = y - 1
-  If y >= 0 Then era = y \ 400 Else era = (y - 399) \ 400
-  yoe = y - era * 400
-  If m > 2 Then mAdj = m - 3 Else mAdj = m + 9
-  doy = (153 * mAdj + 2) \ 5 + d - 1
-  doe = yoe * 365 + yoe \ 4 - yoe \ 100 + doy
-  Return era * 146097 + doe - 719468
-End
-
 PUBLIC SUB ConfermaScartoOrario(che AS String) AS Boolean
   ' Conferma per chiudere senza salvare un dialog che contiene un orario
   ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
@@ -355,8 +323,6 @@ Private Sub AlignProcessBlock(sBlock As String)
   AlignApplyEvent(sEventType, sData)
 End
 
-
-
 Private Sub AlignApplyEvent(sEventType As String, sData As String)
   ' Applica un evento SSE allo stato locale. Idempotente: scarta seq gia' visti.
   Dim iSeq As Long
@@ -436,7 +402,6 @@ PUBLIC SUB UpgradeSessionFile()
   NEXT
   AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
 END
-
 
 PUBLIC SUB SetPartenza(Equipaggio AS Integer, Partenza AS Date)
 
@@ -557,7 +522,7 @@ ELSE
   ELSE
     tArrivo = Time
   ENDIF
-  deltaMs = MsInDay(tArrivo) - MsInDay(partenze[concorrente])
+  deltaMs = MTime.MsInDay(tArrivo) - MTime.MsInDay(partenze[concorrente])
   IF deltaMs < 0 THEN deltaMs = deltaMs + 86400000
   sDisplay = CStr(deltaMs \ 60000) & ":" & Format$((deltaMs \ 1000) MOD 60, "00") & "." & Format$(deltaMs MOD 1000, "000")
 ENDIF
@@ -614,7 +579,6 @@ PUBLIC SUB EditOrder(Order AS String)
   NEXT 
   Timer1.Start
 END
-
 
 PUBLIC SUB Button5_Click()
 
@@ -673,14 +637,14 @@ PUBLIC SUB Button6_Click()
     dPart = partenze[iEqui]
     dArr = arrivi[iEqui]
     iPartMs = 0
-    TRY iPartMs = CInt(Format$(dPart, "uuu"))
+    iPartMs = MTime.MillisOf(dPart)
     iArrMs = 0
-    TRY iArrMs = CInt(Format$(dArr, "uuu"))
-    delta = MsInDay(dArr) - MsInDay(dPart)
+    iArrMs = MTime.MillisOf(dArr)
+    delta = MTime.MsInDay(dArr) - MTime.MsInDay(dPart)
     IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
     sOut &= iEqui & ","
-    sOut &= Hour(dPart) & "," & Minute(dPart) & "," & Second(dPart) & "," & Format$(iPartMs, "000") & "," & DateToUnixMs(dPart) & ","
-    sOut &= Hour(dArr) & "," & Minute(dArr) & "," & Second(dArr) & "," & Format$(iArrMs, "000") & "," & DateToUnixMs(dArr) & ","
+    sOut &= Hour(dPart) & "," & Minute(dPart) & "," & Second(dPart) & "," & Format$(iPartMs, "000") & "," & MTime.DateToUnixMs(dPart) & ","
+    sOut &= Hour(dArr) & "," & Minute(dArr) & "," & Second(dArr) & "," & Format$(iArrMs, "000") & "," & MTime.DateToUnixMs(dArr) & ","
     sOut &= (delta \ 60000) & "," & ((delta \ 1000) MOD 60) & "," & Format$(delta MOD 1000, "000") & "," & delta & "\n"
   NEXT
 
@@ -757,7 +721,6 @@ PUBLIC SUB ButtonImporta_Click()
   Timer1.Start
   Message.Info(iImportati & " orari di partenza importati.")
 END
-
 
 PUBLIC SUB GridView1_Click()
 DIM pt1 AS Date
@@ -897,7 +860,6 @@ END
 
 PUBLIC SUB Button9_Click()
 
-
 BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 
 END
@@ -911,7 +873,6 @@ Timer1.Start
   IF $sheet THEN $sheet.UpdateForEquipaggio(Numero)
   
 END 
-
 
 PUBLIC SUB Timer3_Timer()
 
