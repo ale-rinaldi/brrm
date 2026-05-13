@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
       fonts-dejavu-core \
       locales \
+      tzdata \
       xvfb \
       x11vnc \
       fluxbox \
@@ -30,8 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       imagemagick \
  && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
  && locale-gen \
+ && ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime \
+ && echo "Europe/Rome" > /etc/timezone \
  && rm -rf /var/lib/apt/lists/*
-ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 TZ=Europe/Rome
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh

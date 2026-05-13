@@ -8,4 +8,5 @@ gb.qt6
 gb.form
 gb.net
 gb.net.curl
+gb.util.web
 
