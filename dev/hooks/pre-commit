@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Hook git pre-commit: esegue brrm-utils-test prima di consentire il commit.
+# Installazione: dalla root del repo, una volta sola:
+#   git config core.hooksPath dev/hooks
+#
+# Bypass quando serve (es. WIP): git commit --no-verify
+#
+# Esegue tramite docker (brrm-dev-test:latest) — niente Gambas locale richiesto.
+# Se docker manca o il run fallisce, blocca il commit.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Skip se nessun file Gambas o brrm-utils modificato
+# (i test non possono regredire se il codice testato non cambia)
+if ! git diff --cached --name-only | grep -qE '\.(class|module|form)$|^brrm-utils/|^brrm-utils-test/'; then
+  exit 0
+fi
+
+echo "[pre-commit] esecuzione unit test (brrm-utils-test)..."
+if ! "$ROOT/dev/run-tests-docker.sh" >/tmp/brrm-pre-commit.log 2>&1; then
+  echo "[pre-commit] FAIL — output in /tmp/brrm-pre-commit.log" >&2
+  tail -20 /tmp/brrm-pre-commit.log >&2
+  echo "Per bypassare: git commit --no-verify" >&2
+  exit 1
+fi
+echo "[pre-commit] OK"

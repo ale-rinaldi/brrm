@@ -39,7 +39,7 @@ jobs:
 
       # Ubuntu runner ha Gambas 3.18 (solo gb.qt5). Servono 3.20+ con gb.qt6,
       # quindi il build avviene dentro un container Debian trixie.
-      - name: Build dei .deb (container Debian trixie)
+      - name: Unit test + build dei .deb (container Debian trixie)
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -56,7 +56,11 @@ jobs:
                 gambas3-gb-net \
                 gambas3-gb-net-curl \
                 gambas3-gb-util-web \
+                gambas3-gb-pcre \
                 fakeroot
+              echo '=== unit test ==='
+              bash dev/run-tests.sh
+              echo '=== build .deb ==='
               ./package.sh"
 
       - name: Installa tool per metadata APT e firma
