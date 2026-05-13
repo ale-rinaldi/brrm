@@ -1,0 +1,38 @@
+' Test per CSheet.DaysFromEpoch — algoritmo civil_to_days di Howard
+' Hinnant. Aritmetica intera pura. Edge case: anno epoca, anni
+' bisestili (regola gregoriana: ogni 4 tranne ogni 100 tranne ogni 400),
+' pre-epoca (valori negativi), boundary lontani.
+Public Sub RunAll()
+  Dim s As New CSheet
+
+  ' Epoca + giorni vicini
+  Assert.Equals(s.DaysFromEpoch(1970, 1, 1),  CLong(0),    "1970-01-01 = giorno 0")
+  Assert.Equals(s.DaysFromEpoch(1970, 1, 2),  CLong(1),    "1970-01-02 = giorno 1")
+  Assert.Equals(s.DaysFromEpoch(1970, 12, 31),CLong(364),  "1970-12-31 = giorno 364 (1970 non bisestile)")
+  Assert.Equals(s.DaysFromEpoch(1971, 1, 1),  CLong(365),  "1971-01-01 = 365 (1970 ha 365 gg)")
+
+  ' Anni bisestili: regola gregoriana
+  '   1972: bisestile (div 4)
+  '   1971: non bisestile
+  Assert.Equals(s.DaysFromEpoch(1972, 1, 1),  CLong(730),  "1972-01-01 = 365+365")
+  Assert.Equals(s.DaysFromEpoch(1973, 1, 1),  CLong(1096), "1973-01-01 = 365+365+366 (1972 bisestile)")
+
+  '   2000: bisestile (div 400)
+  '   1900: NON bisestile (div 100 ma non 400)
+  '   2100: NON bisestile (idem)
+  Assert.Equals(s.DaysFromEpoch(2000, 1, 1),  CLong(10957), "2000-01-01 (oracolo da python)")
+  Assert.Equals(s.DaysFromEpoch(2000, 2, 29), CLong(11016), "2000-02-29 esiste (bisestile)")
+  Assert.Equals(s.DaysFromEpoch(2024, 1, 1),  CLong(19723), "2024-01-01 (oracolo)")
+
+  ' Pre-epoca: valori negativi
+  Assert.Equals(s.DaysFromEpoch(1969, 12, 31), CLong(-1),   "1969-12-31 = -1")
+  Assert.Equals(s.DaysFromEpoch(1969, 1, 1),   CLong(-365), "1969-01-01 = -365")
+
+  ' Boundary lontani
+  Assert.Equals(s.DaysFromEpoch(2026, 5, 13),  CLong(20586),"oggi (data del refactor) — oracolo")
+
+
+  Assert.Equals(s.DaysFromEpoch(1900, 1, 1),  CLong(-25567), "1900-01-01 (1900 non bisestile)")
+  Assert.Equals(s.DaysFromEpoch(2100, 1, 1),  CLong(47482),  "2100-01-01 (2100 non bisestile)")
+  Assert.Equals(s.DaysFromEpoch(2000, 12, 31),CLong(11322),  "2000-12-31 (anno bisestile completo)")
+End

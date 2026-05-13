@@ -1,0 +1,10 @@
+Public Sub Main()
+  File.Save("/tmp/main-ran", "yes at " & CStr(Now))
+  Test.Plan(70)
+  TestMillisOf.RunAll()
+  TestMsInDay.RunAll()
+  TestDaysFromEpoch.RunAll()
+  TestBase64URLStr.RunAll()
+  TestURLEncode.RunAll()
+  TestJsonEscape.RunAll()
+End
