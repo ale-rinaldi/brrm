@@ -1,0 +1,54 @@
+' JsonHelpers — encoding helpers usati da brrm (e potenzialmente da altri).
+' Source-of-truth: gli altri progetti (brrm) puntano qui via symlink.
+' Mai duplicare il codice.
+
+Public Function Base64URLStr(s As String) As String
+  ' Base64URL di RFC 4648 §5: alfabeto standard con '+' -> '-' e
+  ' '/' -> '_', senza padding '='.
+  Dim b64 As String = Base64$(s)
+  b64 = Replace(b64, "+", "-")
+  b64 = Replace(b64, "/", "_")
+  b64 = Replace(b64, "=", "")
+  Return b64
+End
+
+Public Function URLEncode(s As String) As String
+  ' Pure-Gambas URL-encoder (RFC 3986 unreserved + replace altri con %HH).
+  Dim out As String
+  Dim i As Integer
+  Dim c As String
+  Dim code As Integer
+  out = ""
+  For i = 1 To Len(s)
+    c = Mid$(s, i, 1)
+    code = Asc(c)
+    Dim safe As Boolean
+    safe = False
+    If code >= Asc("A") And code <= Asc("Z") Then safe = True
+    If code >= Asc("a") And code <= Asc("z") Then safe = True
+    If code >= Asc("0") And code <= Asc("9") Then safe = True
+    If c = "-" Or c = "_" Or c = "." Or c = "~" Then safe = True
+    If safe Then
+      out &= c
+    Else
+      out &= "%" & UCase$(Hex$(code, 2))
+    Endif
+  Next
+  Return out
+End
+
+Public Function JsonEscape(s As String) As String
+  ' Escape JSON per i control char nominati da RFC 8259 sezione 7. Il
+  ' CR e' rimosso (eredita il comportamento storico); LF/Tab/Backspace/
+  ' Form-Feed sono escaped. Per brrm in pratica solo \ " \n LF sono
+  ' realistici, ma copertura completa serve a evitare JSON invalidi.
+  Dim out As String = s
+  out = Replace(out, "\\", "\\\\")
+  out = Replace(out, Chr(34), "\\\"")
+  out = Replace(out, Chr(8),  "\\b")
+  out = Replace(out, Chr(9),  "\\t")
+  out = Replace(out, Chr(10), "\\n")
+  out = Replace(out, Chr(12), "\\f")
+  out = Replace(out, Chr(13), "")
+  Return out
+End

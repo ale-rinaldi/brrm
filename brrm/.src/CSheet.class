@@ -236,13 +236,13 @@ Private Sub StartTokenRequest()
   Dim iNow As Long
 
   iNow = NowEpoch()
-  sHeader = Base64URLStr("{\"alg\":\"RS256\",\"typ\":\"JWT\"}")
+  sHeader = JsonHelpers.Base64URLStr("{\"alg\":\"RS256\",\"typ\":\"JWT\"}")
   sClaim = "{\"iss\":\"" & $clientEmail & "\","
   sClaim &= "\"scope\":\"https://www.googleapis.com/auth/spreadsheets\","
   sClaim &= "\"aud\":\"https://oauth2.googleapis.com/token\","
   sClaim &= "\"exp\":" & CStr(iNow + 3600) & ","
   sClaim &= "\"iat\":" & CStr(iNow) & "}"
-  sClaim = Base64URLStr(sClaim)
+  sClaim = JsonHelpers.Base64URLStr(sClaim)
 
   sSig = SignWithOpenSSL(sHeader & "." & sClaim)
   If sSig = "" Then
@@ -253,8 +253,8 @@ Private Sub StartTokenRequest()
   Endif
   sJwt = sHeader & "." & sClaim & "." & sSig
 
-  sBody = "grant_type=" & URLEncode("urn:ietf:params:oauth:grant-type:jwt-bearer")
-  sBody &= "&assertion=" & URLEncode(sJwt)
+  sBody = "grant_type=" & JsonHelpers.URLEncode("urn:ietf:params:oauth:grant-type:jwt-bearer")
+  sBody &= "&assertion=" & JsonHelpers.URLEncode(sJwt)
 
   $http.URL = "https://oauth2.googleapis.com/token"
   $http.Async = True
@@ -316,7 +316,7 @@ End
 ' --- probe -----------------------------------------------------------------
 
 Private Sub DoProbe()
-  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId) & "?fields=properties.title,sheets.properties.title"
+  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & JsonHelpers.URLEncode($documentId) & "?fields=properties.title,sheets.properties.title"
   $http.Async = True
   $http.Timeout = 10
   Try $http.Get(["Authorization: Bearer " & $accessToken])
@@ -355,8 +355,8 @@ End
 
 Private Sub StartScanRequest()
   Dim sUrl As String
-  sUrl = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId)
-  sUrl &= "/values/" & URLEncode($sheetName & "!" & $eqCol & ":" & $eqCol)
+  sUrl = "https://sheets.googleapis.com/v4/spreadsheets/" & JsonHelpers.URLEncode($documentId)
+  sUrl &= "/values/" & JsonHelpers.URLEncode($sheetName & "!" & $eqCol & ":" & $eqCol)
   $http.URL = sUrl
   $http.Async = True
   $http.Timeout = 10
@@ -420,8 +420,6 @@ Private Sub HandleScanResponse()
   StartWriteRequest()
 End
 
-
-
 ' --- write (batchUpdate) --------------------------------------------------
 
 Private Sub StartWriteRequest()
@@ -434,7 +432,7 @@ Private Sub StartWriteRequest()
     ScheduleRetry()
     Return
   Endif
-  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & URLEncode($documentId) & "/values:batchUpdate"
+  $http.URL = "https://sheets.googleapis.com/v4/spreadsheets/" & JsonHelpers.URLEncode($documentId) & "/values:batchUpdate"
   $http.Async = True
   $http.Timeout = 10
   Try $http.Post("application/json", sPayload, ["Authorization: Bearer " & $accessToken])
@@ -492,7 +490,7 @@ Private Function BuildBatchPayload() As String
     If dPart = 0 Then
       parts.Add(MakeRangeN($partSplitCol, 4, ["", "", "", ""]))
     Else
-      parts.Add(MakeRangeN($partSplitCol, 4, [CStr(Hour(dPart)), CStr(Minute(dPart)), CStr(Second(dPart)), CStr(MillisOf(dPart))]))
+      parts.Add(MakeRangeN($partSplitCol, 4, [CStr(Hour(dPart)), CStr(Minute(dPart)), CStr(Second(dPart)), CStr(MTime.MillisOf(dPart))]))
     Endif
   Endif
 
@@ -501,7 +499,7 @@ Private Function BuildBatchPayload() As String
     If dPart = 0 Then
       parts.Add(MakeRange1($partUnixCol, ""))
     Else
-      parts.Add(MakeRange1($partUnixCol, CStr(DateToUnixMs(dPart))))
+      parts.Add(MakeRange1($partUnixCol, CStr(MTime.DateToUnixMs(dPart))))
     Endif
   Endif
 
@@ -510,7 +508,7 @@ Private Function BuildBatchPayload() As String
     If dArr = 0 Then
       parts.Add(MakeRangeN($arrSplitCol, 4, ["", "", "", ""]))
     Else
-      parts.Add(MakeRangeN($arrSplitCol, 4, [CStr(Hour(dArr)), CStr(Minute(dArr)), CStr(Second(dArr)), CStr(MillisOf(dArr))]))
+      parts.Add(MakeRangeN($arrSplitCol, 4, [CStr(Hour(dArr)), CStr(Minute(dArr)), CStr(Second(dArr)), CStr(MTime.MillisOf(dArr))]))
     Endif
   Endif
 
@@ -519,14 +517,14 @@ Private Function BuildBatchPayload() As String
     If dArr = 0 Then
       parts.Add(MakeRange1($arrUnixCol, ""))
     Else
-      parts.Add(MakeRange1($arrUnixCol, CStr(DateToUnixMs(dArr))))
+      parts.Add(MakeRange1($arrUnixCol, CStr(MTime.DateToUnixMs(dArr))))
     Endif
   Endif
 
   ' Tempo (durata): solo se entrambi presenti, sennò vuoto.
   ' Sottrazione di interi (ms-since-midnight): zero rischio di precisione.
   If dPart <> 0 And dArr <> 0 Then
-    deltaMs = MsInDay(dArr) - MsInDay(dPart)
+    deltaMs = MTime.MsInDay(dArr) - MTime.MsInDay(dPart)
     If deltaMs < 0 Then deltaMs = deltaMs + 86400000   ' arrivo dopo mezzanotte
     totalSec = deltaMs \ 1000
     mm = totalSec \ 60
@@ -549,7 +547,7 @@ End
 
 Private Function MakeRange1(col As String, value As String) As String
   ' {"range":"Sheet!A5","values":[["..."]]}
-  Return "{\"range\":\"" & JsonEscape($sheetName) & "!" & col & CStr($curRow) & "\",\"values\":[[\"" & JsonEscape(value) & "\"]]}"
+  Return "{\"range\":\"" & JsonHelpers.JsonEscape($sheetName) & "!" & col & CStr($curRow) & "\",\"values\":[[\"" & JsonHelpers.JsonEscape(value) & "\"]]}"
 End
 
 Private Function MakeRangeN(startCol As String, n As Integer, values As String[]) As String
@@ -559,9 +557,9 @@ Private Function MakeRangeN(startCol As String, n As Integer, values As String[]
   Dim i As Integer
   endCol = ColumnPlusN(startCol, n - 1)
   For i = 0 To values.Max
-    vals.Add("\"" & JsonEscape(values[i]) & "\"")
+    vals.Add("\"" & JsonHelpers.JsonEscape(values[i]) & "\"")
   Next
-  Return "{\"range\":\"" & JsonEscape($sheetName) & "!" & startCol & CStr($curRow) & ":" & endCol & CStr($curRow) & "\",\"values\":[[" & vals.Join(",") & "]]}"
+  Return "{\"range\":\"" & JsonHelpers.JsonEscape($sheetName) & "!" & startCol & CStr($curRow) & ":" & endCol & CStr($curRow) & "\",\"values\":[[" & vals.Join(",") & "]]}"
 End
 
 Private Function ColumnPlusN(col As String, n As Integer) As String
@@ -606,7 +604,6 @@ Public Sub Http_Error()
   ScheduleRetry()
 End
 
-
 ' --- retry / scheduling ----------------------------------------------------
 
 Private Sub ScheduleRetry()
@@ -645,62 +642,10 @@ Private Function SignWithOpenSSL(sData As String) As String
   Try Kill sFileIn
   Try Kill sFileOut
   If sSig = "" Then Return ""
-  Return Base64URLStr(sSig)
+  Return JsonHelpers.Base64URLStr(sSig)
 End
 
 ' --- helpers: base64url / json / time / http body --------------------------
-
-Public Function Base64URLStr(s As String) As String
-  Dim b64 As String
-  b64 = Base64$(s)
-  b64 = Replace(b64, "+", "-")
-  b64 = Replace(b64, "/", "_")
-  b64 = Replace(b64, "=", "")
-  Return b64
-End
-
-Public Function URLEncode(s As String) As String
-  ' Pure-Gambas URL-encoder (RFC 3986 unreserved + replace altri con %HH).
-  Dim out As String
-  Dim i As Integer
-  Dim c As String
-  Dim code As Integer
-  out = ""
-  For i = 1 To Len(s)
-    c = Mid$(s, i, 1)
-    code = Asc(c)
-    Dim safe As Boolean
-    safe = False
-    If code >= Asc("A") And code <= Asc("Z") Then safe = True
-    If code >= Asc("a") And code <= Asc("z") Then safe = True
-    If code >= Asc("0") And code <= Asc("9") Then safe = True
-    If c = "-" Or c = "_" Or c = "." Or c = "~" Then safe = True
-    If safe Then
-      out &= c
-    Else
-      out &= "%" & UCase$(Hex$(code, 2))
-    Endif
-  Next
-  Return out
-End
-
-Public Function JsonEscape(s As String) As String
-  ' Escape JSON per i control char nominati da RFC 8259 sezione 7. Il
-  ' CR e' rimosso (eredita il comportamento storico); LF/Tab/Backspace/
-  ' Form-Feed sono escaped. Per brrm in pratica solo \ " \n LF sono
-  ' realistici, ma copertura completa serve a evitare JSON invalidi.
-  Dim out As String = s
-  out = Replace(out, "\\", "\\\\")
-  out = Replace(out, Chr(34), "\\\"")
-  out = Replace(out, Chr(8),  "\\b")
-  out = Replace(out, Chr(9),  "\\t")
-  out = Replace(out, Chr(10), "\\n")
-  out = Replace(out, Chr(12), "\\f")
-  out = Replace(out, Chr(13), "")
-  Return out
-End
-
-
 
 Private Function ReadAll(h As HttpClient) As String
   ' Legge tutto il body della risposta in una stringa.
@@ -720,50 +665,6 @@ Private Function NowEpoch() As Long
   ' Secondi dall'epoch UTC. Math intera pura: giorni_locali_dall'epoch * 86400
   ' + ora locale in secondi + offset TZ (POSIX: negativo per fusi a est).
   Dim t As Date = Now
-  Return DaysFromEpoch(Year(t), Month(t), Day(t)) * 86400 + Hour(t) * 3600 + Minute(t) * 60 + Second(t) + CLong(System.TimeZone)
+  Return MTime.DaysFromEpoch(Year(t), Month(t), Day(t)) * 86400 + Hour(t) * 3600 + Minute(t) * 60 + Second(t) + CLong(System.TimeZone)
 End
 
-Private Function DateToUnixMs(d As Date) As Long
-  ' Converte (data odierna + ora di d) in UNIX ms (UTC). Tutto int.
-  ' System.TimeZone e' in secondi a ovest di UTC (POSIX): CEST = -7200,
-  ' quindi UNIX_ms = local_ms + System.TimeZone * 1000 (l'addendo e'
-  ' negativo per fusi a est, e ci porta dal locale all'UTC).
-  '
-  ' Cross-midnight: partenze/arrivi sono Date time-only. Se il time-of-day
-  ' di `d` e' successivo a quello attuale, l'evento e' avvenuto IERI
-  ' (assunzione gara < 24h). Sottraggo un giorno cosi' l'UNIX ms assoluto
-  ' scritto sul foglio resta coerente con la durata calcolata via delta.
-  Dim t As Date = Now
-  Dim daysEpoch As Long = DaysFromEpoch(Year(t), Month(t), Day(t))
-  Dim msEvent As Long = MsInDay(d)
-  If msEvent > MsInDay(t) Then daysEpoch = daysEpoch - 1
-  Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
-End
-
-Public Function MsInDay(d As Date) As Long
-  ' Millisecondi trascorsi da mezzanotte locale, 0..86399999.
-  Return Hour(d) * 3600000 + Minute(d) * 60000 + Second(d) * 1000 + MillisOf(d)
-End
-
-Public Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
-  ' Algoritmo civil_to_days di Howard Hinnant: giorni dal 1970-01-01.
-  ' Aritmetica intera pura, esatta per qualsiasi data gregoriana.
-  Dim era, yoe, mAdj, doy, doe As Long
-  If m <= 2 Then y = y - 1
-  If y >= 0 Then era = y \ 400 Else era = (y - 399) \ 400
-  yoe = y - era * 400
-  If m > 2 Then mAdj = m - 3 Else mAdj = m + 9
-  doy = (153 * mAdj + 2) \ 5 + d - 1
-  doe = yoe * 365 + yoe \ 4 - yoe \ 100 + doy
-  Return era * 146097 + doe - 719468
-End
-
-Public Function MillisOf(d As Date) As Integer
-  ' Frazione di secondo in millisecondi (0-999). Format$(d, "uuu")
-  ' restituisce stringa vuota quando i ms sono 0 (verificato su 3.20 e
-  ' su master), quindi CInt() su quel risultato lancia Type mismatch.
-  ' Pre-controllo esplicito invece di TRY+default (vedi MsInDay in FMain).
-  Dim sMs As String = Format$(d, "uuu")
-  If sMs = "" Then Return 0
-  Return CInt(sMs)
-End

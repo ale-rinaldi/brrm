@@ -1,0 +1,14 @@
+' Test per CSheet.MsInDay — millisecondi da mezzanotte. Esercita anche
+' MillisOf indirettamente (usato internamente).
+Public Sub RunAll()
+
+  Assert.Equals(MTime.MsInDay(Time(0,  0,  0,  0)),   CLong(0),         "MsInDay midnight = 0")
+  Assert.Equals(MTime.MsInDay(Time(0,  0,  0,  1)),   CLong(1),         "MsInDay(00:00:00.001) = 1")
+  Assert.Equals(MTime.MsInDay(Time(0,  0,  1,  0)),   CLong(1000),      "MsInDay(00:00:01.000) = 1000")
+  Assert.Equals(MTime.MsInDay(Time(0,  1,  0,  0)),   CLong(60000),     "MsInDay(00:01:00.000) = 60000")
+  Assert.Equals(MTime.MsInDay(Time(1,  0,  0,  0)),   CLong(3600000),   "MsInDay(01:00:00.000) = 3600000")
+  Assert.Equals(MTime.MsInDay(Time(12, 0,  0,  0)),   CLong(43200000),  "MsInDay(12:00:00.000) = 12h in ms")
+  Assert.Equals(MTime.MsInDay(Time(23, 59, 59, 999)), CLong(86399999),  "MsInDay fine giornata = 86399999")
+  Assert.Equals(MTime.MsInDay(Time(14, 35, 0,  0)),   CLong(52500000),  "MsInDay(14:35:00.000) — case del bug originale")
+
+End
