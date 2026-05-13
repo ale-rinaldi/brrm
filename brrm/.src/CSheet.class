@@ -685,12 +685,17 @@ Public Function URLEncode(s As String) As String
 End
 
 Public Function JsonEscape(s As String) As String
-  ' Escape minimi per stringhe JSON: \, ", e newline. Sufficiente per i
-  ' nostri payload (numeri equipaggio, nomi foglio senza chars esotici).
+  ' Escape JSON per i control char nominati da RFC 8259 sezione 7. Il
+  ' CR e' rimosso (eredita il comportamento storico); LF/Tab/Backspace/
+  ' Form-Feed sono escaped. Per brrm in pratica solo \ " \n LF sono
+  ' realistici, ma copertura completa serve a evitare JSON invalidi.
   Dim out As String = s
   out = Replace(out, "\\", "\\\\")
   out = Replace(out, Chr(34), "\\\"")
+  out = Replace(out, Chr(8),  "\\b")
+  out = Replace(out, Chr(9),  "\\t")
   out = Replace(out, Chr(10), "\\n")
+  out = Replace(out, Chr(12), "\\f")
   out = Replace(out, Chr(13), "")
   Return out
 End
