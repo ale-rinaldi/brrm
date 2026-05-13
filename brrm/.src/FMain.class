@@ -25,7 +25,8 @@ Private $alignEnabled As Boolean
 Private $alignUrl As String
 Private $alignUser As String
 Private $alignPass As String
-Private $alignSession As String
+Private $alignSessionConfig As String
+Private $alignLastSession As Long
 Private $alignLastSeq As Long
 Private $alignBuffer As String
 Private $alignBackoffSec As Integer
@@ -87,7 +88,7 @@ Private Sub AlignLoadConfig() As Boolean
   Dim sVal As String
   Dim iEq As Integer
   sPath = User.Home &/ ".config/brrm/align.conf"
-  $alignSession = "default"
+  $alignSessionConfig = "default"
   If Not Exist(sPath) Then Return False
   For Each sLine In Split(File.Load(sPath), gb.NewLine)
     sLine = Trim$(sLine)
@@ -105,7 +106,7 @@ Private Sub AlignLoadConfig() As Boolean
       Case "password"
         $alignPass = sVal
       Case "session"
-        $alignSession = sVal
+        $alignSessionConfig = sVal
     End Select
   Next
   Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
@@ -123,7 +124,8 @@ Public Sub AlignReinit()
   $alignUrl = ""
   $alignUser = ""
   $alignPass = ""
-  $alignSession = ""
+  $alignSessionConfig = ""
+  $alignLastSession = 0
   AlignInit()
 End
 
@@ -134,8 +136,9 @@ Public Sub AlignInit()
     LabelSync.Visible = False
     Return
   Endif
+  $alignLastSession = 0
   $alignLastSeq = 0
-  Try $alignLastSeq = CLong(Trim$(File.Load(User.Home &/ ".local/share/brrm/arrivo-align-lastseq")))
+  LoadAlignState()
   $alignBuffer = ""
   $alignBackoffSec = 1
   $alignWantReconnect = False
@@ -143,6 +146,40 @@ Public Sub AlignInit()
   ' definitivo (primo chunk = SYNC OK; oppure errore/disconnessione = FAIL).
   LabelSync.Visible = False
   AlignStartStream()
+End
+
+Private Sub LoadAlignState()
+  ' Carica (session, seq) dal file arrivo-align-state. Se non esiste,
+  ' migra dal vecchio arrivo-align-lastseq (solo seq, session_id=0:
+  ' qualunque evento con session_id>=1 sara' "successivo", che e' il
+  ' comportamento giusto).
+  Dim sStatePath As String
+  Dim sLegacyPath As String
+  Dim r As Long[]
+  sStatePath = User.Home &/ ".local/share/brrm/arrivo-align-state"
+  sLegacyPath = User.Home &/ ".local/share/brrm/arrivo-align-lastseq"
+
+  If Exist(sStatePath) Then
+    r = MAlignSync.DecodeStateFile(File.Load(sStatePath))
+    If r <> Null Then
+      $alignLastSession = r[0]
+      $alignLastSeq = r[1]
+      Return
+    Endif
+    $alignLastSession = 0
+    $alignLastSeq = 0
+  Endif
+
+  If Exist(sLegacyPath) Then
+    Try $alignLastSeq = CLong(Trim$(File.Load(sLegacyPath)))
+    $alignLastSession = 0
+    SaveAlignState()
+    Try Kill sLegacyPath
+  Endif
+End
+
+Private Sub SaveAlignState()
+  MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-state", MAlignSync.EncodeStateFile($alignLastSession, $alignLastSeq))
 End
 
 Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
@@ -158,7 +195,7 @@ Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
     LabelSync.Text = "SYNC FAIL"
     If detail = "" Then detail = "Errore di sincronizzazione"
   Endif
-  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSession & gb.NewLine & "Ultimo seq ricevuto: " & $alignLastSeq
+  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSessionConfig & gb.NewLine & "Ultimo (sess, seq): (" & CStr($alignLastSession) & ", " & CStr($alignLastSeq) & ")"
 End
 
 Private Sub AlignStartStream()
@@ -172,7 +209,7 @@ Private Sub AlignStartStream()
   Endif
   $alignBuffer = ""
   $hAlignHttp = New HttpClient As "AlignHttp"
-  $hAlignHttp.URL = $alignUrl & "/stream?session=" & $alignSession & "&since=" & CStr($alignLastSeq)
+  $hAlignHttp.URL = $alignUrl & "/stream?session=" & $alignSessionConfig & "&since_sess=" & CStr($alignLastSession) & "&since=" & CStr($alignLastSeq)
   $hAlignHttp.Auth = Net.AuthBasic
   $hAlignHttp.User = $alignUser
   $hAlignHttp.Password = $alignPass
@@ -280,10 +317,13 @@ End
 Private Sub AlignApplyEvent(sEventType As String, sData As String)
   ' Applica un evento SSE allo stato locale. Idempotente: scarta seq gia' visti.
   Dim iSeq As Long
+  Dim iSess As Long
   Dim iNumero As Integer
   Dim sOrario As String
   Dim dPartenza As Date
+  Dim iMinSess As Long
   Dim iMinSeq As Long
+  Dim bGap As Boolean
   Dim ev As Variant
 
   ev = Null
@@ -292,28 +332,43 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
 
   Select Case sEventType
     Case "meta"
-      ' Gap detection: se la TTL server ha mangiato eventi sotto la nostra
-      ' last_seq, allinea last_seq a min_seq-1 cosi' accettiamo lo snapshot.
+      ' Gap detection lessicografica. Se la cache server e' avanzata oltre
+      ' la nostra (last_session, last_seq) - 1, allineiamo per accettare
+      ' lo snapshot.
+      iMinSess = 0
       iMinSeq = 0
+      Try iMinSess = CLong(ev["min_sess"])
       Try iMinSeq = CLong(ev["min_seq"])
-      If iMinSeq > 0 And If $alignLastSeq < iMinSeq - 1 Then
-        $alignLastSeq = iMinSeq - 1
-        Try MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
+      If iMinSess > 0 And If iMinSeq > 0 Then
+        bGap = False
+        If $alignLastSession < iMinSess Then
+          bGap = True
+        Else If $alignLastSession = iMinSess And If $alignLastSeq < iMinSeq - 1 Then
+          bGap = True
+        Endif
+        If bGap Then
+          $alignLastSession = iMinSess
+          $alignLastSeq = iMinSeq - 1
+          SaveAlignState()
+        Endif
       Endif
 
     Case "event"
+      iSess = 0
       iSeq = 0
+      Try iSess = CLong(ev["session_id"])
       Try iSeq = CLong(ev["seq"])
-      If iSeq <= $alignLastSeq Then Return
+      ' Dedup lessicografica: scarta se (sess, seq) <= (last_sess, last_seq).
+      If iSess < $alignLastSession Then Return
+      If iSess = $alignLastSession And If iSeq <= $alignLastSeq Then Return
+
       iNumero = 0
       Try iNumero = CInt(ev["numero"])
       If iNumero <= 0 Or iNumero >= MAX_NUMERO Then Return
-      ' orario può essere null (annullamento) o stringa "hh:mm:ss.zzz"
       sOrario = ""
       Try sOrario = CStr(ev["orario"])
       Timer1.Stop
       If sOrario = "" Then
-        ' orario=null → annullamento partenza
         partenze[iNumero] = 0
       Else
         dPartenza = 0
@@ -323,8 +378,9 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
           If LEquipaggi.Find(iNumero) < 0 Then LEquipaggi.Add(iNumero)
         Endif
       Endif
+      $alignLastSession = iSess
       $alignLastSeq = iSeq
-      Try MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-align-lastseq", CStr($alignLastSeq))
+      SaveAlignState()
       UpgradeSessionFile()
       Timer1.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
