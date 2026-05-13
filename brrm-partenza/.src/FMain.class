@@ -27,8 +27,9 @@ Private $alignEnabled As Boolean
 Private $alignUrl As String
 Private $alignUser As String
 Private $alignPass As String
-Private $alignSession As String
+Private $alignSessionConfig As String
 Private $alignSeq As Long
+Private $alignSession As Long
 Private $alignOutbox As New String[]
 Private $alignBusy As Boolean
 Private $alignProbing As Boolean
@@ -105,7 +106,7 @@ Private Sub AlignLoadConfig() As Boolean
   Dim sVal As String
   Dim iEq As Integer
   sPath = User.Home &/ ".config/brrm/align.conf"
-  $alignSession = "default"
+  $alignSessionConfig = "default"
   If Not Exist(sPath) Then Return False
   For Each sLine In Split(File.Load(sPath), gb.NewLine)
     sLine = Trim$(sLine)
@@ -123,7 +124,7 @@ Private Sub AlignLoadConfig() As Boolean
       Case "password"
         $alignPass = sVal
       Case "session"
-        $alignSession = sVal
+        $alignSessionConfig = sVal
     End Select
   Next
   Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
@@ -144,7 +145,8 @@ Public Sub AlignReinit()
   $alignUrl = ""
   $alignUser = ""
   $alignPass = ""
-  $alignSession = ""
+  $alignSessionConfig = ""
+  $alignSession = 0
   AlignInit()
 End
 
@@ -155,8 +157,9 @@ Public Sub AlignInit()
     LabelSync.Visible = False
     Return
   Endif
+  $alignSession = 0
   $alignSeq = 0
-  Try $alignSeq = CLong(Trim$(File.Load(User.Home &/ ".local/share/brrm/partenza-align-seq")))
+  LoadAlignState()
   $alignOutbox = New String[]
   If Exist(User.Home &/ ".local/share/brrm/partenza-align-outbox") Then
     For Each sLine In Split(File.Load(User.Home &/ ".local/share/brrm/partenza-align-outbox"), gb.NewLine)
@@ -174,6 +177,46 @@ Public Sub AlignInit()
   TimerAlignHeartbeat.Delay = 30000
   TimerAlignHeartbeat.Start
   AlignProbe()
+End
+
+Private Sub LoadAlignState()
+  ' Carica (session, seq) dal file partenza-align-state. Se non esiste,
+  ' migra dal vecchio partenza-align-seq (e genera subito un session_id,
+  ' altrimenti il seq migrato > 0 non triggererebbe la regola "nuovo
+  ' session_id quando seq riparte da 1").
+  Dim sStatePath As String
+  Dim sLegacyPath As String
+  sStatePath = User.Home &/ ".local/share/brrm/partenza-align-state"
+  sLegacyPath = User.Home &/ ".local/share/brrm/partenza-align-seq"
+
+  If Exist(sStatePath) Then
+    Dim r As Long[]
+    r = MAlignSync.DecodeStateFile(File.Load(sStatePath))
+    If r <> Null Then
+      $alignSession = r[0]
+      $alignSeq = r[1]
+      Return
+    Endif
+    ' File corrotto: tratta come assente.
+    $alignSession = 0
+    $alignSeq = 0
+  Endif
+
+  If Exist(sLegacyPath) Then
+    Dim iLegacySeq As Long
+    iLegacySeq = 0
+    Try iLegacySeq = CLong(Trim$(File.Load(sLegacyPath)))
+    $alignSeq = iLegacySeq
+    $alignSession = MAlignSync.NextSessionId(0)
+    SaveAlignState()
+    Try Kill sLegacyPath
+  Endif
+End
+
+Private Sub SaveAlignState()
+  Dim sState As String
+  sState = MAlignSync.EncodeStateFile($alignSession, $alignSeq)
+  MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-state", sState)
 End
 
 Private Sub AlignProbe()
@@ -212,7 +255,7 @@ Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
     LabelSync.Text = "SYNC FAIL"
     If detail = "" Then detail = "Errore di sincronizzazione"
   Endif
-  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSession
+  LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSessionConfig & gb.NewLine & "Run id: " & CStr($alignSession) & gb.NewLine & "Seq: " & CStr($alignSeq)
 End
 
 Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
@@ -221,6 +264,11 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
   Dim sOrarioJson As String
   Dim sTsOrigine As String
   Dim sEvent As String
+  ' Genera un nuovo session_id se il seq sta per passare da 0 a 1
+  ' (fresh start o reset esterno del file di state).
+  If $alignSeq = 0 Then
+    $alignSession = MAlignSync.NextSessionId($alignSession)
+  Endif
   $alignSeq = $alignSeq + 1
   If orarioOrZero = 0 Then
     sOrarioJson = "null"
@@ -228,14 +276,15 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
     sOrarioJson = Chr(34) & Str$(orarioOrZero) & Chr(34)
   Endif
   sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.zzz") & "Z"
-  sEvent = "{" & Chr(34) & "seq" & Chr(34) & ":" & $alignSeq
+  sEvent = "{" & Chr(34) & "session_id" & Chr(34) & ":" & $alignSession
+  sEvent &= "," & Chr(34) & "seq" & Chr(34) & ":" & $alignSeq
   sEvent &= "," & Chr(34) & "type" & Chr(34) & ":" & Chr(34) & "partenza" & Chr(34)
   sEvent &= "," & Chr(34) & "numero" & Chr(34) & ":" & numero
   sEvent &= "," & Chr(34) & "orario" & Chr(34) & ":" & sOrarioJson
   sEvent &= "," & Chr(34) & "ts_origine" & Chr(34) & ":" & Chr(34) & sTsOrigine & Chr(34)
   sEvent &= "}"
   $alignOutbox.Add(sEvent)
-  MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-seq", CStr($alignSeq))
+  SaveAlignState()
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-align-outbox", $alignOutbox.Join(gb.NewLine))
   AlignTrySend()
 End
@@ -246,7 +295,7 @@ Private Sub AlignTrySend()
   If $alignBusy Then Return
   If $alignOutbox.Count = 0 Then Return
   $alignBusy = True
-  $hAlignHttp.URL = $alignUrl & "/events?session=" & $alignSession
+  $hAlignHttp.URL = $alignUrl & "/events?session=" & $alignSessionConfig
   $hAlignHttp.Auth = Net.AuthBasic
   $hAlignHttp.User = $alignUser
   $hAlignHttp.Password = $alignPass
