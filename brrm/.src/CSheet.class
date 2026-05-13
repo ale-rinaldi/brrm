@@ -650,7 +650,7 @@ End
 
 ' --- helpers: base64url / json / time / http body --------------------------
 
-Private Function Base64URLStr(s As String) As String
+Public Function Base64URLStr(s As String) As String
   Dim b64 As String
   b64 = Base64$(s)
   b64 = Replace(b64, "+", "-")
@@ -659,7 +659,7 @@ Private Function Base64URLStr(s As String) As String
   Return b64
 End
 
-Private Function URLEncode(s As String) As String
+Public Function URLEncode(s As String) As String
   ' Pure-Gambas URL-encoder (RFC 3986 unreserved + replace altri con %HH).
   Dim out As String
   Dim i As Integer
@@ -684,7 +684,7 @@ Private Function URLEncode(s As String) As String
   Return out
 End
 
-Private Function JsonEscape(s As String) As String
+Public Function JsonEscape(s As String) As String
   ' Escape minimi per stringhe JSON: \, ", e newline. Sufficiente per i
   ' nostri payload (numeri equipaggio, nomi foglio senza chars esotici).
   Dim out As String = s
@@ -735,12 +735,12 @@ Private Function DateToUnixMs(d As Date) As Long
   Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
 End
 
-Private Function MsInDay(d As Date) As Long
+Public Function MsInDay(d As Date) As Long
   ' Millisecondi trascorsi da mezzanotte locale, 0..86399999.
   Return Hour(d) * 3600000 + Minute(d) * 60000 + Second(d) * 1000 + MillisOf(d)
 End
 
-Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
+Public Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
   ' Algoritmo civil_to_days di Howard Hinnant: giorni dal 1970-01-01.
   ' Aritmetica intera pura, esatta per qualsiasi data gregoriana.
   Dim era, yoe, mAdj, doy, doe As Long
@@ -753,7 +753,7 @@ Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
   Return era * 146097 + doe - 719468
 End
 
-Private Function MillisOf(d As Date) As Integer
+Public Function MillisOf(d As Date) As Integer
   ' Frazione di secondo in millisecondi (0-999). Format$(d, "uuu")
   ' restituisce stringa vuota quando i ms sono 0 (verificato su 3.20 e
   ' su master), quindi CInt() su quel risultato lancia Type mismatch.
