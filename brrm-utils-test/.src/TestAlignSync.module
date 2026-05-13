@@ -19,6 +19,11 @@ Public Sub RunAll()
   Dim iOut As Long = MAlignSync.NextSessionId(iPast)
   Assert.Ok(iOut >= iNow, "NextSessionId con lastSession nel passato: ritorna now")
 
+  ' Boundary: deve sempre essere strettamente maggiore dell'argomento
+  ' (monotonia stretta), anche al confine in cui lastSession == now_ms.
+  Dim iSame As Long = MTime.DateToUnixMs(Now)
+  Assert.Ok(MAlignSync.NextSessionId(iSame) > iSame, "NextSessionId(x) > x (monotonia stretta)")
+
   ' --- EncodeStateFile -----------------------------------------------
   Dim sEnc1 As String = "session=1734567890123" & gb.NewLine & "seq=42" & gb.NewLine
   Assert.Equals(MAlignSync.EncodeStateFile(1734567890123, 42), sEnc1, "EncodeStateFile produce due righe")
@@ -44,12 +49,19 @@ Public Sub RunAll()
   Assert.Equals(r[0], 99, "DecodeStateFile inverso: session")
   Assert.Equals(r[1], 7, "DecodeStateFile inverso: seq")
 
-  ' Tolleranza a spazi/empty trailing newline mancante
+  ' Tolleranza a newline finale mancante
   Dim sDec3 As String = "session=5" & gb.NewLine & "seq=3"
   r = MAlignSync.DecodeStateFile(sDec3)
   Assert.NotOk(r = Null, "DecodeStateFile senza newline finale")
   Assert.Equals(r[0], 5, "DecodeStateFile senza newline: session")
   Assert.Equals(r[1], 3, "DecodeStateFile senza newline: seq")
+
+  ' Tolleranza a whitespace attorno a key/value
+  Dim sDec3b As String = "  session = 11  " & gb.NewLine & "  seq = 22  "
+  r = MAlignSync.DecodeStateFile(sDec3b)
+  Assert.NotOk(r = Null, "DecodeStateFile con spazi attorno a key/value ok")
+  Assert.Equals(r[0], 11, "DecodeStateFile con spazi: session")
+  Assert.Equals(r[1], 22, "DecodeStateFile con spazi: seq")
 
   ' Malformati: ritorna Null
   r = MAlignSync.DecodeStateFile("")

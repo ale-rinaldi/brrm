@@ -19,6 +19,8 @@ Public Function NextSessionId(lastSession As Long) As Long
 End
 
 Public Function EncodeStateFile(sess As Long, seq As Long) As String
+  ' Serializza (session, seq) come "session=N\nseq=M\n" — formato a
+  ' due righe key=value, newline finale inclusa. Inverso di DecodeStateFile.
   Return "session=" & CStr(sess) & gb.NewLine & "seq=" & CStr(seq) & gb.NewLine
 End
 
