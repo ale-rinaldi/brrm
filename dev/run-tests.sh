@@ -20,7 +20,22 @@ cd brrm-utils-test
 rm -rf .gambas
 gbc3 -ag . >/dev/null
 
-# gbx3 propaga l'exit code di Test.Plan: se ci sono not-ok il TAP
-# emette anche un summary "# Failed N test(s)" e gb.test imposta
-# exit-code non-zero.
-gbx3 .
+# gbx3 NON propaga l'exit code di TAP failures. Catturiamo l'output,
+# stampiamolo, e cerchiamo righe "not ok" per derivare il successo.
+out=$(mktemp)
+trap 'rm -f "$out"' EXIT
+gbx3 . | tee "$out"
+fails=$(grep -c '^not ok ' "$out" || true)
+if [ "$fails" -gt 0 ]; then
+  echo
+  echo "FAIL: $fails test falliti." >&2
+  exit 1
+fi
+# Verifica anche che il plan numerico sia coerente col numero di ok
+plan=$(awk '/^1\.\.[0-9]+$/ { print substr($0, 4); exit }' "$out")
+oks=$(grep -c '^ok ' "$out" || true)
+if [ -n "$plan" ] && [ "$oks" -ne "$plan" ]; then
+  echo "FAIL: Test.Plan($plan) ma solo $oks ok trovati (test mancanti?)" >&2
+  exit 1
+fi
+echo "PASS: $oks/$plan test."
