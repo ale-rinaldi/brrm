@@ -849,7 +849,12 @@ Private Sub LoadAlignState()
   sLegacyPath = User.Home &/ ".local/share/brrm/partenza-align-seq"
 
   If Exist(sStatePath) Then
-    If MAlignSync.DecodeStateFile(File.Load(sStatePath), $alignSession, $alignSeq) Then Return
+    Dim r As Long[] = MAlignSync.DecodeStateFile(File.Load(sStatePath))
+    If r <> Null Then
+      $alignSession = r[0]
+      $alignSeq = r[1]
+      Return
+    Endif
     ' File corrotto: tratta come assente.
     $alignSession = 0
     $alignSeq = 0
@@ -1010,7 +1015,12 @@ Private Sub LoadAlignState()
   sLegacyPath = User.Home &/ ".local/share/brrm/arrivo-align-lastseq"
 
   If Exist(sStatePath) Then
-    If MAlignSync.DecodeStateFile(File.Load(sStatePath), $alignLastSession, $alignLastSeq) Then Return
+    Dim r As Long[] = MAlignSync.DecodeStateFile(File.Load(sStatePath))
+    If r <> Null Then
+      $alignLastSession = r[0]
+      $alignLastSeq = r[1]
+      Return
+    Endif
     $alignLastSession = 0
     $alignLastSeq = 0
   Endif
