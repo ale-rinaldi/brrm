@@ -43,8 +43,22 @@ End
 Public Sub SerialPort1_Read()
 
 Dim s As String
-Dim iLof As Integer = Lof(SerialPort1)
-LogArduino("READ enter lof=" & iLof)
+Dim iLof As Integer
+Dim bLofErr As Boolean
+Dim sLofErrTxt As String
+iLof = 0
+bLofErr = False
+sLofErrTxt = ""
+Try iLof = Lof(SerialPort1)
+If Error Then
+  bLofErr = True
+  sLofErrTxt = Error.Text
+Endif
+LogArduino("READ enter lof=" & iLof & " lofErr=" & sLofErrTxt)
+If bLofErr Then
+  Try SerialPort1.Close
+  Return
+Endif
 Try Read #SerialPort1, s, iLof
 If Error Then
   LogArduino("READ error: " & Error.Text & " -> Close")
