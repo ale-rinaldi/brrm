@@ -22,6 +22,13 @@ Private FotON As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
 
+' --- Arduino (gestito dinamicamente per workaround bug Gambas) ---
+' SerialPort.Open su un oggetto gia' chiuso (.Close) non riarma il
+' listener di _Read: status diventa 1, ma gli eventi non firano piu'.
+' Ricreiamo l'oggetto a ogni riconnessione e riattacchiamo gli event
+' handler con Object.Attach($hSerial, Me, "Arduino").
+Private $hSerial As SerialPort
+
 ' --- Align (sync via web) ---
 Private $alignEnabled As Boolean
 Private $alignUrl As String
@@ -40,7 +47,7 @@ Public Sub _new()
 
 End
 
-Public Sub SerialPort1_Read()
+Public Sub Arduino_Read()
 
 Dim s As String
 Dim iLof As Integer
@@ -49,20 +56,20 @@ Dim sLofErrTxt As String
 iLof = 0
 bLofErr = False
 sLofErrTxt = ""
-Try iLof = Lof(SerialPort1)
+Try iLof = Lof($hSerial)
 If Error Then
   bLofErr = True
   sLofErrTxt = Error.Text
 Endif
 LogArduino("READ enter lof=" & iLof & " lofErr=" & sLofErrTxt)
 If bLofErr Then
-  Try SerialPort1.Close
+  ArduinoClose()
   Return
 Endif
-Try Read #SerialPort1, s, iLof
+Try Read #$hSerial, s, iLof
 If Error Then
   LogArduino("READ error: " & Error.Text & " -> Close")
-  Try SerialPort1.Close   ' Timer4 lo riaprira quando torna disponibile
+  ArduinoClose()
   Return
 Endif
 LogArduino("READ ok len=" & Len(s) & " FotON=" & FotON)
@@ -100,38 +107,58 @@ Public Sub Timer4_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   Dim sDevice As String
-  LogArduino("T4 enter status=" & SerialPort1.Status & " port=" & SerialPort1.PortName & " exist=" & CStr(Exist(SerialPort1.PortName)))
-  If SerialPort1.Status >= 1 And Exist(SerialPort1.PortName) Then
+  Dim bOk As Boolean
+  bOk = False
+  If $hSerial <> Null Then
+    If $hSerial.Status >= 1 And Exist($hSerial.PortName) Then bOk = True
+  Endif
+  LogArduino("T4 enter ok=" & CStr(bOk) & " has=" & CStr($hSerial <> Null))
+  If bOk Then
     SetArduinoStatus(True)
     Return
   Endif
-  ' Non connesso: ferma la porta vecchia, prova a trovare un nuovo device.
-  ' Wait dopo Close serve al kernel/udev per liberare il vecchio fd
-  ' quando il device e' stato staccato-riattaccato.
-  Try SerialPort1.Close
+  ' Non connesso: distruggi l'oggetto e ricrea uno nuovo al prossimo Open.
+  ' Senza ricreazione, SerialPort.Open su istanza riusata non riarma il
+  ' listener di _Read (bug Gambas 3.20).
+  ArduinoClose()
   Wait 0.1
   sDevice = MFile.FindArduinoDevice()
-  LogArduino("T4 after-close-find sDevice=" & sDevice)
+  LogArduino("T4 find sDevice=" & sDevice)
   If sDevice = "" Then
     SetArduinoStatus(False)
     Return
   Endif
-  ' Esplicita i parametri seriali a ogni Open: Linux puo' resettare
-  ' il device a default differenti quando viene riconnesso, e l'oggetto
-  ' SerialPort di Gambas non li ri-applica da solo dopo Close+Open.
-  SerialPort1.PortName = sDevice
-  SerialPort1.Speed = 9600
-  SerialPort1.Parity = SerialPort.None
-  SerialPort1.DataBits = 8
-  SerialPort1.StopBits = 1
-  SerialPort1.FlowControl = SerialPort.None
-  Try SerialPort1.Open
+  SetArduinoStatus(ArduinoOpen(sDevice))
+End
+
+Private Function ArduinoOpen(sDevice As String) As Boolean
+  ' Crea un nuovo SerialPort dynamic, attacca gli event handler con
+  ' prefix "Arduino" e apre. Workaround per il bug Gambas 3.20 in cui
+  ' Open su istanza riusata non riarma il listener di _Read.
+  ArduinoClose()
+  $hSerial = New SerialPort
+  Object.Attach($hSerial, Me, "Arduino")
+  $hSerial.PortName = sDevice
+  $hSerial.Speed = 9600
+  $hSerial.Parity = SerialPort.None
+  $hSerial.DataBits = 8
+  $hSerial.StopBits = 1
+  $hSerial.FlowControl = SerialPort.None
+  Try $hSerial.Open
   If Error Then
-    LogArduino("T4 Open error: " & Error.Text)
-  Else
-    LogArduino("T4 Open ok status=" & SerialPort1.Status & " port=" & SerialPort1.PortName)
+    LogArduino("Open error: " & Error.Text)
+    ArduinoClose()
+    Return False
   Endif
-  SetArduinoStatus(SerialPort1.Status >= 1)
+  LogArduino("Open ok status=" & $hSerial.Status & " port=" & $hSerial.PortName)
+  Return ($hSerial.Status >= 1)
+End
+
+Private Sub ArduinoClose()
+  If $hSerial <> Null Then
+    Try $hSerial.Close
+    $hSerial = Null
+  Endif
 End
 
 Public Sub Form_Close()
@@ -145,7 +172,7 @@ Public Sub Form_Close()
   Try Timer4.Stop
   Try TimerAlign.Stop
   Try TimerAlignHeartbeat.Stop
-  Try SerialPort1.Close
+  ArduinoClose()
 End
 
 Public Sub ConfermaScartoOrario(che As String) As Boolean
@@ -503,7 +530,6 @@ Dim iNum As Integer
 FotON = True
 FMain.Center()
 SetupGridHeader()
-Try SerialPort1.Open
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 If Exist(User.Home &/ ".local/share/brrm/partenza-session") Then sTest = File.Load(User.Home &/ ".local/share/brrm/partenza-session")

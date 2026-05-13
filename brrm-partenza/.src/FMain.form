@@ -35,11 +35,6 @@
     MoveScaled(68,44,18,5)
     Text = ("ESPORTA")
   }
-  { SerialPort1 #SerialPort
-    #X = 609
-    #Y = 280
-    PortName = "/dev/ttyUSB0"
-  }
   { Button7 Button
     MoveScaled(68,40,9,2)
     Background = &H00FF00&
