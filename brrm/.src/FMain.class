@@ -536,8 +536,8 @@ ELSE
   IF deltaMs < 0 THEN deltaMs = deltaMs + 86400000
   sDisplay = CStr(deltaMs \ 60000) & ":" & Format$((deltaMs \ 1000) MOD 60, "00") & "." & Format$(deltaMs MOD 1000, "000")
 ENDIF
-TRY GridView1[Counter + 1, 1].Text = partenze[concorrente]
-TRY GridView1[Counter + 1, 2].Text = arrivi[concorrente]
+TRY GridView1[Counter + 1, 1].Text = MTime.FormatDateMs(partenze[concorrente])
+TRY GridView1[Counter + 1, 2].Text = MTime.FormatDateMs(arrivi[concorrente])
 TRY GridView1[Counter + 1, 3].Text = sDisplay
 Counter = Counter + 1
 WEND

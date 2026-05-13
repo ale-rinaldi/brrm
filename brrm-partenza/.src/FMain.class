@@ -481,7 +481,7 @@ Try concorrente = LEquipaggi[Counter].Text
 GridView1[Counter + 1, 0].Text = concorrente
 If partenze[concorrente] <> 0 Then
 tDelta = partenze[concorrente]
-sDisplay = tDelta
+sDisplay = MTime.FormatDateMs(tDelta)
 Endif  
 If partenze[concorrente] = 0 Then 
   LEquipaggi.Remove(LEquipaggi.Find(concorrente))
