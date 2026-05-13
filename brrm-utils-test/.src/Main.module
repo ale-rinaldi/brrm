@@ -1,6 +1,6 @@
 Public Sub Main()
   File.Save("/tmp/main-ran", "yes at " & CStr(Now))
-  Test.Plan(83)
+  Test.Plan(101)
   TestMillisOf.RunAll()
   TestMsInDay.RunAll()
   TestDaysFromEpoch.RunAll()
@@ -9,4 +9,5 @@ Public Sub Main()
   TestJsonEscape.RunAll()
   TestPadMillis.RunAll()
   TestMFile.RunAll()
+  TestAlignSync.RunAll()
 End

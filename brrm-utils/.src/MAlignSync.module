@@ -1,0 +1,78 @@
+' MAlignSync — helper puri per il sync brrm-align:
+'   - generazione di session_id monotono (resiste a orologio indietro)
+'   - serializzazione/parsing del file di state (session=N\nseq=M)
+'
+' Source-of-truth: gli altri progetti (brrm, brrm-partenza, brrm-utils
+' test) puntano qui via symlink. Mai duplicare il codice.
+
+Public Function NextSessionId(lastSession As Long) As Long
+  ' Genera il prossimo session_id: max(now_ms, lastSession+1).
+  ' Il termine "lastSession+1" e' la difesa contro orologio che torna
+  ' indietro (NTP, fuso, RTC scarica) — garantisce monotonia anche se
+  ' il timestamp e' inaffidabile.
+  Dim nowMs As Long = MTime.DateToUnixMs(Now)
+  If nowMs > lastSession Then
+    Return nowMs
+  Else
+    Return lastSession + 1
+  Endif
+End
+
+Public Function EncodeStateFile(sess As Long, seq As Long) As String
+  Return "session=" & CStr(sess) & gb.NewLine & "seq=" & CStr(seq) & gb.NewLine
+End
+
+Public Function DecodeStateFile(sContent As String) As Long[]
+  ' Parsa "session=N\nseq=M" (o righe in ordine inverso, con/senza
+  ' newline finale). Ritorna Null se mancano session/seq o se non sono
+  ' interi validi. In caso di successo ritorna Long[]{session, seq}.
+  '
+  ' Nota: ByRef non funziona nelle funzioni di modulo in Gambas 3 (il
+  ' valore non viene propagato al chiamante). Si usa Long[] come valore
+  ' di ritorno strutturato: r[0]=session, r[1]=seq, Null=errore.
+  '
+  ' Nota: la funzione privata IsInteger non e' usata perche' le Private
+  ' function di un modulo acceduto via symlink in Gambas 3.20 producono
+  ' risultati errati (bug del compilatore). La validazione e' inlineata.
+  Dim sLine As String
+  Dim sKey As String
+  Dim sVal As String
+  Dim sCheck As String
+  Dim iEq As Integer
+  Dim bHasSess As Boolean = False
+  Dim bHasSeq As Boolean = False
+  Dim outSess As Long
+  Dim outSeq As Long
+  Dim iDigit As Integer
+
+  For Each sLine In Split(sContent, gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Return Null
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    If sVal = "" Then Return Null
+    ' Valida che sVal contenga solo cifre (no segni, no punti).
+    ' Usa Replace$/Len per evitare bug Gambas 3.20 su Private Function.
+    sCheck = sVal
+    For iDigit = 0 To 9
+      sCheck = Replace$(sCheck, CStr(iDigit), "")
+    Next
+    If Len(sCheck) > 0 Then Return Null
+    Select Case sKey
+      Case "session"
+        outSess = CLong(sVal)
+        bHasSess = True
+      Case "seq"
+        outSeq = CLong(sVal)
+        bHasSeq = True
+    End Select
+  Next
+
+  If Not (bHasSess And bHasSeq) Then Return Null
+  Dim r As Long[] = New Long[2]
+  r[0] = outSess
+  r[1] = outSeq
+  Return r
+End
