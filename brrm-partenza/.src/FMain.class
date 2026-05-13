@@ -273,7 +273,7 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
   If orarioOrZero = 0 Then
     sOrarioJson = "null"
   Else
-    sOrarioJson = Chr(34) & Str$(orarioOrZero) & Chr(34)
+    sOrarioJson = Chr(34) & MTime.FormatDateMs(orarioOrZero) & Chr(34)
   Endif
   sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.zzz") & "Z"
   sEvent = "{" & Chr(34) & "session_id" & Chr(34) & ":" & $alignSession
@@ -391,7 +391,7 @@ Public Sub UpgradeSessionFile()
     Try iEqui = LEquipaggi[Counter].Text
     If iEqui <= 0 Then Continue
     sPart = ""
-    If partenze[iEqui] <> 0 Then sPart = Str$(partenze[iEqui])
+    If partenze[iEqui] <> 0 Then sPart = MTime.FormatDateMs(partenze[iEqui])
     sFileOut &= iEqui & "|" & sPart & gb.NewLine
   Next
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-session", sFileOut)

@@ -392,7 +392,7 @@ End
 
 PUBLIC SUB UpgradeSessionFile()
   ' Formato v1: prima riga = magic header, righe successive numero|partenza|arrivo.
-  ' Campi vuoti = nessun dato. Str$() rende le date locale-indipendenti.
+  ' Campi vuoti = nessun dato. FormatDateMs preserva i ms (Str$ li scartava).
   DIM Counter AS Integer
   DIM iEqui AS Integer
   DIM sFileOut AS String
@@ -405,9 +405,9 @@ PUBLIC SUB UpgradeSessionFile()
     TRY iEqui = LEquipaggi[Counter].Text
     IF iEqui <= 0 THEN CONTINUE
     sPart = ""
-    IF partenze[iEqui] <> 0 THEN sPart = Str$(partenze[iEqui])
+    IF partenze[iEqui] <> 0 THEN sPart = MTime.FormatDateMs(partenze[iEqui])
     sArr = ""
-    IF arrivi[iEqui] <> 0 THEN sArr = Str$(arrivi[iEqui])
+    IF arrivi[iEqui] <> 0 THEN sArr = MTime.FormatDateMs(arrivi[iEqui])
     sFileOut &= iEqui & "|" & sPart & "|" & sArr & gb.NewLine
   NEXT
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
