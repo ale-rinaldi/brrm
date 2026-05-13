@@ -78,7 +78,7 @@ Private Function SaveSyncConfig(sPath As String) As Boolean
   sOut &= "username = " & Trim$(TextUser.Text) & gb.NewLine
   sOut &= "password = " & Trim$(TextPass.Text) & gb.NewLine
   sOut &= "session = " & Trim$(TextSession.Text) & gb.NewLine
-  Try FMain.AtomicSave(sPath, sOut)
+  Try MFile.AtomicSave(sPath, sOut)
   If Error Then
     Message.Error("Impossibile salvare align.conf: " & Error.Text)
     Return False
@@ -98,7 +98,7 @@ Private Function SaveSheetConfig(sPath As String) As Boolean
   sOut &= "arrivo_unixms_column = " & UCase$(Trim$(TextArrUnix.Text)) & gb.NewLine
   sOut &= "tempo_split_column = " & UCase$(Trim$(TextTempoSplit.Text)) & gb.NewLine
   sOut &= "tempo_ms_column = " & UCase$(Trim$(TextTempoMs.Text)) & gb.NewLine
-  Try FMain.AtomicSave(sPath, sOut)
+  Try MFile.AtomicSave(sPath, sOut)
   If Error Then
     Message.Error("Impossibile salvare sheet.conf: " & Error.Text)
     Return False

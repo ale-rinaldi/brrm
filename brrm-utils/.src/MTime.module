@@ -50,3 +50,20 @@ Public Function DateToUnixMs(d As Date) As Long
   If msEvent > MsInDay(t) Then daysEpoch = daysEpoch - 1
   Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
 End
+
+Public Function PadMillis(s As String) As String
+  ' Pad a stringa di 3 cifre (ms display: "5" -> "005", "12" -> "012",
+  ' "1234" -> "123" troncato). Robusto a input vuoti o lunghi.
+  Select Case Len(s)
+    Case 0
+      Return "000"
+    Case 1
+      Return s & "00"
+    Case 2
+      Return s & "0"
+    Case 3
+      Return s
+    Case Else
+      Return Left$(s, 3)
+  End Select
+End
