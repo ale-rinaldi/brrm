@@ -3,20 +3,23 @@ brrm-align: bridge HTTP fra postazione partenza e postazione arrivo
 quando i due PC non sono sulla stessa rete locale.
 
 Protocollo:
-  POST /events?session=<id>   { seq, type, numero, orario, ts_origine }
-    Pubblica un evento (chiamato da brrm-partenza). Idempotente: se arriva
-    lo stesso seq, sovrascrive (replay sicuro).
+  POST /events?session=<id>
+    { session_id, seq, type, numero, orario, ts_origine }
+    Pubblica un evento (chiamato da brrm-partenza). Idempotente: se
+    arriva lo stesso (session_id, seq), sovrascrive (replay sicuro).
+    session_id e' monotono per-partenza: cambia quando il seq riparte
+    da 1 (es. dopo reset locale del file di state).
 
-  GET /stream?session=<id>&since=<seq>
-    Server-Sent Events. Restituisce subito tutti gli eventi con seq > since
-    presenti in cache, poi tiene la connessione aperta e invia i nuovi
-    eventi quando arrivano. Heartbeat ogni 10 secondi (`: keepalive` line)
-    per permettere ai client di rilevare disconnessioni di rete.
+  GET /stream?session=<id>&since_sess=<S>&since=<N>
+    Server-Sent Events. Restituisce subito tutti gli eventi con
+    (session_id, seq) > (since_sess, since), poi tiene la connessione
+    aperta. Heartbeat ogni 10 secondi.
 
-Storage: in-memory dict per session_id, TTL 5 minuti dal momento di
-ricezione. Niente persistenza disco: il restart del container svuota
-la cache. brrm-arrivo gestisce graziosamente i gap (vedi campo
-`min_seq` nel meta della response stream).
+Dedup: chiave (session_id, seq). Ordering: lessicografico sulla coppia.
+
+Storage: in-memory dict per session_id (query param), TTL 5 minuti dal
+momento di ricezione. Niente persistenza disco. brrm-arrivo gestisce i
+gap (campi min_sess/min_seq nel meta della response stream).
 
 Auth: HTTP Basic, credenziali da env BRRM_ALIGN_USER / BRRM_ALIGN_PASSWORD.
 """
@@ -77,8 +80,10 @@ class StreamMeta(BaseModel):
     """Metadata mandato come primo evento SSE su ogni connessione."""
 
     type: str = "meta"
-    min_seq: int = Field(description="Seq piu' vecchio ancora in cache")
-    max_seq: int = Field(description="Seq piu' recente in cache")
+    min_sess: int = Field(description="session_id piu' vecchio in cache (0 se vuota)")
+    min_seq: int = Field(description="seq dell'evento piu' vecchio in cache")
+    max_sess: int = Field(description="session_id piu' recente in cache")
+    max_seq: int = Field(description="seq dell'evento piu' recente in cache")
     server_time: str
 
 
@@ -133,6 +138,11 @@ class EventCache:
 
     def notifier_for(self, session_id: str) -> asyncio.Event:
         return self._notifiers[session_id]
+
+    def invalidate_for_tests(self) -> None:
+        """Resetta la cache. SOLO per uso nei test."""
+        self._events.clear()
+        self._notifiers.clear()
 
     def _evict_expired(self, session_id: str) -> None:
         """Rimuove eventi piu' vecchi di EVENT_TTL_SEC. Chiamare con lock acquisito."""
@@ -227,27 +237,32 @@ async def stream(
     request: Request,
     session: str = Query(default="default"),
     since: int = Query(default=0, ge=0),
+    since_sess: int = Query(default=0, ge=0),
     _user: str = Depends(authenticate),
 ):
     """SSE stream: snapshot iniziale + push di nuovi eventi + heartbeat."""
 
     async def event_generator():
-        last_seen = since
+        last_sess = since_sess
+        last_seq = since
 
-        # Frame iniziale: meta con min/max seq attuali (cosi' il client capisce
-        # se ha perso eventi vecchi sotto la TTL).
-        events, min_seq, max_seq, _, _ = await cache.get_since(session, 0, last_seen)
+        # Frame iniziale: meta con min/max (sess, seq) attuali.
+        events, min_sess, min_seq, max_sess, max_seq = await cache.get_since(
+            session, last_sess, last_seq
+        )
         meta = StreamMeta(
+            min_sess=min_sess,
             min_seq=min_seq,
+            max_sess=max_sess,
             max_seq=max_seq,
             server_time=f"{time.time():.3f}",
         )
         yield {"event": "meta", "data": meta.model_dump_json()}
         for ev in events:
             yield {"event": "event", "data": ev.model_dump_json()}
-            last_seen = max(last_seen, ev.seq)
+            if (ev.session_id, ev.seq) > (last_sess, last_seq):
+                last_sess, last_seq = ev.session_id, ev.seq
 
-        # Loop di mantenimento: aspetta nuovi eventi o keepalive timeout.
         last_keepalive = time.monotonic()
         while True:
             if await request.is_disconnected():
@@ -257,12 +272,13 @@ async def stream(
             try:
                 await asyncio.wait_for(notifier.wait(), timeout=POLL_INTERVAL_SEC)
             except asyncio.TimeoutError:
-                pass  # nessun nuovo evento, controlla solo keepalive
+                pass
 
-            new_events, _, _, _, _ = await cache.get_since(session, 0, last_seen)
+            new_events, _, _, _, _ = await cache.get_since(session, last_sess, last_seq)
             for ev in new_events:
                 yield {"event": "event", "data": ev.model_dump_json()}
-                last_seen = max(last_seen, ev.seq)
+                if (ev.session_id, ev.seq) > (last_sess, last_seq):
+                    last_sess, last_seq = ev.session_id, ev.seq
                 last_keepalive = time.monotonic()
 
             now = time.monotonic()
