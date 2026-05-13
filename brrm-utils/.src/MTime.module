@@ -51,6 +51,39 @@ Public Function DateToUnixMs(d As Date) As Long
   Return daysEpoch * 86400000 + msEvent + CLong(System.TimeZone) * 1000
 End
 
+Public Function FormatDateMs(d As Date) As String
+  ' Serializzazione locale-indipendente di una Date che PRESERVA i ms.
+  ' Sostituto totale di Str$(d): Str$ in Gambas 3 emette "hh:nn:ss" o
+  ' "MM/dd/yyyy hh:nn:ss" ma sempre senza la parte frazionaria, quindi
+  ' rompe ogni round-trip su orari con ms != 0 (sync partenza→arrivo,
+  ' file di session locale, ecc.).
+  '
+  '   FormatDateMs(Time(10,23,45,678))           → "10:23:45.678"
+  '   FormatDateMs(Time(10,23,45,0))             → "10:23:45.000"
+  '   FormatDateMs(CDate("12/30/2026 10:00:00")) → "12/30/2026 10:00:00.000"
+  '
+  ' Mai usare Str$(date) nel codice di brrm/brrm-partenza: usare questa.
+  Dim sMs As String = Format$(d, "uuu")
+  If sMs = "" Then sMs = "000"
+  If Date(d) = CDate(0) Then
+    ' Time-only: niente parte data, replica il prefisso di Str$.
+    Return Format$(d, "hh:nn:ss") & "." & sMs
+  Else
+    Return Format$(d, "mm/dd/yyyy hh:nn:ss") & "." & sMs
+  Endif
+End
+
+Public Function ParseDateMs(s As String) As Date
+  ' Inverso di FormatDateMs. Accetta sia "hh:nn:ss.uuu" che
+  ' "MM/dd/yyyy hh:nn:ss.uuu" sia varianti senza ms (tolleranza).
+  ' Ritorna CDate(0) se la stringa non e' parsabile, senza propagare
+  ' l'errore del cast implicito.
+  Dim result As Date = CDate(0)
+  If s = "" Then Return result
+  Try result = s
+  Return result
+End
+
 Public Function PadMillis(s As String) As String
   ' Pad a stringa di 3 cifre (ms display: "5" -> "005", "12" -> "012",
   ' "1234" -> "123" troncato). Robusto a input vuoti o lunghi.

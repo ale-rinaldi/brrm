@@ -1,0 +1,46 @@
+' Test per MTime.FormatDateMs / MTime.ParseDateMs — sostituto di
+' Str$(date), che in Gambas 3 NON emette la parte frazionaria (millis)
+' e quindi rompe ogni round-trip su orari con ms != 0. Vedi bug sync
+' partenza→arrivo: orari salvati come "10:23:45" invece di
+' "10:23:45.678", e arrivo li rimonta come .000.
+Public Sub RunAll()
+
+  ' --- FormatDateMs: time-only ---
+  Assert.Equals(MTime.FormatDateMs(Time(10, 23, 45, 678)), "10:23:45.678", "Format time-only: ms generici")
+  Assert.Equals(MTime.FormatDateMs(Time(10, 23, 45,   0)), "10:23:45.000", "Format time-only: .000 con 3 cifre (no trailing dot)")
+  Assert.Equals(MTime.FormatDateMs(Time(10, 23, 45,   5)), "10:23:45.005", "Format time-only: .005 zero-padded a 3")
+  Assert.Equals(MTime.FormatDateMs(Time(10, 23, 45,  50)), "10:23:45.050", "Format time-only: .050 zero-padded a 3")
+  Assert.Equals(MTime.FormatDateMs(Time(10, 23, 45, 500)), "10:23:45.500", "Format time-only: .500 (non '.5')")
+  Assert.Equals(MTime.FormatDateMs(Time( 0,  0,  0,   0)), "00:00:00.000", "Format time-only: mezzanotte")
+  Assert.Equals(MTime.FormatDateMs(Time(23, 59, 59, 999)), "23:59:59.999", "Format time-only: max")
+  Assert.Equals(MTime.FormatDateMs(CDate(0)),              "00:00:00.000", "Format: Date 0 → time-only")
+
+  ' --- FormatDateMs: date+time ---
+  ' Costruzione esplicita via Date(y,m,d,h,n,s,ms) per evitare le
+  ' conversioni di timezone che CDate("string") applicherebbe.
+  Assert.Equals(MTime.FormatDateMs(Date(2026, 12, 30, 10, 23, 45, 678)), "12/30/2026 10:23:45.678", "Format date+time: ms preservati, formato mm/dd/yyyy locale-indipendente")
+  Assert.Equals(MTime.FormatDateMs(Date(2026, 12, 30, 10, 23, 45,   0)), "12/30/2026 10:23:45.000", "Format date+time: .000 esplicito")
+  Assert.Equals(MTime.FormatDateMs(Date(2026,  1,  2,  3,  4,  5,   6)), "01/02/2026 03:04:05.006", "Format date+time: zero-pad mese/giorno/ora")
+
+  ' --- ParseDateMs: round-trip robusto ---
+  Assert.Equals(MTime.MillisOf(MTime.ParseDateMs("10:23:45.678")),  678, "Parse: ms 678 preservati")
+  Assert.Equals(MTime.MillisOf(MTime.ParseDateMs("10:23:45.005")),    5, "Parse: ms 005")
+  Assert.Equals(MTime.MillisOf(MTime.ParseDateMs("10:23:45.000")),    0, "Parse: ms 000")
+  Assert.Equals(MTime.MillisOf(MTime.ParseDateMs("10:23:45")),        0, "Parse: senza ms = 0 (tollerante)")
+  Assert.Equals(MTime.MsInDay(MTime.ParseDateMs("10:23:45.678")), 37425678, "Parse: ore/min/sec preservati")
+  Assert.Equals(MTime.ParseDateMs(""),         CDate(0), "Parse: stringa vuota → 0")
+  Assert.Equals(MTime.ParseDateMs("garbage"),  CDate(0), "Parse: input non parsabile → 0 (no crash)")
+
+  ' --- Round-trip: Format → Parse preserva ms ed orario ---
+  Dim d As Date = Time(14, 5, 30, 42)
+  Dim dBack As Date = MTime.ParseDateMs(MTime.FormatDateMs(d))
+  Assert.Equals(MTime.MsInDay(dBack), MTime.MsInDay(d), "Round-trip time-only Time(14,5,30,42)")
+
+  ' --- Regressione esplicita del bug pre-fix ---
+  ' Str$(d) era il vecchio serializzatore (AlignEnqueue, UpgradeSessionFile):
+  ' documentiamo nel test che quel formato perde i ms, cosi' chi tocca il
+  ' wire format sa perche' c'e' il nuovo helper.
+  Assert.NotEquals(Str$(Time(10, 23, 45, 678)), "10:23:45.678", "Regressione: Str$ NON emette i ms (per questo serve FormatDateMs)")
+  Assert.NotEquals(Str$(CDate("12/30/2026 10:23:45.678")), "12/30/2026 10:23:45.678", "Regressione: Str$ scarta ms anche su date+time")
+
+End
