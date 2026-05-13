@@ -24,6 +24,9 @@ __pycache__/
 .hidden/
 .lang/
 
+# Auto-generated da gbc3/gba3 a ogni build, derivato da .project
+.startup
+
 # Build output (.deb packages)
 dist/
 
