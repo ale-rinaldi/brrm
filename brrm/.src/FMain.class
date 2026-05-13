@@ -626,7 +626,9 @@ PUBLIC SUB Button6_Click()
   '   arrivo_hh,arrivo_mm,arrivo_ss,arrivo_ms,arrivo_unix_ms,
   '   tempo_mm,tempo_ss,tempo_ms,tempo_total_ms
   ' tempo_mm e' minuti totali (puo' essere >= 60, come su Sheets).
-  ' Esportate solo le righe con partenza E arrivo (file = risultati gara).
+  ' Esporta tutti gli equipaggi presenti in lista. Per le righe con
+  ' partenza o arrivo mancanti, le rispettive colonne (e quelle tempo,
+  ' se manca uno dei due) sono lasciate vuote.
   DIM Counter AS Integer
   DIM iEqui AS Integer
   DIM dPart AS Date
@@ -643,19 +645,28 @@ PUBLIC SUB Button6_Click()
     iEqui = 0
     TRY iEqui = LEquipaggi[Counter].Text
     IF iEqui = 0 THEN CONTINUE
-    IF partenze[iEqui] = 0 OR arrivi[iEqui] = 0 THEN CONTINUE
-    dPart = partenze[iEqui]
-    dArr = arrivi[iEqui]
-    iPartMs = 0
-    iPartMs = MTime.MillisOf(dPart)
-    iArrMs = 0
-    iArrMs = MTime.MillisOf(dArr)
-    delta = MTime.MsInDay(dArr) - MTime.MsInDay(dPart)
-    IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
     sOut &= iEqui & ","
-    sOut &= Hour(dPart) & "," & Minute(dPart) & "," & Second(dPart) & "," & Format$(iPartMs, "000") & "," & MTime.DateToUnixMs(dPart) & ","
-    sOut &= Hour(dArr) & "," & Minute(dArr) & "," & Second(dArr) & "," & Format$(iArrMs, "000") & "," & MTime.DateToUnixMs(dArr) & ","
-    sOut &= (delta \ 60000) & "," & ((delta \ 1000) MOD 60) & "," & Format$(delta MOD 1000, "000") & "," & delta & "\n"
+    IF partenze[iEqui] = 0 THEN
+      sOut &= ",,,,,"
+    ELSE
+      dPart = partenze[iEqui]
+      iPartMs = MTime.MillisOf(dPart)
+      sOut &= Hour(dPart) & "," & Minute(dPart) & "," & Second(dPart) & "," & Format$(iPartMs, "000") & "," & MTime.DateToUnixMs(dPart) & ","
+    ENDIF
+    IF arrivi[iEqui] = 0 THEN
+      sOut &= ",,,,,"
+    ELSE
+      dArr = arrivi[iEqui]
+      iArrMs = MTime.MillisOf(dArr)
+      sOut &= Hour(dArr) & "," & Minute(dArr) & "," & Second(dArr) & "," & Format$(iArrMs, "000") & "," & MTime.DateToUnixMs(dArr) & ","
+    ENDIF
+    IF partenze[iEqui] = 0 OR arrivi[iEqui] = 0 THEN
+      sOut &= ",,,\n"
+    ELSE
+      delta = MTime.MsInDay(arrivi[iEqui]) - MTime.MsInDay(partenze[iEqui])
+      IF delta < 0 THEN delta = delta + 86400000   ' arrivo dopo mezzanotte
+      sOut &= (delta \ 60000) & "," & ((delta \ 1000) MOD 60) & "," & Format$(delta MOD 1000, "000") & "," & delta & "\n"
+    ENDIF
   NEXT
 
   Dialog.Title = "Salva risultati gara"
