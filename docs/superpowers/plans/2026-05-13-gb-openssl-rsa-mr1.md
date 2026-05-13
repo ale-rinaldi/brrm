@@ -143,33 +143,40 @@ No Gambas-side test in this task — we're just getting compilation green with a
 
 - [ ] **Step 1: Create `c_pkey.h`**
 
+Style rules (verified against gb.openssl headers):
+- Header description in the comment block is just the filename — no " - description" suffix (`.h` files omit the suffix; `.c` files include it).
+- `.h` files include no OpenSSL headers and no `main.h`. Consumers include the right things in the correct order before including the .h.
+- The `#define THIS` macro lives in the `.c` file, not the header (avoids leaking the macro to any other file that includes this header — e.g., the future `c_signature.c`).
+- Indentation is **hard tabs** (8-col equivalent), K&R braces, `else` on the same line as `}`.
+
 ```c
 /*
- * c_pkey.h - asymmetric key class
+ * c_pkey.h
  *
  * Copyright (C) 2026 Alessandro Rinaldi
  * Copyright (C) 2013-2019 Tobias Boege <tobias@gambas-buch.de>
  *
- * [GPL v2+ with OpenSSL linking exception — COPY VERBATIM the block
- *  from gb.openssl/src/c_cipher.h, only updating the copyright lines above]
+ * [GPL v2+ with OpenSSL linking exception — COPY VERBATIM the ~33-line
+ *  block from gb.openssl/src/c_cipher.h, only updating the copyright lines
+ *  above]
  */
 
 #ifndef __C_PKEY_H
 #define __C_PKEY_H
 
-#include <openssl/evp.h>
-#include "main.h"
-
 #ifndef __C_PKEY_C
 extern GB_DESC CPKey[];
 #endif
 
-typedef struct {
-    GB_BASE   ob;
-    EVP_PKEY *pkey;
-} CPKEY;
+/* Forward declaration so this header can mention EVP_PKEY without
+ * pulling in <openssl/evp.h>. Consumers that need the full type
+ * must include <openssl/evp.h> themselves before c_pkey.h. */
+typedef struct evp_pkey_st EVP_PKEY;
 
-#define THIS ((CPKEY *) _object)
+typedef struct {
+	GB_BASE   ob;
+	EVP_PKEY *pkey;
+} CPKEY;
 
 #endif /* __C_PKEY_H */
 ```
@@ -182,31 +189,39 @@ The license header pattern is critical — copy the full GPL+OpenSSL-exception b
 /*
  * c_pkey.c - asymmetric key class implementation
  *
- * [Same full GPL+OpenSSL-exception header as c_pkey.h]
+ * [Same full GPL+OpenSSL-exception header as c_pkey.h — note that .c
+ *  files include the " - description" suffix in the first comment line]
  */
 
 #define __C_PKEY_C
 
+#include <openssl/evp.h>
+
+#include "main.h"
 #include "c_pkey.h"
+
+#define THIS ((CPKEY *) _object)
 
 BEGIN_METHOD_VOID(PKey_free)
 
-    if (THIS->pkey) {
-        EVP_PKEY_free(THIS->pkey);
-        THIS->pkey = NULL;
-    }
+	if (THIS->pkey) {
+		EVP_PKEY_free(THIS->pkey);
+		THIS->pkey = NULL;
+	}
 
 END_METHOD
 
 GB_DESC CPKey[] = {
-    GB_DECLARE("PKey", sizeof(CPKEY)),
-    GB_NOT_CREATABLE(),
+	GB_DECLARE("PKey", sizeof(CPKEY)),
+	GB_NOT_CREATABLE(),
 
-    GB_METHOD("_free", NULL, PKey_free, NULL),
+	GB_METHOD("_free", NULL, PKey_free, NULL),
 
-    GB_END_DECLARE
+	GB_END_DECLARE
 };
 ```
+
+Include order matters: `<openssl/evp.h>` (provides the real `EVP_PKEY`) must come before `main.h` (provides `GB_BASE`, `GB_DESC`, etc.) which must come before `c_pkey.h` (defines `CPKEY` using both types). The forward declaration in `c_pkey.h` is identical to the real OpenSSL typedef so duplicate-typedef rules of C11+ accept both being present.
 
 - [ ] **Step 3: Wire into `main.c`**
 
@@ -1120,9 +1135,11 @@ git commit -m "WIP: PKey error-path tests"
 
 - [ ] **Step 1: Create `c_signature.h`**
 
+Same style rules as `c_pkey.h`: just the filename in the description, no OpenSSL/`main.h` includes, no THIS macro (this class has no instance state — it's a virtual method class, so no THIS needed at all).
+
 ```c
 /*
- * c_signature.h - asymmetric signature class
+ * c_signature.h
  *
  * [Full GPL+OpenSSL-exception header — copy verbatim from c_cipher.h,
  *  with updated copyright lines]
@@ -1130,9 +1147,6 @@ git commit -m "WIP: PKey error-path tests"
 
 #ifndef __C_SIGNATURE_H
 #define __C_SIGNATURE_H
-
-#include <openssl/evp.h>
-#include "main.h"
 
 #ifndef __C_SIGNATURE_C
 extern GB_DESC CSignature[];
@@ -1148,17 +1162,23 @@ extern GB_DESC CSignatureMethod[];
 /*
  * c_signature.c - asymmetric signature class implementation
  *
- * [Same full GPL+OpenSSL-exception header as c_signature.h]
+ * [Same full GPL+OpenSSL-exception header as c_signature.h — note the
+ *  " - description" suffix in the first comment line for .c files]
  */
 
 #define __C_SIGNATURE_C
 
+#include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/rsa.h>
 
+#include "main.h"
 #include "c_signature.h"
 #include "c_pkey.h"
+
+/* CPKEY struct is shared via c_pkey.h. Access pkey->pkey directly
+ * here since c_signature.c needs the EVP_PKEY * for sign/verify ops. */
 
 struct sig_algo {
     const char *name;
