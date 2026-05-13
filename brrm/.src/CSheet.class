@@ -754,7 +754,11 @@ Private Function DaysFromEpoch(y As Long, m As Long, d As Long) As Long
 End
 
 Private Function MillisOf(d As Date) As Integer
-  ' Frazione di secondo in millisecondi (0-999). Format$(d, "uuu") in
-  ' Gambas restituisce esattamente i ms (verificato 3.20). Niente float.
-  Return CInt(Format$(d, "uuu"))
+  ' Frazione di secondo in millisecondi (0-999). Format$(d, "uuu")
+  ' restituisce stringa vuota quando i ms sono 0 (verificato su 3.20 e
+  ' su master), quindi CInt() su quel risultato lancia Type mismatch.
+  ' Pre-controllo esplicito invece di TRY+default (vedi MsInDay in FMain).
+  Dim sMs As String = Format$(d, "uuu")
+  If sMs = "" Then Return 0
+  Return CInt(sMs)
 End
