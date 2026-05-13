@@ -53,6 +53,11 @@ POLL_INTERVAL_SEC = 0.5  # quanto spesso lo stream loop controlla nuovi eventi
 class Event(BaseModel):
     """Singolo evento di partenza inviato da brrm-partenza."""
 
+    session_id: int = Field(
+        ge=1,
+        description="Session id monotono generato dalla partenza; cambia "
+        "quando il seq riparte da 1",
+    )
     seq: int = Field(ge=1, description="Sequence number monotono per-sessione")
     type: str = Field(description="Tipo evento (es. 'partenza')")
     numero: int = Field(ge=1, le=9999, description="Numero equipaggio")
@@ -93,33 +98,38 @@ class EventCache:
     async def add(self, session_id: str, event: Event) -> None:
         async with self._lock:
             bucket = self._events[session_id]
-            # Idempotenza: se esiste gia' un evento con questo seq, sostituiscilo.
+            # Idempotenza: stesso (event.session_id, event.seq) → sovrascrive.
             for i, stored in enumerate(bucket):
-                if stored.event.seq == event.seq:
+                if stored.event.session_id == event.session_id and stored.event.seq == event.seq:
                     bucket[i] = StoredEvent(event=event, received_at=time.monotonic())
                     break
             else:
                 bucket.append(StoredEvent(event=event, received_at=time.monotonic()))
-                # Mantiene la lista ordinata per seq (assume per lo piu' append).
-                bucket.sort(key=lambda s: s.event.seq)
-            # Notifica eventuali stream in attesa.
+                bucket.sort(key=lambda s: (s.event.session_id, s.event.seq))
             notifier = self._notifiers[session_id]
             notifier.set()
             notifier.clear()
 
     async def get_since(
-        self, session_id: str, since: int
-    ) -> tuple[list[Event], int, int]:
-        """Ritorna (eventi con seq>since, min_seq in cache, max_seq in cache)."""
+        self, session_id: str, since_sess: int, since_seq: int
+    ) -> tuple[list[Event], int, int, int, int]:
+        """Ritorna (eventi con (sess,seq) > (since_sess,since_seq),
+        min_sess, min_seq, max_sess, max_seq)."""
         async with self._lock:
             self._evict_expired(session_id)
             bucket = self._events.get(session_id, [])
             if not bucket:
-                return [], 0, 0
+                return [], 0, 0, 0, 0
+            min_sess = bucket[0].event.session_id
             min_seq = bucket[0].event.seq
+            max_sess = bucket[-1].event.session_id
             max_seq = bucket[-1].event.seq
-            new_events = [s.event for s in bucket if s.event.seq > since]
-            return new_events, min_seq, max_seq
+            new_events = [
+                s.event
+                for s in bucket
+                if (s.event.session_id, s.event.seq) > (since_sess, since_seq)
+            ]
+            return new_events, min_sess, min_seq, max_sess, max_seq
 
     def notifier_for(self, session_id: str) -> asyncio.Event:
         return self._notifiers[session_id]
@@ -226,7 +236,7 @@ async def stream(
 
         # Frame iniziale: meta con min/max seq attuali (cosi' il client capisce
         # se ha perso eventi vecchi sotto la TTL).
-        events, min_seq, max_seq = await cache.get_since(session, last_seen)
+        events, min_seq, max_seq, _, _ = await cache.get_since(session, 0, last_seen)
         meta = StreamMeta(
             min_seq=min_seq,
             max_seq=max_seq,
@@ -249,7 +259,7 @@ async def stream(
             except asyncio.TimeoutError:
                 pass  # nessun nuovo evento, controlla solo keepalive
 
-            new_events, _, _ = await cache.get_since(session, last_seen)
+            new_events, _, _, _, _ = await cache.get_since(session, 0, last_seen)
             for ev in new_events:
                 yield {"event": "event", "data": ev.model_dump_json()}
                 last_seen = max(last_seen, ev.seq)
