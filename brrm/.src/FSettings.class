@@ -27,6 +27,7 @@ Private Sub LoadSheetConfig()
   TextDocId.Text = ""
   TextSheetName.Text = ""
   TextEqCol.Text = "A"
+  TextHeaderRows.Text = "1"
   TextPartSplit.Text = ""
   TextPartUnix.Text = ""
   TextArrSplit.Text = ""
@@ -35,7 +36,7 @@ Private Sub LoadSheetConfig()
   TextTempoMs.Text = ""
   sPath = User.Home &/ ".config/brrm/sheet.conf"
   If Not Exist(sPath) Then Return
-  ReadKvFile(sPath, ["credentials", "document_id", "sheet_name", "equipaggio_column", "partenza_split_column", "partenza_unixms_column", "arrivo_split_column", "arrivo_unixms_column", "tempo_split_column", "tempo_ms_column"], [TextCred, TextDocId, TextSheetName, TextEqCol, TextPartSplit, TextPartUnix, TextArrSplit, TextArrUnix, TextTempoSplit, TextTempoMs])
+  ReadKvFile(sPath, ["credentials", "document_id", "sheet_name", "equipaggio_column", "header_rows", "partenza_split_column", "partenza_unixms_column", "arrivo_split_column", "arrivo_unixms_column", "tempo_split_column", "tempo_ms_column"], [TextCred, TextDocId, TextSheetName, TextEqCol, TextHeaderRows, TextPartSplit, TextPartUnix, TextArrSplit, TextArrUnix, TextTempoSplit, TextTempoMs])
 End
 
 Private Sub ReadKvFile(sPath As String, keys As String[], controls As Object[])
@@ -92,6 +93,7 @@ Private Function SaveSheetConfig(sPath As String) As Boolean
   sOut &= "document_id = " & Trim$(TextDocId.Text) & gb.NewLine
   sOut &= "sheet_name = " & Trim$(TextSheetName.Text) & gb.NewLine
   sOut &= "equipaggio_column = " & UCase$(Trim$(TextEqCol.Text)) & gb.NewLine
+  sOut &= "header_rows = " & Trim$(TextHeaderRows.Text) & gb.NewLine
   sOut &= "partenza_split_column = " & UCase$(Trim$(TextPartSplit.Text)) & gb.NewLine
   sOut &= "partenza_unixms_column = " & UCase$(Trim$(TextPartUnix.Text)) & gb.NewLine
   sOut &= "arrivo_split_column = " & UCase$(Trim$(TextArrSplit.Text)) & gb.NewLine

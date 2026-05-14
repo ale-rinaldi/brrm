@@ -129,6 +129,13 @@ credentials = /percorso/al/service-account.json
 document_id = <ID del foglio (segmento URL fra /d/ e /edit)>
 sheet_name = <nome della scheda>
 equipaggio_column = A
+header_rows = 1                # righe di intestazione da preservare (default 1).
+                               # Metti 2 (o più) se nel foglio hai un'intestazione
+                               # multi-riga, anche con merge in colonna equipaggio:
+                               # senza, su foglio appena inizializzato brrm
+                               # scriverebbe a partire dalla riga 2 sovrascrivendo
+                               # la seconda riga di header (l'API values.get non
+                               # espone le merge).
 # Colonne opzionali (vuoto = disattivata). I range "split" indicano la prima
 # colonna; le tre o quattro successive vengono usate in sequenza.
 partenza_split_column = B      # B,C,D,E = h,m,s,ms

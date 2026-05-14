@@ -36,6 +36,14 @@ Private $arrUnixCol As String
 Private $tempoSplitCol As String      ' m,s,ms su 3 colonne (m può >60)
 Private $tempoMsCol As String         ' singola colonna con totale ms
 
+' Numero di righe di intestazione da preservare. Default 1. Se 2 (es. doppia
+' riga di header con merge in colonna equipaggio), la prima riga di dati e'
+' la 3. Vedi HandleScanResponse: necessario perche' values.get della colonna
+' equipaggio risponde con le sole righe non-vuote senza esporre eventuali
+' merge → senza questo, sul foglio appena inizializzato si scriverebbe sopra
+' la seconda riga di header.
+Private $headerRows As Integer        ' >= 1
+
 ' --- runtime state ---------------------------------------------------------
 
 Private $accessToken As String
@@ -105,6 +113,7 @@ Private Function LoadConfig() As Boolean
   $arrUnixCol = ""
   $tempoSplitCol = ""
   $tempoMsCol = ""
+  $headerRows = 0   ' viene riportato a 1 a fine parsing se non specificato
   sCredPath = ""
 
   If Not Exist($cfgPath) Then Return False
@@ -142,8 +151,12 @@ Private Function LoadConfig() As Boolean
         $tempoSplitCol = UCase$(sVal)
       Case "tempo_ms_column"
         $tempoMsCol = UCase$(sVal)
+      Case "header_rows"
+        Try $headerRows = CInt(sVal)
     End Select
   Next
+
+  If $headerRows < 1 Then $headerRows = 1
 
   If sCredPath = "" Or $documentId = "" Or $sheetName = "" Or $eqCol = "" Then Return False
   If Not Exist(sCredPath) Then Return False
@@ -405,7 +418,11 @@ Private Sub HandleScanResponse()
     Try values = resp["values"]
     If Not IsNull(values) Then
       iCount = values.Count
-      For iRow = 0 To iCount - 1
+      ' Skip delle prime $headerRows righe: anche se contengono cose tipo
+      ' "Equipaggio", un numero non matchera' mai e il loop sarebbe innocuo,
+      ' ma esplicito per evitare match accidentali se l'header contiene un
+      ' numero (raro ma possibile).
+      For iRow = $headerRows To iCount - 1
         sVal = ""
         Try sVal = Trim$(CStr(values[iRow][0]))
         If sVal = sNum Then
@@ -415,7 +432,12 @@ Private Sub HandleScanResponse()
       Next
     Endif
   Endif
-  If $curRow = -1 Then $curRow = iCount + 1
+  ' Nessuna riga esistente per questo equipaggio: scrivi alla prima libera
+  ' DOPO le righe di header. Tutela il caso "merge cell": values.get della
+  ' colonna A su un foglio con A1:A2 mergeate "Equipaggio" restituisce
+  ' iCount = 1 — senza il max() finiremmo a scrivere su A2 sovrascrivendo
+  ' la seconda riga di intestazione.
+  If $curRow = -1 Then $curRow = Max(iCount + 1, $headerRows + 1)
   $state = "write"
   StartWriteRequest()
 End
