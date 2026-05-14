@@ -12,7 +12,7 @@
     Delay = 91
   }
   { ButtonPartenza Button
-    MoveScaled(1,40,23,6)
+    MoveScaled(1,40,23,4)
     Text = ("PARTENZA")
   }
   { LEquipaggi ListBox
@@ -87,7 +87,7 @@
     Visible = False
   }
   { ButtonArrivo Button
-    MoveScaled(1,47,23,6)
+    MoveScaled(1,45,23,9)
     Text = ("ARRIVO")
   }
   { TimerArrivoQueue #Timer
