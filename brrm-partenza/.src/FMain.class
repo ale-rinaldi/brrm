@@ -5,9 +5,6 @@
 ' valore qui; GridView1_Click esegue l'azione corrispondente al click.
 Private Const ACT_NONE As String = ""
 Private Const ACT_ANNPART As String = "annpart"
-Private Const ACT_ANNARR As String = "annarr"
-Private Const ACT_INVARR1 As String = "invarr1"
-Private Const ACT_INVARR2 As String = "invarr2"
 Private Const ACT_INVPART1 As String = "invpart1"
 Private Const ACT_INVPART2 As String = "invpart2"
 Private Const ACT_MODNUM As String = "modnum"
@@ -16,7 +13,6 @@ Private Const ACT_MODNUM As String = "modnum"
 Private Const MAX_NUMERO As Integer = 10000
 
 Private partenze As New Date[MAX_NUMERO]
-Private arrivi As New Date[MAX_NUMERO]
 Private CurrAct As String
 Private FotON As Boolean
 Private INV1 As Integer
@@ -58,7 +54,7 @@ Private $rsRgtCtrl As Object[]
 Private $rsRgtOrigLeft As New Integer[]
 
 ' Flag di shutdown: vedi brrm/FMain.class. Evita race tra Form_Close e
-' Timer4_Timer in WAIT.
+' TimerArduino_Timer in WAIT.
 Private $shuttingDown As Boolean
 
 Public Sub _new()
@@ -125,7 +121,7 @@ If Error Then
   Return
 Endif
 If FotON = True Then
-BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
+BPartenze.Add(Format$(Time, "hh:nn:ss.uuu"))
 Endif
 
 End
@@ -144,7 +140,7 @@ Private Sub SetArduinoStatus(bConnected As Boolean)
   Endif
 End
 
-Public Sub Timer4_Timer()
+Public Sub TimerArduino_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   Dim sDevice As String
@@ -201,12 +197,12 @@ Public Sub Form_Close()
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
   ' staccato), il loop _Read/TimerArduino-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
-  ' $shuttingDown va settato PRIMA degli Stop: un Timer4_Timer in WAIT
+  ' $shuttingDown va settato PRIMA degli Stop: un TimerArduino_Timer in WAIT
   ' potrebbe risvegliarsi proprio in questo istante.
   $shuttingDown = True
   Try TimerGrid.Stop
   Try TimerBlink.Stop
-  Try TimerArrivoQueue.Stop
+  Try TimerPartenzaQueue.Stop
   Try TimerArduino.Stop
   Try TimerAlign.Stop
   Try TimerAlignHeartbeat.Stop
@@ -216,7 +212,7 @@ End
 Public Sub ConfermaScartoOrario(che As String) As Boolean
   ' Conferma per chiudere senza salvare un dialog che contiene un orario
   ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma
-  ' lo scarto. Usata da FArrivo sul pulsante Annulla.
+  ' lo scarto. Usata da FPartenza sul pulsante Annulla.
   Dim sCosa As String
   If che = "" Then
     sCosa = "L'orario"
@@ -533,12 +529,6 @@ Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
   TimerGrid.Start
 End
 
-Public Sub ReturnArrivo(Numero As Integer) As Date
-  
-  Return arrivi[Numero]
-  
-End
-
 Public Sub ReturnPartenza(Numero As Integer) As Date
   
   Return partenze[Numero]
@@ -587,7 +577,7 @@ TimerGrid.Start()
 AlignInit()
 End 
 
-Public Sub Timer1_Timer()
+Public Sub TimerGrid_Timer()
 ' Guard: ricontrolla header e riapplica se Message dialog l'ha resettato.
 If GridView1[0, 0].Background <> &H000000& Then SetupGridHeader()
 Dim concorrente As Integer
@@ -621,18 +611,9 @@ Try GridView1[Counter + 1, 1].Text = sDisplay
 indice = indice + 1
 Counter = Counter + 1
 Wend
-indice = 0
-Counter = 0
-While Counter < LEquipaggi.Count
-If arrivi[LEquipaggi[Counter].Text] = 0 Then 
-indice = 1
-Break 
-Endif 
-Counter = Counter + 1
-Wend 
 End
 
-Public Sub Button1_Click()
+Public Sub ButtonReset_Click()
 Dim Counter As Integer
 Dim iResetNum As Integer
 If Message.Question("Sei sicuro?", "Sì", "No") = 1 Then 
@@ -648,7 +629,6 @@ LEquipaggi.Clear
 Counter = 0
 While Counter < MAX_NUMERO
 partenze[Counter] = 0
-arrivi[Counter] = 0
 Counter = Counter + 1
 Wend 
 UpgradeSessionFile()
@@ -673,36 +653,7 @@ Public Sub EditOrder(Order As String)
   TimerGrid.Start
 End
 
-Public Sub Button5_Click()
-
-If CurrAct = ACT_ANNARR Then 
-  GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ACT_NONE
-  Else 
-CurrAct = ACT_ANNARR
-GridView1.Background = &H00FFFF7F&
-GridView1.Mouse = 2
-End If
-End
-
-Public Sub Button4_Click()
-If CurrAct = ACT_INVARR1 Then 
-  GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ACT_NONE
-  Else If CurrAct = ACT_INVARR2
-    GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ACT_NONE
-  Else 
-  CurrAct = ACT_INVARR1
-GridView1.Background = &H00FFFF7F&
-GridView1.Mouse = 2
-Endif 
-End
-
-Public Sub Button6_Click()
+Public Sub ButtonEsporta_Click()
   ' Export CSV partenze:
   '   numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms
   ' Stesso schema dei campi inviati a Google Sheets. Tutto int puro (niente
@@ -737,8 +688,6 @@ Public Sub Button6_Click()
 End
 
 Public Sub GridView1_Click()
-Dim pt1 As Date
-Dim pt2 As Date
   If GridView1.Row > 0 Then
   If CurrAct = ACT_ANNPART Then 
   If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
@@ -751,40 +700,6 @@ Dim pt2 As Date
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
   TimerGrid.Start
-  End If
-  
-    If CurrAct = ACT_ANNARR Then 
-    If Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
-  TimerGrid.Stop
-  arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
-  Endif 
-    GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ACT_NONE
-  TimerGrid.Start
-  End If
-  
-    If CurrAct = ACT_INVARR2 Then 
-    
-  INV2 = LEquipaggi[GridView1.Row - 1].Text
-  If Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then 
- TimerGrid.Stop
-  pt1 = arrivi[INV1]
-  pt2 = arrivi[INV2]
-  arrivi[INV2] = pt1
-  arrivi[INV1] = pt2
-  Endif 
-    GridView1.Background = &H0FFFFFF&
-  GridView1.Mouse = 0
-  CurrAct = ACT_NONE
-  TimerGrid.Start
-  End If
-  
-  If CurrAct = ACT_INVARR1 Then
-  INV1 = LEquipaggi[GridView1.Row - 1].Text
-  CurrAct = ACT_INVARR2
-    GridView1.Background = &H007FFFFF&
-    GridView1.Mouse = 2
   End If
 
   If CurrAct = ACT_MODNUM Then
@@ -842,11 +757,7 @@ Endif
 UpgradeSessionFile()
 End
 
-Public Sub Button2_Click()
-FPartenza.Show()
-End
-
-Public Sub Button3_Click()
+Public Sub ButtonAnnullaPart_Click()
 
 If CurrAct = ACT_ANNPART Then
   GridView1.Background = &H0FFFFFF&
@@ -922,7 +833,7 @@ Private Sub InvertiPartenze(n1 As Integer, n2 As Integer)
 End
   
 
-Public Sub Button7_Click()
+Public Sub ButtonFotON_Click()
 
   FotON = True
   TimerBlink.Stop
@@ -931,7 +842,7 @@ Public Sub Button7_Click()
 
 End
 
-Public Sub Button8_Click()
+Public Sub ButtonFotOFF_Click()
 
   FotON = False
     ButtonFotOFF.Background = &HFF0000&
@@ -940,7 +851,7 @@ Public Sub Button8_Click()
 
 End
 
-Public Sub Timer2_Timer()
+Public Sub TimerBlink_Timer()
 
   If ButtonFotOFF.Background = &HFF0000& Then 
   ButtonFotOFF.Background = &HFFFFFF&
@@ -951,27 +862,18 @@ Public Sub Timer2_Timer()
 
 End
 
-Public Sub Button9_Click()
+Public Sub ButtonPartenza_Click()
 
-BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
+BPartenze.Add(Format$(Time, "hh:nn:ss.uuu"))
 
 End
 
-Public Sub SetArrivo(Numero As Integer, Orario As Date) 
+Public Sub TimerPartenzaQueue_Timer()
 
-TimerGrid.Stop
-arrivi[Numero] = Orario
-TimerGrid.Start
-  UpgradeSessionFile()
-  
-End 
-
-Public Sub Timer3_Timer()
-
-  If FArrivo.Visible = False And BArrivi.Count > 0 And FPartenza.Visible = False And CurrAct = ACT_NONE Then 
-  FArrivo.Show
-  FArrivo.setOrario(BArrivi[0].Text)
-  BArrivi.Remove(0)
+  If FPartenza.Visible = False And BPartenze.Count > 0 And CurrAct = ACT_NONE Then 
+  FPartenza.Show
+  FPartenza.setOrario(BPartenze[0].Text)
+  BPartenze.Remove(0)
   Endif  
 
 End

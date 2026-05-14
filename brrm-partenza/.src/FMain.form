@@ -54,7 +54,7 @@
     MoveScaled(74,50,18,4)
     Text = ("RESET!")
   }
-  { BArrivi ListBox
+  { BPartenze ListBox
     MoveScaled(1,4,90,3)
     Visible = False
   }
@@ -62,7 +62,7 @@
     MoveScaled(1,40,23,14)
     Text = ("PARTENZA")
   }
-  { TimerArrivoQueue #Timer
+  { TimerPartenzaQueue #Timer
     #X = 609
     #Y = 336
     Enabled = True

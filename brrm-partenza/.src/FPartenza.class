@@ -1,13 +1,29 @@
 ' Gambas class file
 
 
+PUBLIC SUB Form_Open()
+
+  Label1.Text = ""
+  FPartenza.Center()
+
+END
+
+PUBLIC SUB setOrario(Orario AS String)
+  
+  Label1.Text = Orario
+  
+END
+
+PUBLIC SUB Label1_MouseDown()
+
+  
+
+END
+
 PUBLIC SUB Button1_Click()
+
 DIM Numero AS Integer
 DIM Confermato AS Boolean
-DIM Orario AS Date
-Orario = 0
-TRY Orario = TextBox2.Text
-IF Orario <> 0 THEN
 Confermato = FALSE
 Numero = 0
 TRY Numero = TextBox1.Text
@@ -23,33 +39,14 @@ ELSE
 Confermato = TRUE
 ENDIF 
 IF Confermato = TRUE THEN 
-FMain.SetPartenza(Numero, Orario)
+FMain.SetPartenza(Numero, Label1.Text)
 FPartenza.Close
 ENDIF 
 ELSE 
 Message("Numero non riconosciuto!")
 ENDIF 
-ELSE 
-Message("Orario non riconosciuto!")
-ENDIF 
-END 
+END
 
 PUBLIC SUB Button2_Click()
-
-  FPartenza.Close
-
-END
-
-PUBLIC SUB Form_Open()
-
-  FPartenza.Center()
-  TextBox1.Text = ""
-  TextBox2.Text = ""
-
-END
-
-PUBLIC SUB TextBox2_KeyPress()
-
-  
-
+  If FMain.ConfermaScartoOrario("partenza") Then FPartenza.Close
 END

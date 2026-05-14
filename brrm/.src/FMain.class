@@ -21,7 +21,7 @@ Private INV1 As Integer
 Private INV2 As Integer
 
 ' Flag di shutdown: serve a evitare race tra Form_Close (distrugge i
-' widget) e Timer4_Timer (che dopo un WAIT 0.1 potrebbe ancora chiamare
+' widget) e TimerArduino_Timer (che dopo un WAIT 0.1 potrebbe ancora chiamare
 ' SetArduinoStatus e toccare LabelArduino gia' invalido).
 Private $shuttingDown As Boolean
 
@@ -89,7 +89,7 @@ END
 
 PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
   ' Durante shutdown LabelArduino puo' essere gia' distrutto: ritorno
-  ' subito per evitare "Invalid object" (race con Timer4_Timer in WAIT).
+  ' subito per evitare "Invalid object" (race con TimerArduino_Timer in WAIT).
   IF $shuttingDown THEN RETURN
   IF bConnected THEN
     LabelArduino.Background = &H00CC00&
@@ -582,7 +582,7 @@ Public Sub SheetReinit()
   If $sheet Then $sheet.Reinit()
 End
 
-PUBLIC SUB Timer1_Timer()
+PUBLIC SUB TimerGrid_Timer()
 ' Guard: ogni Message dialog (Question/Info/Error) resetta il formatting
 ' delle celle del row 0. Ricontrolliamo qui e ri-applichiamo se serve.
 IF GridView1[0, 0].Background <> &H000000& THEN SetupGridHeader()
@@ -645,7 +645,7 @@ LabelInArrivoNum.Text = "/"
 ENDIF 
 END
 
-PUBLIC SUB Button1_Click()
+PUBLIC SUB ButtonReset_Click()
 DIM Counter AS Integer
 IF Message.Question("Sei sicuro?", "Sì", "No") = 1 THEN 
 IF Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
@@ -679,7 +679,7 @@ PUBLIC SUB EditOrder(Order AS String)
   TimerGrid.Start
 END
 
-PUBLIC SUB Button5_Click()
+PUBLIC SUB ButtonAnnullaArr_Click()
 
 IF CurrAct = ACT_ANNARR THEN 
   GridView1.Background = &H0FFFFFF&
@@ -692,7 +692,7 @@ GridView1.Mouse = 2
 END IF
 END
 
-PUBLIC SUB Button4_Click()
+PUBLIC SUB ButtonInvertiArr_Click()
 IF CurrAct = ACT_INVARR1 THEN 
   GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
@@ -708,7 +708,7 @@ GridView1.Mouse = 2
 ENDIF 
 END
 
-PUBLIC SUB Button6_Click()
+PUBLIC SUB ButtonEsporta_Click()
   ' Export CSV completo (stessi campi che scriviamo su Sheets):
   '   numero,
   '   partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms,
@@ -905,11 +905,11 @@ ENDIF
 UpgradeSessionFile()
 END
 
-PUBLIC SUB Button2_Click()
+PUBLIC SUB ButtonPartenza_Click()
 FPartenza.Show()
 END
 
-PUBLIC SUB Button3_Click()
+PUBLIC SUB ButtonAnnullaPart_Click()
 
 IF CurrAct = ACT_ANNPART THEN 
   GridView1.Background = &H0FFFFFF&
@@ -923,7 +923,7 @@ END IF
 END
   
 
-PUBLIC SUB Button7_Click()
+PUBLIC SUB ButtonFotON_Click()
 
   FotON = TRUE
   TimerBlink.Stop
@@ -932,7 +932,7 @@ PUBLIC SUB Button7_Click()
 
 END
 
-PUBLIC SUB Button8_Click()
+PUBLIC SUB ButtonFotOFF_Click()
 
   FotON = FALSE
     ButtonFotOFF.Background = &HFF0000&
@@ -941,7 +941,7 @@ PUBLIC SUB Button8_Click()
 
 END
 
-PUBLIC SUB Timer2_Timer()
+PUBLIC SUB TimerBlink_Timer()
 
   IF ButtonFotOFF.Background = &HFF0000& THEN 
   ButtonFotOFF.Background = &HFFFFFF&
@@ -952,7 +952,7 @@ PUBLIC SUB Timer2_Timer()
 
 END
 
-PUBLIC SUB Button9_Click()
+PUBLIC SUB ButtonArrivo_Click()
 
 BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
 
@@ -968,7 +968,7 @@ TimerGrid.Start
   
 END 
 
-PUBLIC SUB Timer3_Timer()
+PUBLIC SUB TimerArrivoQueue_Timer()
 
   IF FArrivo.Visible = FALSE AND BArrivi.Count > 0 AND FPartenza.Visible = FALSE AND CurrAct = ACT_NONE THEN 
   FArrivo.Show
@@ -978,7 +978,7 @@ PUBLIC SUB Timer3_Timer()
 
 END
 
-PUBLIC SUB Timer4_Timer()
+PUBLIC SUB TimerArduino_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   DIM sDevice AS String
@@ -1039,7 +1039,7 @@ PUBLIC SUB Form_Close()
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
   ' staccato), il loop _Read/TimerArduino-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
-  ' $shuttingDown si setta PRIMA degli Stop perche' un Timer4_Timer in
+  ' $shuttingDown si setta PRIMA degli Stop perche' un TimerArduino_Timer in
   ' WAIT potrebbe risvegliarsi proprio in questo istante.
   $shuttingDown = True
   TRY TimerGrid.Stop
@@ -1048,7 +1048,7 @@ PUBLIC SUB Form_Close()
   ArduinoClose()
 END
 
-PUBLIC SUB Button10_Click()
+PUBLIC SUB ButtonOrdine_Click()
 
   FOrdine.Show
 
