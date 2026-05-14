@@ -56,20 +56,20 @@
     Text = ("SYNC")
   }
   { Button6 Button
-    MoveScaled(76,44,18,5)
+    MoveScaled(82,44,18,5)
     Text = ("ESPORTA")
   }
   { ButtonImporta Button
-    MoveScaled(76,50,18,4)
+    MoveScaled(82,50,18,4)
     Text = ("Importa partenze")
   }
   { Button7 Button
-    MoveScaled(76,40,9,2)
+    MoveScaled(83,40,9,2)
     Background = &H00FF00&
     Text = ("FotON")
   }
   { Button8 Button
-    MoveScaled(86,40,8,1)
+    MoveScaled(92,40,8,1)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
@@ -79,7 +79,7 @@
     Delay = 500
   }
   { Button1 Button
-    MoveScaled(76,55,18,4)
+    MoveScaled(82,55,18,4)
     Text = ("RESET!")
   }
   { BArrivi ListBox
