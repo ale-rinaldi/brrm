@@ -36,12 +36,12 @@
     Text = ("ESPORTA")
   }
   { ButtonFotON Button
-    MoveScaled(75,40,9,2)
+    MoveScaled(74,40,9,4)
     Background = &H00FF00&
     Text = ("FotON")
   }
   { ButtonFotOFF Button
-    MoveScaled(84,40,8,1)
+    MoveScaled(83,40,9,4)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }

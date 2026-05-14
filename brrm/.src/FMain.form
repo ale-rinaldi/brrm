@@ -64,12 +64,12 @@
     Text = ("Importa partenze")
   }
   { ButtonFotON Button
-    MoveScaled(83,40,9,2)
+    MoveScaled(82,40,9,4)
     Background = &H00FF00&
     Text = ("FotON")
   }
   { ButtonFotOFF Button
-    MoveScaled(92,40,8,1)
+    MoveScaled(91,40,9,4)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
