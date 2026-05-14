@@ -1,7 +1,7 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,101,60)
+  MoveScaled(0,0,101,65)
   Text = ("")
   { GridView1 GridView
     MoveScaled(1,1,99,38)
@@ -41,14 +41,14 @@
     Text = ("")
   }
   { LabelArduino Label
-    MoveScaled(62,40,13,4)
+    MoveScaled(1,60,18,4)
     Background = &HCCCCCC&
     Foreground = &H000000&
     Alignment = Align.Center
     Text = ("ARDUINO ?")
   }
   { LabelSync Label
-    MoveScaled(62,44,13,4)
+    MoveScaled(20,60,14,4)
     Visible = False
     Background = &HCC0000&
     Foreground = &HFFFFFF&
@@ -117,7 +117,7 @@
     Text = ("Cambia numero")
   }
   { LabelSheet Label
-    MoveScaled(62,49,13,4)
+    MoveScaled(35,60,14,4)
     Visible = False
     Background = &HCC0000&
     Foreground = &HFFFFFF&
@@ -125,7 +125,7 @@
     Text = ("SHEET")
   }
   { ButtonSettings Button
-    MoveScaled(62,54,13,4)
+    MoveScaled(82,60,18,4)
     Text = ("Impostazioni…")
   }
 }
