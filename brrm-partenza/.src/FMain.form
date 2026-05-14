@@ -87,14 +87,14 @@
     Delay = 30000
   }
   { LabelArduino Label
-    MoveScaled(1,60,18,4)
+    MoveScaled(1,60,23,4)
     Background = &HCCCCCC&
     Foreground = &H000000&
     Alignment = Align.Center
     Text = ("ARDUINO ?")
   }
   { LabelSync Label
-    MoveScaled(20,60,14,4)
+    MoveScaled(25,60,23,4)
     Visible = False
     Background = &HCC0000&
     Foreground = &HFFFFFF&
