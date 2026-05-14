@@ -39,6 +39,21 @@ Private $alignBackoffSec As Integer
 Private $alignWantReconnect As Boolean
 Private $hAlignHttp As HttpClient
 
+' --- Layout responsivo (Form_Resize) ---
+' Catturati al primo Form_Resize (post-creazione). $rsDesigned protegge il
+' setup one-shot. La GridView cresce in entrambe le direzioni, il blocco
+' inferiore (bottoni + IN ARRIVO + status bar) e' ancorato al fondo,
+' alcuni widget anche al lato destro (colonna 4 + Impostazioni).
+Private $rsDesigned As Boolean
+Private $rsDesignW As Integer
+Private $rsDesignH As Integer
+Private $rsOrigGridW As Integer
+Private $rsOrigGridH As Integer
+Private $rsBtmCtrl As Object[]
+Private $rsBtmOrigTop As New Integer[]
+Private $rsRgtCtrl As Object[]
+Private $rsRgtOrigLeft As New Integer[]
+
 ' --- Google Sheets (writer, opzionale) ---
 Private $sheet As CSheet
 
@@ -470,6 +485,58 @@ PUBLIC SUB SetupGridHeader()
   GridView1[0, 2].Text = "Arrivo"
   GridView1[0, 3].Text = "Tempo"
 END
+
+Public Sub Form_Resize()
+  ' Layout responsivo: GridView cresce sia in larghezza che in altezza,
+  ' tutto il blocco sotto (button area + status bar) e' ancorato al
+  ' bordo inferiore, e i bottoni della colonna 4 + Impostazioni sono
+  ' ancorati al bordo destro.
+  '
+  ' Il design iniziale (dimensioni form, dimensioni grid, posizioni
+  ' originali dei widget) viene catturato al primo Form_Resize, perche'
+  ' Form_Open viene chiamato prima che Width/Height riflettano il
+  ' MoveScaled del form-file. Min-size = design size (non scendiamo
+  ' mai sotto il layout originale, che e' gia' denso).
+  Dim i As Integer
+  Dim c As Control
+  Dim dW, dH As Integer
+
+  If Not $rsDesigned Then
+    $rsDesignW = Me.Width
+    $rsDesignH = Me.Height
+    $rsOrigGridW = GridView1.Width
+    $rsOrigGridH = GridView1.Height
+    $rsBtmCtrl = [Button2, Button3, Button4, Button5, Button6, Button7, Button8, Button9, Button10, Button1, ButtonImporta, ButtonChangeNum, Label1, Label2, LabelArduino, LabelSync, LabelSheet, ButtonSettings]
+    $rsRgtCtrl = [Button6, Button7, Button8, ButtonImporta, Button1, ButtonSettings]
+    For Each c In $rsBtmCtrl
+      $rsBtmOrigTop.Add(c.Top)
+    Next
+    For Each c In $rsRgtCtrl
+      $rsRgtOrigLeft.Add(c.Left)
+    Next
+    Me.MinW = $rsDesignW
+    Me.MinH = $rsDesignH
+    $rsDesigned = True
+    Return
+  Endif
+
+  dW = Me.Width - $rsDesignW
+  dH = Me.Height - $rsDesignH
+  If dW < 0 Then dW = 0
+  If dH < 0 Then dH = 0
+
+  GridView1.Width = $rsOrigGridW + dW
+  GridView1.Height = $rsOrigGridH + dH
+
+  For i = 0 To $rsBtmCtrl.Max
+    c = $rsBtmCtrl[i]
+    c.Top = $rsBtmOrigTop[i] + dH
+  Next
+  For i = 0 To $rsRgtCtrl.Max
+    c = $rsRgtCtrl[i]
+    c.Left = $rsRgtOrigLeft[i] + dW
+  Next
+End
 
 PUBLIC SUB Form_Open()
 DIM sTest AS String
