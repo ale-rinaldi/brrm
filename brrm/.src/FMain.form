@@ -56,7 +56,7 @@
     Text = ("SYNC")
   }
   { ButtonEsporta Button
-    MoveScaled(82,44,18,5)
+    MoveScaled(82,45,18,5)
     Text = ("ESPORTA")
   }
   { ButtonImporta Button

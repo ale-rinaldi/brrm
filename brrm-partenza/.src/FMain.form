@@ -32,7 +32,7 @@
     Text = ("Impostazioni…")
   }
   { ButtonEsporta Button
-    MoveScaled(74,44,18,5)
+    MoveScaled(74,45,18,5)
     Text = ("ESPORTA")
   }
   { ButtonFotON Button
