@@ -16,15 +16,15 @@
     Visible = False
   }
   { ButtonAnnullaPart Button
-    MoveScaled(27,42,21,4)
+    MoveScaled(25,42,23,4)
     Text = ("Annulla partenza")
   }
   { ButtonChangeNum Button
-    MoveScaled(27,47,21,4)
+    MoveScaled(25,47,23,4)
     Text = ("Cambia numero")
   }
   { ButtonInvert Button
-    MoveScaled(27,52,21,4)
+    MoveScaled(25,52,23,4)
     Text = ("Inverti partenze")
   }
   { ButtonSettings Button
@@ -59,7 +59,7 @@
     Visible = False
   }
   { ButtonPartenza Button
-    MoveScaled(1,42,25,15)
+    MoveScaled(1,42,23,14)
     Text = ("PARTENZA")
   }
   { TimerArrivoQueue #Timer
