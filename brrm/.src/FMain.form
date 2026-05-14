@@ -6,12 +6,12 @@
   { GridView1 GridView
     MoveScaled(1,1,99,38)
   }
-  { Timer1 #Timer
+  { TimerGrid #Timer
     #X = 665
     #Y = 322
     Delay = 91
   }
-  { Button2 Button
+  { ButtonPartenza Button
     MoveScaled(1,40,25,6)
     Text = ("PARTENZA")
   }
@@ -19,23 +19,23 @@
     MoveScaled(1,1,90,3)
     Visible = False
   }
-  { Button3 Button
+  { ButtonAnnullaPart Button
     MoveScaled(27,40,21,4)
     Text = ("Annulla partenza")
   }
-  { Button4 Button
+  { ButtonInvertiArr Button
     MoveScaled(27,50,21,4)
     Text = ("Inverti arrivo")
   }
-  { Button5 Button
+  { ButtonAnnullaArr Button
     MoveScaled(27,45,21,4)
     Text = ("Annulla arrivo")
   }
-  { Label1 Label
+  { LabelInArrivo Label
     MoveScaled(50,41,11,3)
     Text = ("IN ARRIVO:")
   }
-  { Label2 Label
+  { LabelInArrivoNum Label
     MoveScaled(50,45,25,9)
     Font = Font["+15"]
     Text = ("")
@@ -55,7 +55,7 @@
     Alignment = Align.Center
     Text = ("SYNC")
   }
-  { Button6 Button
+  { ButtonEsporta Button
     MoveScaled(82,44,18,5)
     Text = ("ESPORTA")
   }
@@ -63,22 +63,22 @@
     MoveScaled(82,50,18,4)
     Text = ("Importa partenze")
   }
-  { Button7 Button
+  { ButtonFotON Button
     MoveScaled(83,40,9,2)
     Background = &H00FF00&
     Text = ("FotON")
   }
-  { Button8 Button
+  { ButtonFotOFF Button
     MoveScaled(92,40,8,1)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
-  { Timer2 #Timer
+  { TimerBlink #Timer
     #X = 665
     #Y = 329
     Delay = 500
   }
-  { Button1 Button
+  { ButtonReset Button
     MoveScaled(82,55,18,4)
     Text = ("RESET!")
   }
@@ -86,17 +86,17 @@
     MoveScaled(1,4,90,3)
     Visible = False
   }
-  { Button9 Button
+  { ButtonArrivo Button
     MoveScaled(1,47,25,7)
     Text = ("ARRIVO")
   }
-  { Timer3 #Timer
+  { TimerArrivoQueue #Timer
     #X = 665
     #Y = 336
     Enabled = True
     Delay = 100
   }
-  { Timer4 #Timer
+  { TimerArduino #Timer
     #X = 665
     #Y = 343
     Enabled = True
@@ -108,7 +108,7 @@
     Enabled = False
     Delay = 15000
   }
-  { Button10 Button
+  { ButtonOrdine Button
     MoveScaled(1,55,25,4)
     Text = ("MODIFICA ORDINE")
   }

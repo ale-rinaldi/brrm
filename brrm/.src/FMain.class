@@ -403,7 +403,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       If iNumero <= 0 Or iNumero >= MAX_NUMERO Then Return
       sOrario = ""
       Try sOrario = CStr(ev["orario"])
-      Timer1.Stop
+      TimerGrid.Stop
       If sOrario = "" Then
         partenze[iNumero] = 0
       Else
@@ -418,7 +418,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       $alignLastSeq = iSeq
       SaveAlignState()
       UpgradeSessionFile()
-      Timer1.Start
+      TimerGrid.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
 
     ' "keepalive" e altri tipi: nessuna azione (il reset del watchdog avviene
@@ -451,10 +451,10 @@ END
 
 PUBLIC SUB SetPartenza(Equipaggio AS Integer, Partenza AS Date)
 
-  Timer1.Stop
+  TimerGrid.Stop
   partenze[Equipaggio] = Partenza
   UpgradeSessionFile()
-  Timer1.Start
+  TimerGrid.Start
   IF $sheet THEN $sheet.UpdateForEquipaggio(Equipaggio)
 END
 
@@ -514,8 +514,8 @@ Public Sub Form_Resize()
     $rsDesignH = Me.Height
     $rsOrigGridW = GridView1.Width
     $rsOrigGridH = GridView1.Height
-    $rsBtmCtrl = [Button2, Button3, Button4, Button5, Button6, Button7, Button8, Button9, Button10, Button1, ButtonImporta, ButtonChangeNum, Label1, Label2, LabelArduino, LabelSync, LabelSheet, ButtonSettings]
-    $rsRgtCtrl = [Button6, Button7, Button8, ButtonImporta, Button1, ButtonSettings]
+    $rsBtmCtrl = [ButtonPartenza, ButtonAnnullaPart, ButtonInvertiArr, ButtonAnnullaArr, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonArrivo, ButtonOrdine, ButtonReset, ButtonImporta, ButtonChangeNum, LabelInArrivo, LabelInArrivoNum, LabelArduino, LabelSync, LabelSheet, ButtonSettings]
+    $rsRgtCtrl = [ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonImporta, ButtonReset, ButtonSettings]
     For Each c In $rsBtmCtrl
       $rsBtmOrigTop.Add(c.Top)
     Next
@@ -571,7 +571,7 @@ IF aLines.Count >= 1 AND IF aLines[0] = "brrm-session v1" THEN
     IF aFields[2] <> "" THEN TRY arrivi[iNum] = aFields[2]
   NEXT
 ENDIF
-Timer1.Start()
+TimerGrid.Start()
 AlignInit()
 $sheet = New CSheet
 $sheet.Init()
@@ -634,14 +634,14 @@ indice = 0
 Counter = 0
 WHILE Counter < LEquipaggi.Count
 IF arrivi[LEquipaggi[Counter].Text] = 0 THEN 
-Label2.Text = LEquipaggi[Counter].Text
+LabelInArrivoNum.Text = LEquipaggi[Counter].Text
 indice = 1
 BREAK 
 ENDIF 
 Counter = Counter + 1
 WEND 
 IF indice = 0 THEN 
-Label2.Text = "/"
+LabelInArrivoNum.Text = "/"
 ENDIF 
 END
 
@@ -649,7 +649,7 @@ PUBLIC SUB Button1_Click()
 DIM Counter AS Integer
 IF Message.Question("Sei sicuro?", "Sì", "No") = 1 THEN 
 IF Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
-Timer1.Stop
+TimerGrid.Stop
 LEquipaggi.Clear
 Counter = 0
 WHILE Counter < MAX_NUMERO
@@ -660,7 +660,7 @@ WEND
 UpgradeSessionFile()
 ENDIF 
 ENDIF 
-Timer1.Start
+TimerGrid.Start
 END
 
 PUBLIC SUB EditOrder(Order AS String)
@@ -668,7 +668,7 @@ PUBLIC SUB EditOrder(Order AS String)
   DIM aOrdine AS String[]
   DIM iEqui AS Integer
   DIM Number AS Integer
-  Timer1.Stop
+  TimerGrid.Stop
   LEquipaggi.Clear
   aOrdine = Split(Order, "-")
   GridView1.Rows.Count = aOrdine.Count + 1
@@ -676,7 +676,7 @@ PUBLIC SUB EditOrder(Order AS String)
   FOR EACH iEqui IN aOrdine
   LEquipaggi.Add(iEqui)
   NEXT 
-  Timer1.Start
+  TimerGrid.Start
 END
 
 PUBLIC SUB Button5_Click()
@@ -792,7 +792,7 @@ PUBLIC SUB ButtonImporta_Click()
     RETURN
   ENDIF
 
-  Timer1.Stop
+  TimerGrid.Stop
   aLines = Split(File.Load(sPath), "\n")
   FOR EACH sLine IN aLines
     sLine = Trim$(sLine)
@@ -812,7 +812,7 @@ PUBLIC SUB ButtonImporta_Click()
   NEXT
 
   UpgradeSessionFile()
-  Timer1.Start
+  TimerGrid.Start
   Message.Info(iImportati & " orari di partenza importati.")
 END
 
@@ -824,35 +824,35 @@ DIM pt2 AS Date
   DIM iAnnPartNum AS Integer
   iAnnPartNum = LEquipaggi[GridView1.Row - 1].Text
   IF Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & iAnnPartNum & "?", "Sì", "No") = 1 THEN
-  Timer1.Stop
+  TimerGrid.Stop
   partenze[iAnnPartNum] = 0
   IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnPartNum)
   ENDIF
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   END IF
 
     IF CurrAct = ACT_ANNARR THEN
     DIM iAnnArrNum AS Integer
     iAnnArrNum = LEquipaggi[GridView1.Row - 1].Text
     IF Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & iAnnArrNum & "?", "Sì", "No") = 1 THEN
-  Timer1.Stop
+  TimerGrid.Stop
   arrivi[iAnnArrNum] = 0
   IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnArrNum)
   ENDIF
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   END IF
   
     IF CurrAct = ACT_INVARR2 THEN
 
   INV2 = LEquipaggi[GridView1.Row - 1].Text
   IF Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 THEN
- Timer1.Stop
+ TimerGrid.Stop
   pt1 = arrivi[INV1]
   pt2 = arrivi[INV2]
   arrivi[INV2] = pt1
@@ -865,7 +865,7 @@ DIM pt2 AS Date
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   END IF
   
   IF CurrAct = ACT_INVARR1 THEN
@@ -880,7 +880,7 @@ DIM pt2 AS Date
     DIM sNew AS String
     DIM iNew AS Integer
     iOld = LEquipaggi[GridView1.Row - 1].Text
-    Timer1.Stop
+    TimerGrid.Stop
     sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & ":", "Cambia numero")
     IF sNew <> "" THEN
       iNew = 0
@@ -895,7 +895,7 @@ DIM pt2 AS Date
         ChangeNumero(iOld, iNew)
       ENDIF
     ENDIF
-    Timer1.Start
+    TimerGrid.Start
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
     CurrAct = ACT_NONE
@@ -926,27 +926,27 @@ END
 PUBLIC SUB Button7_Click()
 
   FotON = TRUE
-  Timer2.Stop
-  Button8.Background = &HFFFFFF&
-  Button7.Background = &H00FF00&
+  TimerBlink.Stop
+  ButtonFotOFF.Background = &HFFFFFF&
+  ButtonFotON.Background = &H00FF00&
 
 END
 
 PUBLIC SUB Button8_Click()
 
   FotON = FALSE
-    Button8.Background = &HFF0000&
-    Button7.Background = &HFFFFFF&
-    Timer2.Start
+    ButtonFotOFF.Background = &HFF0000&
+    ButtonFotON.Background = &HFFFFFF&
+    TimerBlink.Start
 
 END
 
 PUBLIC SUB Timer2_Timer()
 
-  IF Button8.Background = &HFF0000& THEN 
-  Button8.Background = &HFFFFFF&
+  IF ButtonFotOFF.Background = &HFF0000& THEN 
+  ButtonFotOFF.Background = &HFFFFFF&
   ELSE 
-  Button8.Background = &HFF0000&
+  ButtonFotOFF.Background = &HFF0000&
   ENDIF 
   
 
@@ -960,9 +960,9 @@ END
 
 PUBLIC SUB SetArrivo(Numero AS Integer, Orario AS Date)
 
-Timer1.Stop
+TimerGrid.Stop
 arrivi[Numero] = Orario
-Timer1.Start
+TimerGrid.Start
   UpgradeSessionFile()
   IF $sheet THEN $sheet.UpdateForEquipaggio(Numero)
   
@@ -1037,13 +1037,13 @@ END
 PUBLIC SUB Form_Close()
   ' Stop dei timer e chiusura SerialPort prima che la form muoia:
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
-  ' staccato), il loop _Read/Timer4-reopen continua durante la fase
+  ' staccato), il loop _Read/TimerArduino-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
   ' $shuttingDown si setta PRIMA degli Stop perche' un Timer4_Timer in
   ' WAIT potrebbe risvegliarsi proprio in questo istante.
   $shuttingDown = True
-  TRY Timer1.Stop
-  TRY Timer4.Stop
+  TRY TimerGrid.Stop
+  TRY TimerArduino.Stop
   TRY TimerAlignWatchdog.Stop
   ArduinoClose()
 END

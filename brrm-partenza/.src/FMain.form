@@ -6,7 +6,7 @@
   { GridView1 GridView
     MoveScaled(1,1,91,38)
   }
-  { Timer1 #Timer
+  { TimerGrid #Timer
     #X = 609
     #Y = 322
     Delay = 91
@@ -15,7 +15,7 @@
     MoveScaled(1,1,90,3)
     Visible = False
   }
-  { Button3 Button
+  { ButtonAnnullaPart Button
     MoveScaled(27,42,21,4)
     Text = ("Annulla partenza")
   }
@@ -31,26 +31,26 @@
     MoveScaled(74,60,18,4)
     Text = ("Impostazioni…")
   }
-  { Button6 Button
+  { ButtonEsporta Button
     MoveScaled(74,44,18,5)
     Text = ("ESPORTA")
   }
-  { Button7 Button
+  { ButtonFotON Button
     MoveScaled(75,40,9,2)
     Background = &H00FF00&
     Text = ("FotON")
   }
-  { Button8 Button
+  { ButtonFotOFF Button
     MoveScaled(84,40,8,1)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
-  { Timer2 #Timer
+  { TimerBlink #Timer
     #X = 609
     #Y = 329
     Delay = 500
   }
-  { Button1 Button
+  { ButtonReset Button
     MoveScaled(74,52,18,4)
     Text = ("RESET!")
   }
@@ -58,17 +58,17 @@
     MoveScaled(1,4,90,3)
     Visible = False
   }
-  { Button9 Button
+  { ButtonPartenza Button
     MoveScaled(1,42,25,15)
     Text = ("PARTENZA")
   }
-  { Timer3 #Timer
+  { TimerArrivoQueue #Timer
     #X = 609
     #Y = 336
     Enabled = True
     Delay = 100
   }
-  { Timer4 #Timer
+  { TimerArduino #Timer
     #X = 609
     #Y = 343
     Enabled = True

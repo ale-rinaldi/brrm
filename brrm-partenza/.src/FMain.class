@@ -77,8 +77,8 @@ Public Sub Form_Resize()
     $rsOrigGridW = GridView1.Width
     $rsOrigGridH = GridView1.Height
     ' brrm-partenza non ha Label1/Label2 (niente IN ARRIVO) ne' LabelSheet
-    $rsBtmCtrl = [Button3, ButtonChangeNum, ButtonInvert, ButtonSettings, Button6, Button7, Button8, Button1, Button9, LabelArduino, LabelSync]
-    $rsRgtCtrl = [Button6, Button7, Button8, Button1, ButtonSettings]
+    $rsBtmCtrl = [ButtonAnnullaPart, ButtonChangeNum, ButtonInvert, ButtonSettings, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonPartenza, LabelArduino, LabelSync]
+    $rsRgtCtrl = [ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonSettings]
     For Each c In $rsBtmCtrl
       $rsBtmOrigTop.Add(c.Top)
     Next
@@ -199,15 +199,15 @@ End
 Public Sub Form_Close()
   ' Stop dei timer e chiusura SerialPort prima che la form muoia:
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
-  ' staccato), il loop _Read/Timer4-reopen continua durante la fase
+  ' staccato), il loop _Read/TimerArduino-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
   ' $shuttingDown va settato PRIMA degli Stop: un Timer4_Timer in WAIT
   ' potrebbe risvegliarsi proprio in questo istante.
   $shuttingDown = True
-  Try Timer1.Stop
-  Try Timer2.Stop
-  Try Timer3.Stop
-  Try Timer4.Stop
+  Try TimerGrid.Stop
+  Try TimerBlink.Stop
+  Try TimerArrivoQueue.Stop
+  Try TimerArduino.Stop
   Try TimerAlign.Stop
   Try TimerAlignHeartbeat.Stop
   ArduinoClose()
@@ -526,11 +526,11 @@ End
 
 Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
   
-  Timer1.Stop
+  TimerGrid.Stop
   partenze[Equipaggio] = Partenza
   UpgradeSessionFile()
   AlignEnqueue(Equipaggio, Partenza)
-  Timer1.Start
+  TimerGrid.Start
 End
 
 Public Sub ReturnArrivo(Numero As Integer) As Date
@@ -583,7 +583,7 @@ If aLines.Count >= 1 And If aLines[0] = "brrm-partenza-session v1" Then
     If aFields[1] <> "" Then Try partenze[iNum] = aFields[1]
   Next
 Endif
-Timer1.Start()
+TimerGrid.Start()
 AlignInit()
 End 
 
@@ -637,7 +637,7 @@ Dim Counter As Integer
 Dim iResetNum As Integer
 If Message.Question("Sei sicuro?", "Sì", "No") = 1 Then 
 If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
-Timer1.Stop
+TimerGrid.Stop
 ' Sync: enqueue annullamento per ogni equipaggio attivo prima di pulire
 For Counter = 0 To LEquipaggi.Count - 1
   iResetNum = 0
@@ -654,7 +654,7 @@ Wend
 UpgradeSessionFile()
 Endif 
 Endif 
-Timer1.Start
+TimerGrid.Start
 End
 
 Public Sub EditOrder(Order As String)
@@ -662,7 +662,7 @@ Public Sub EditOrder(Order As String)
   Dim aOrdine As String[]
   Dim iEqui As Integer
   Dim Number As Integer
-  Timer1.Stop
+  TimerGrid.Stop
   LEquipaggi.Clear
   aOrdine = Split(Order, "-")
   GridView1.Rows.Count = aOrdine.Count + 1
@@ -670,7 +670,7 @@ Public Sub EditOrder(Order As String)
   For Each iEqui In aOrdine
   LEquipaggi.Add(iEqui)
   Next 
-  Timer1.Start
+  TimerGrid.Start
 End
 
 Public Sub Button5_Click()
@@ -742,7 +742,7 @@ Dim pt2 As Date
   If GridView1.Row > 0 Then
   If CurrAct = ACT_ANNPART Then 
   If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
-  Timer1.Stop
+  TimerGrid.Stop
   Dim iAnnNum As Integer = LEquipaggi[GridView1.Row - 1].Text
   partenze[iAnnNum] = 0
   AlignEnqueue(iAnnNum, 0)
@@ -750,25 +750,25 @@ Dim pt2 As Date
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   End If
   
     If CurrAct = ACT_ANNARR Then 
     If Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
-  Timer1.Stop
+  TimerGrid.Stop
   arrivi[LEquipaggi[GridView1.Row - 1].Text] = 0
   Endif 
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   End If
   
     If CurrAct = ACT_INVARR2 Then 
     
   INV2 = LEquipaggi[GridView1.Row - 1].Text
   If Message.Question("Sei sicuro di voler invertire gli arrivi degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then 
- Timer1.Stop
+ TimerGrid.Stop
   pt1 = arrivi[INV1]
   pt2 = arrivi[INV2]
   arrivi[INV2] = pt1
@@ -777,7 +777,7 @@ Dim pt2 As Date
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
-  Timer1.Start
+  TimerGrid.Start
   End If
   
   If CurrAct = ACT_INVARR1 Then
@@ -795,7 +795,7 @@ Dim pt2 As Date
     If partenze[iOld] = 0 Then
       Message.Error("L'equipaggio " & iOld & " non ha un orario di partenza da spostare.")
     Else
-      Timer1.Stop
+      TimerGrid.Stop
       sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & " (partenza " & partenze[iOld] & "):", "Cambia numero")
       If sNew <> "" Then
         iNew = 0
@@ -810,7 +810,7 @@ Dim pt2 As Date
           ChangeNumero(iOld, iNew)
         Endif
       Endif
-      Timer1.Start
+      TimerGrid.Start
     Endif
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
@@ -822,9 +822,9 @@ Dim pt2 As Date
     If INV2 = INV1 Then
       Message.Error("Non posso invertire un equipaggio con se stesso.")
     Else If Message.Question("Sei sicuro di voler invertire le partenze degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then
-      Timer1.Stop
+      TimerGrid.Stop
       InvertiPartenze(INV1, INV2)
-      Timer1.Start
+      TimerGrid.Start
     Endif
     GridView1.Background = &H0FFFFFF&
     GridView1.Mouse = 0
@@ -925,27 +925,27 @@ End
 Public Sub Button7_Click()
 
   FotON = True
-  Timer2.Stop
-  Button8.Background = &HFFFFFF&
-  Button7.Background = &H00FF00&
+  TimerBlink.Stop
+  ButtonFotOFF.Background = &HFFFFFF&
+  ButtonFotON.Background = &H00FF00&
 
 End
 
 Public Sub Button8_Click()
 
   FotON = False
-    Button8.Background = &HFF0000&
-    Button7.Background = &HFFFFFF&
-    Timer2.Start
+    ButtonFotOFF.Background = &HFF0000&
+    ButtonFotON.Background = &HFFFFFF&
+    TimerBlink.Start
 
 End
 
 Public Sub Timer2_Timer()
 
-  If Button8.Background = &HFF0000& Then 
-  Button8.Background = &HFFFFFF&
+  If ButtonFotOFF.Background = &HFF0000& Then 
+  ButtonFotOFF.Background = &HFFFFFF&
   Else 
-  Button8.Background = &HFF0000&
+  ButtonFotOFF.Background = &HFF0000&
   Endif 
   
 
@@ -959,9 +959,9 @@ End
 
 Public Sub SetArrivo(Numero As Integer, Orario As Date) 
 
-Timer1.Stop
+TimerGrid.Stop
 arrivi[Numero] = Orario
-Timer1.Start
+TimerGrid.Start
   UpgradeSessionFile()
   
 End 
