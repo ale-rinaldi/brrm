@@ -43,8 +43,70 @@ Private $alignProbing As Boolean
 Private $alignBackoffSec As Integer
 Private $hAlignHttp As HttpClient
 
+' --- Layout responsivo (Form_Resize) ---
+' Stesso meccanismo di brrm/FMain: cattura design al primo Form_Resize,
+' GridView cresce in entrambe le direzioni, button area + status bar
+' ancorati al fondo, colonna 4 + Impostazioni ancorati a destra.
+Private $rsDesigned As Boolean
+Private $rsDesignW As Integer
+Private $rsDesignH As Integer
+Private $rsOrigGridW As Integer
+Private $rsOrigGridH As Integer
+Private $rsBtmCtrl As Object[]
+Private $rsBtmOrigTop As New Integer[]
+Private $rsRgtCtrl As Object[]
+Private $rsRgtOrigLeft As New Integer[]
+
+' Flag di shutdown: vedi brrm/FMain.class. Evita race tra Form_Close e
+' Timer4_Timer in WAIT.
+Private $shuttingDown As Boolean
+
 Public Sub _new()
 
+End
+
+Public Sub Form_Resize()
+  ' Vedi commento omonimo in brrm/FMain.class per la logica generale.
+  Dim i As Integer
+  Dim c As Control
+  Dim dW, dH As Integer
+
+  If Not $rsDesigned Then
+    $rsDesignW = Me.Width
+    $rsDesignH = Me.Height
+    $rsOrigGridW = GridView1.Width
+    $rsOrigGridH = GridView1.Height
+    ' brrm-partenza non ha Label1/Label2 (niente IN ARRIVO) ne' LabelSheet
+    $rsBtmCtrl = [Button3, ButtonChangeNum, ButtonInvert, ButtonSettings, Button6, Button7, Button8, Button1, Button9, LabelArduino, LabelSync]
+    $rsRgtCtrl = [Button6, Button7, Button8, Button1, ButtonSettings]
+    For Each c In $rsBtmCtrl
+      $rsBtmOrigTop.Add(c.Top)
+    Next
+    For Each c In $rsRgtCtrl
+      $rsRgtOrigLeft.Add(c.Left)
+    Next
+    Me.MinW = $rsDesignW
+    Me.MinH = $rsDesignH
+    $rsDesigned = True
+    Return
+  Endif
+
+  dW = Me.Width - $rsDesignW
+  dH = Me.Height - $rsDesignH
+  If dW < 0 Then dW = 0
+  If dH < 0 Then dH = 0
+
+  GridView1.Width = $rsOrigGridW + dW
+  GridView1.Height = $rsOrigGridH + dH
+
+  For i = 0 To $rsBtmCtrl.Max
+    c = $rsBtmCtrl[i]
+    c.Top = $rsBtmOrigTop[i] + dH
+  Next
+  For i = 0 To $rsRgtCtrl.Max
+    c = $rsRgtCtrl[i]
+    c.Left = $rsRgtOrigLeft[i] + dW
+  Next
 End
 
 Public Sub Arduino_Read()
@@ -69,6 +131,8 @@ Endif
 End
 
 Private Sub SetArduinoStatus(bConnected As Boolean)
+  ' Durante shutdown LabelArduino puo' essere gia' distrutto.
+  If $shuttingDown Then Return
   If bConnected Then
     LabelArduino.Background = &H00CC00&
     LabelArduino.Foreground = &HFFFFFF&
@@ -95,6 +159,8 @@ Public Sub Timer4_Timer()
   ' listener di _Read (bug Gambas 3.20).
   ArduinoClose()
   Wait 0.1
+  ' Form_Close puo' essere passato durante WAIT: niente reopen ne' UI.
+  If $shuttingDown Then Return
   sDevice = MFile.FindArduinoDevice()
   If sDevice = "" Then
     SetArduinoStatus(False)
@@ -135,6 +201,9 @@ Public Sub Form_Close()
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
   ' staccato), il loop _Read/Timer4-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
+  ' $shuttingDown va settato PRIMA degli Stop: un Timer4_Timer in WAIT
+  ' potrebbe risvegliarsi proprio in questo istante.
+  $shuttingDown = True
   Try Timer1.Stop
   Try Timer2.Stop
   Try Timer3.Stop

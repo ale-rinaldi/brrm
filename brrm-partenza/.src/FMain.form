@@ -1,7 +1,7 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,93,60)
+  MoveScaled(0,0,93,65)
   Text = ("BoxRally Race Manager - Partenza")
   { GridView1 GridView
     MoveScaled(1,1,91,38)
@@ -28,20 +28,20 @@
     Text = ("Inverti partenze")
   }
   { ButtonSettings Button
-    MoveScaled(50,49,16,4)
+    MoveScaled(74,60,18,4)
     Text = ("Impostazioni…")
   }
   { Button6 Button
-    MoveScaled(68,44,18,5)
+    MoveScaled(74,44,18,5)
     Text = ("ESPORTA")
   }
   { Button7 Button
-    MoveScaled(68,40,9,2)
+    MoveScaled(75,40,9,2)
     Background = &H00FF00&
     Text = ("FotON")
   }
   { Button8 Button
-    MoveScaled(78,40,8,1)
+    MoveScaled(84,40,8,1)
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
@@ -51,7 +51,7 @@
     Delay = 500
   }
   { Button1 Button
-    MoveScaled(68,52,18,4)
+    MoveScaled(74,52,18,4)
     Text = ("RESET!")
   }
   { BArrivi ListBox
@@ -87,14 +87,14 @@
     Delay = 30000
   }
   { LabelArduino Label
-    MoveScaled(50,40,16,4)
+    MoveScaled(1,60,18,4)
     Background = &HCCCCCC&
     Foreground = &H000000&
     Alignment = Align.Center
     Text = ("ARDUINO ?")
   }
   { LabelSync Label
-    MoveScaled(50,44,16,4)
+    MoveScaled(20,60,14,4)
     Visible = False
     Background = &HCC0000&
     Foreground = &HFFFFFF&
