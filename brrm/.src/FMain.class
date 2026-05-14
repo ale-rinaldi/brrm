@@ -20,6 +20,11 @@ Private FotON As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
 
+' Flag di shutdown: serve a evitare race tra Form_Close (distrugge i
+' widget) e Timer4_Timer (che dopo un WAIT 0.1 potrebbe ancora chiamare
+' SetArduinoStatus e toccare LabelArduino gia' invalido).
+Private $shuttingDown As Boolean
+
 ' --- Arduino (gestito dinamicamente per workaround bug Gambas) ---
 ' SerialPort.Open su un oggetto gia' chiuso non riarma il listener
 ' di _Read. Ricreiamo l'oggetto a ogni riconnessione e riattacchiamo
@@ -83,6 +88,9 @@ ENDIF
 END
 
 PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
+  ' Durante shutdown LabelArduino puo' essere gia' distrutto: ritorno
+  ' subito per evitare "Invalid object" (race con Timer4_Timer in WAIT).
+  IF $shuttingDown THEN RETURN
   IF bConnected THEN
     LabelArduino.Background = &H00CC00&
     LabelArduino.Foreground = &HFFFFFF&
@@ -988,6 +996,9 @@ PUBLIC SUB Timer4_Timer()
   ' listener di _Read (bug Gambas 3.20).
   ArduinoClose()
   WAIT 0.1
+  ' Form_Close puo' essere passato durante WAIT: niente reopen di Arduino
+  ' ne' tocchi alla UI.
+  IF $shuttingDown THEN RETURN
   sDevice = MFile.FindArduinoDevice()
   IF sDevice = "" THEN
     SetArduinoStatus(FALSE)
@@ -1028,6 +1039,9 @@ PUBLIC SUB Form_Close()
   ' senza questo, se il fd del SerialPort e' in stato HUP (device
   ' staccato), il loop _Read/Timer4-reopen continua durante la fase
   ' di shutdown tenendo il processo appeso al 100% CPU.
+  ' $shuttingDown si setta PRIMA degli Stop perche' un Timer4_Timer in
+  ' WAIT potrebbe risvegliarsi proprio in questo istante.
+  $shuttingDown = True
   TRY Timer1.Stop
   TRY Timer4.Stop
   TRY TimerAlignWatchdog.Stop
