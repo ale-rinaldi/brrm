@@ -35,6 +35,11 @@
     MoveScaled(50,41,11,3)
     Text = ("IN ARRIVO:")
   }
+  { Label2 Label
+    MoveScaled(50,45,25,9)
+    Font = Font["+15"]
+    Text = ("")
+  }
   { LabelArduino Label
     MoveScaled(62,40,13,4)
     Background = &HCCCCCC&
@@ -49,11 +54,6 @@
     Foreground = &HFFFFFF&
     Alignment = Align.Center
     Text = ("SYNC")
-  }
-  { Label2 Label
-    MoveScaled(50,45,25,9)
-    Font = Font["+15"]
-    Text = ("")
   }
   { Button6 Button
     MoveScaled(76,44,18,5)
