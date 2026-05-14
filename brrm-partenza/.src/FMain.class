@@ -614,27 +614,22 @@ Wend
 End
 
 Public Sub ButtonReset_Click()
-Dim Counter As Integer
-Dim iResetNum As Integer
-If Message.Question("Sei sicuro?", "Sì", "No") = 1 Then 
-If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") = 1
-TimerGrid.Stop
-' Sync: enqueue annullamento per ogni equipaggio attivo prima di pulire
-For Counter = 0 To LEquipaggi.Count - 1
-  iResetNum = 0
-  Try iResetNum = LEquipaggi[Counter].Text
-  If iResetNum > 0 Then AlignEnqueue(iResetNum, 0)
-Next
-LEquipaggi.Clear
-Counter = 0
-While Counter < MAX_NUMERO
-partenze[Counter] = 0
-Counter = Counter + 1
-Wend 
-UpgradeSessionFile()
-Endif 
-Endif 
-TimerGrid.Start
+  ' RESET locale-only: NON propaga via sync. Razionale: il reset in
+  ' partenza si fa tipicamente a inizio gara o per correggere errori di
+  ' setup; non vogliamo cancellare anche gli arrivi gia' acquisiti su
+  ' brrm/arrivo. Ogni postazione gestisce il proprio reset.
+  Dim Counter As Integer
+  If Message.Question("Sei sicuro?", "Sì", "No") <> 1 Then Return
+  If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") <> 1 Then Return
+  TimerGrid.Stop
+  LEquipaggi.Clear
+  Counter = 0
+  While Counter < MAX_NUMERO
+    partenze[Counter] = 0
+    Counter = Counter + 1
+  Wend
+  UpgradeSessionFile()
+  TimerGrid.Start
 End
 
 Public Sub EditOrder(Order As String)
