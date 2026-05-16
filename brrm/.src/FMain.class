@@ -25,6 +25,10 @@ Private INV2 As Integer
 ' SetArduinoStatus e toccare LabelArduino gia' invalido).
 Private $shuttingDown As Boolean
 
+' Stato Arduino precedente: log solo le transizioni online <-> offline
+' (TimerArduino chiama ogni 2s, niente spam nel registro).
+Private $arduinoOnline As Boolean
+
 ' --- Arduino (gestito dinamicamente per workaround bug Gambas) ---
 ' SerialPort.Open su un oggetto gia' chiuso non riarma il listener
 ' di _Read. Ricreiamo l'oggetto a ogni riconnessione e riattacchiamo
@@ -81,8 +85,13 @@ IF Error THEN
   ArduinoClose()
   RETURN
 ENDIF
+DIM sNow AS String
+sNow = Format$(Time, "hh:nn:ss.uuu")
 IF FotON = TRUE THEN
-BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
+  BArrivi.Add(sNow)
+  Try MLog.Write("fotocellula", "source=arduino orario=" & sNow)
+ELSE
+  Try MLog.Write("fotocellula_ignorata", "source=arduino motivo=FotOFF orario=" & sNow)
 ENDIF
 
 END
@@ -91,6 +100,15 @@ PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
   ' Durante shutdown LabelArduino puo' essere gia' distrutto: ritorno
   ' subito per evitare "Invalid object" (race con TimerArduino_Timer in WAIT).
   IF $shuttingDown THEN RETURN
+  ' Log solo le transizioni di stato.
+  If bConnected <> $arduinoOnline Then
+    $arduinoOnline = bConnected
+    If bConnected Then
+      Try MLog.Write("arduino_online", "")
+    Else
+      Try MLog.Write("arduino_offline", "")
+    Endif
+  Endif
   IF bConnected THEN
     LabelArduino.Background = &H00CC00&
     LabelArduino.Foreground = &HFFFFFF&
@@ -420,6 +438,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       UpgradeSessionFile()
       TimerGrid.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
+      Try MLog.Write("sync_evento", "sess=" & CStr(iSess) & " seq=" & CStr(iSeq) & " numero=" & CStr(iNumero) & " orario=" & sOrario)
 
     ' "keepalive" e altri tipi: nessuna azione (il reset del watchdog avviene
     ' gia' in AlignHttp_Read per qualsiasi chunk ricevuto).
@@ -555,6 +574,8 @@ DIM iNum AS Integer
 FotON = TRUE
 FMain.Center()
 SetupGridHeader()
+MLog.Init()
+Try MLog.Write("app_start", "ruolo=arrivo")
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 IF Exist(User.Home &/ ".local/share/brrm/arrivo-session") THEN sTest = File.Load(User.Home &/ ".local/share/brrm/arrivo-session")
@@ -658,8 +679,9 @@ arrivi[Counter] = 0
 Counter = Counter + 1
 WEND 
 UpgradeSessionFile()
-ENDIF 
-ENDIF 
+Try MLog.Write("reset", "")
+ENDIF
+ENDIF
 TimerGrid.Start
 END
 
@@ -675,8 +697,9 @@ PUBLIC SUB EditOrder(Order AS String)
   Number = 0
   FOR EACH iEqui IN aOrdine
   LEquipaggi.Add(iEqui)
-  NEXT 
+  NEXT
   TimerGrid.Start
+  Try MLog.Write("modifica_ordine", "ordine=" & Order)
 END
 
 PUBLIC SUB ButtonAnnullaArr_Click()
@@ -765,7 +788,12 @@ PUBLIC SUB ButtonEsporta_Click()
   sPath = Dialog.Path
   IF LCase$(File.Ext(sPath)) <> "csv" THEN sPath = sPath & ".csv"
   TRY File.Save(sPath, sOut)
-  IF Error THEN Message.Error("Impossibile salvare il file: " & Error.Text)
+  IF Error THEN
+    Message.Error("Impossibile salvare il file: " & Error.Text)
+    Try MLog.Write("esporta_errore", "path=" & sPath & " errore=" & Error.Text)
+  ELSE
+    Try MLog.Write("esporta", "path=" & sPath & " righe=" & CStr(LEquipaggi.Count))
+  ENDIF
 END
 
 PUBLIC SUB ButtonImporta_Click()
@@ -793,6 +821,7 @@ PUBLIC SUB ButtonImporta_Click()
   ENDIF
 
   TimerGrid.Stop
+  Try MLog.Write("importa_partenze_inizio", "path=" & sPath)
   aLines = Split(File.Load(sPath), "\n")
   FOR EACH sLine IN aLines
     sLine = Trim$(sLine)
@@ -809,11 +838,13 @@ PUBLIC SUB ButtonImporta_Click()
     partenze[iEqui] = dPart
     IF LEquipaggi.Find(iEqui) < 0 THEN LEquipaggi.Add(iEqui)
     iImportati = iImportati + 1
+    Try MLog.Write("importa_partenze_riga", "numero=" & CStr(iEqui) & " orario=" & sDateStr)
   NEXT
 
   UpgradeSessionFile()
   TimerGrid.Start
   Message.Info(iImportati & " orari di partenza importati.")
+  Try MLog.Write("importa_partenze_fine", "path=" & sPath & " righe=" & CStr(iImportati))
 END
 
 PUBLIC SUB GridView1_Click()
@@ -825,6 +856,7 @@ DIM pt2 AS Date
   iAnnPartNum = LEquipaggi[GridView1.Row - 1].Text
   IF Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & iAnnPartNum & "?", "Sì", "No") = 1 THEN
   TimerGrid.Stop
+  Try MLog.Write("annulla_partenza", "numero=" & CStr(iAnnPartNum) & " orario_prec=" & MLog.FmtTime(partenze[iAnnPartNum]))
   partenze[iAnnPartNum] = 0
   IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnPartNum)
   ENDIF
@@ -839,6 +871,7 @@ DIM pt2 AS Date
     iAnnArrNum = LEquipaggi[GridView1.Row - 1].Text
     IF Message.Question("Sei sicuro di voler annullare l'arrivo dell'equipaggio numero " & iAnnArrNum & "?", "Sì", "No") = 1 THEN
   TimerGrid.Stop
+  Try MLog.Write("annulla_arrivo", "numero=" & CStr(iAnnArrNum) & " orario_prec=" & MLog.FmtTime(arrivi[iAnnArrNum]))
   arrivi[iAnnArrNum] = 0
   IF $sheet THEN $sheet.UpdateForEquipaggio(iAnnArrNum)
   ENDIF
@@ -857,6 +890,7 @@ DIM pt2 AS Date
   pt2 = arrivi[INV2]
   arrivi[INV2] = pt1
   arrivi[INV1] = pt2
+  Try MLog.Write("inverti_arrivo", "n1=" & CStr(INV1) & " orario1_prec=" & MLog.FmtTime(pt1) & " n2=" & CStr(INV2) & " orario2_prec=" & MLog.FmtTime(pt2))
   IF $sheet THEN
     $sheet.UpdateForEquipaggio(INV1)
     $sheet.UpdateForEquipaggio(INV2)
@@ -906,7 +940,10 @@ UpgradeSessionFile()
 END
 
 PUBLIC SUB ButtonPartenza_Click()
-FPartenza.Show()
+  ' Apre il dialog di inserimento manuale di una partenza (numero + orario
+  ' digitati a mano, senza fotocellula). L'effettiva conferma o cancel
+  ' del dialog viene loggata da FPartenza.Button1_Click / Button2_Click.
+  FPartenza.Show()
 END
 
 PUBLIC SUB ButtonAnnullaPart_Click()
@@ -924,21 +961,19 @@ END
   
 
 PUBLIC SUB ButtonFotON_Click()
-
   FotON = TRUE
   TimerBlink.Stop
   ButtonFotOFF.Background = &HFFFFFF&
   ButtonFotON.Background = &H00FF00&
-
+  Try MLog.Write("foto_toggle", "stato=ON")
 END
 
 PUBLIC SUB ButtonFotOFF_Click()
-
   FotON = FALSE
-    ButtonFotOFF.Background = &HFF0000&
-    ButtonFotON.Background = &HFFFFFF&
-    TimerBlink.Start
-
+  ButtonFotOFF.Background = &HFF0000&
+  ButtonFotON.Background = &HFFFFFF&
+  TimerBlink.Start
+  Try MLog.Write("foto_toggle", "stato=OFF")
 END
 
 PUBLIC SUB TimerBlink_Timer()
@@ -953,9 +988,10 @@ PUBLIC SUB TimerBlink_Timer()
 END
 
 PUBLIC SUB ButtonArrivo_Click()
-
-BArrivi.Add(Format$(Time, "hh:nn:ss.uuu"))
-
+  DIM sNow AS String
+  sNow = Format$(Time, "hh:nn:ss.uuu")
+  BArrivi.Add(sNow)
+  Try MLog.Write("fotocellula", "source=bottone orario=" & sNow)
 END
 
 PUBLIC SUB SetArrivo(Numero AS Integer, Orario AS Date)
@@ -1046,6 +1082,8 @@ PUBLIC SUB Form_Close()
   TRY TimerArduino.Stop
   TRY TimerAlignWatchdog.Stop
   ArduinoClose()
+  TRY MLog.Write("app_stop", "")
+  TRY MLog.Close()
 END
 
 PUBLIC SUB ButtonOrdine_Click()
@@ -1095,4 +1133,5 @@ Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
     $sheet.UpdateForEquipaggio(oldNum)   ' clear vecchia riga
     $sheet.UpdateForEquipaggio(newNum)   ' scrivi nuova riga
   Endif
+  Try MLog.Write("cambia_numero", "old=" & CStr(oldNum) & " new=" & CStr(newNum) & " orario_partenza=" & MLog.FmtTime(dPart) & " orario_arrivo=" & MLog.FmtTime(dArr))
 End

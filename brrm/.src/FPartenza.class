@@ -22,20 +22,26 @@ ENDIF
 ELSE 
 Confermato = TRUE
 ENDIF 
-IF Confermato = TRUE THEN 
+IF Confermato = TRUE THEN
 FMain.SetPartenza(Numero, Orario)
+Try MLog.Write("partenza_manuale", "numero=" & CStr(Numero) & " orario=" & TextBox2.Text)
 FPartenza.Close
-ENDIF 
-ELSE 
+ENDIF
+ELSE
 Message("Numero non riconosciuto!")
-ENDIF 
-ELSE 
+Try MLog.Write("partenza_manuale_numero_invalido", "input=" & TextBox1.Text & " orario=" & TextBox2.Text)
+ENDIF
+ELSE
 Message("Orario non riconosciuto!")
-ENDIF 
-END 
+Try MLog.Write("partenza_manuale_orario_invalido", "input=" & TextBox2.Text)
+ENDIF
+END
 
 PUBLIC SUB Button2_Click()
-  IF FMain.ConfermaScartoOrario("partenza") THEN FPartenza.Close
+  IF FMain.ConfermaScartoOrario("partenza") THEN
+    Try MLog.Write("scarto_orario", "tipo=partenza_manuale orario=" & TextBox2.Text)
+    FPartenza.Close
+  ENDIF
 END
 
 PUBLIC SUB Form_Open()

@@ -150,6 +150,42 @@ Senza il file (o senza `credentials`/`document_id`/`sheet_name`/`equipaggio_colu
 
 **Precisione:** tutta la matematica dei timestamp e dei delta è su interi (millisecondi). I valori scritti sul foglio coincidono al ms con quelli mostrati nella UI di brrm.
 
+## Registro di gara (opzionale)
+
+Entrambe le app possono scrivere un *registro di gara* su file: una riga per ogni evento operativo, utile a ricostruire gli avvenimenti in caso di dubbi su una classifica. **Disabilitato di default**. Per attivarlo crea `~/.config/brrm/log.conf`:
+
+```ini
+enabled = true
+path = ~/race-log.txt
+```
+
+Il path supporta `~/` come scorciatoia per la home dell'utente. Il file è scritto in append, quindi sessioni successive accodano. Una riga ha la forma:
+
+```
+2026-05-14 16:44:06.789  <tipo>  key1=val1 key2=val2 ...
+```
+
+**Eventi registrati** (entrambe le app):
+- `app_start`, `app_stop`, `registro_aperto`, `registro_chiuso`
+- `fotocellula` — rilevamento da Arduino o click del bottone PARTENZA/ARRIVO (anche `fotocellula_ignorata` quando FotOFF è attivo: include comunque l'orario per tracciare il passaggio)
+- `partenza` / `arrivo` — l'operatore ha associato un orario a un numero equipaggio
+- `scarto_orario` — l'operatore ha annullato l'inserimento di un orario catturato
+- `annulla_partenza` / `annulla_arrivo` — cancellazione di un orario già confermato (con l'orario precedente per riferimento)
+- `cambia_numero` — rinomina di un equipaggio
+- `inverti_partenze` (su `brrm-partenza`) / `inverti_arrivo` (su `brrm`)
+- `foto_toggle` — passaggio FotON ↔ FotOFF
+- `esporta` (e `esporta_errore` se File.Save fallisce)
+- `reset`
+- `arduino_online` / `arduino_offline` — solo sulle transizioni di stato, non a ogni probe (`TimerArduino` gira ogni 2 s)
+
+**Solo su `brrm` (postazione arrivo):**
+- `modifica_ordine` — riordino della lista equipaggi (output di FOrdine)
+- `partenza_manuale` — l'operatore ha digitato numero + orario in FPartenza (utile se la fotocellula partenza ha mancato un passaggio)
+- `sync_evento` — evento ricevuto via Sync da brrm-partenza con la tupla `(sess, seq, numero, orario)`
+- `importa_partenze_inizio` / `importa_partenze_riga` (una per equipaggio importato) / `importa_partenze_fine`
+
+**Comportamento difensivo:** ogni IO sul file è in `Try`. Una scrittura fallita (disco pieno, file system in sola lettura, ecc.) non causa mai un crash o un errore visibile all'operatore: nel peggiore dei casi una voce non viene scritta. Se l'apertura iniziale fallisce, il logging resta disabilitato silenziosamente per tutta la sessione. **Una riga vuota o malformata nel `log.conf` non blocca l'app**.
+
 ## Dettagli tecnici
 
 - **Porta seriale:** auto-discovery del primo `/dev/ttyUSB*` o `/dev/ttyACM*` disponibile; `Timer4` controlla ogni 2 s e ricollega in caso di disconnessione.

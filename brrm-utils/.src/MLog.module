@@ -1,0 +1,98 @@
+' Gambas module file
+' Registro di gara opzionale. Config: ~/.config/brrm/log.conf
+'   enabled = true|false
+'   path = /percorso/al/registro.log  (anche ~/ supportato)
+'
+' Formato output: <ts ms>  <TIPO>  key1=val1 key2=val2 ...
+' Una riga per evento, append-only. Tutte le operazioni di IO sono
+' difensive: un fallimento del log non puo' MAI far crashare l'app —
+' al massimo l'evento non viene scritto. Init() fallita disabilita
+' silenziosamente il logging per tutta la sessione.
+'
+' Mantenere sincronizzato a mano con brrm/.src/MLog.module.
+
+Private $enabled As Boolean
+Private $hFile As File
+
+Public Sub Init()
+  Dim sCfg, sLine, sKey, sVal As String
+  Dim iEq As Integer
+  Dim sPath As String
+  Dim sDir As String
+
+  $enabled = False
+  $hFile = Null
+
+  sCfg = User.Home &/ ".config/brrm/log.conf"
+  If Not Exist(sCfg) Then Return
+
+  For Each sLine In Split(File.Load(sCfg), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "enabled"
+        $enabled = (LCase$(sVal) = "true" Or sVal = "1")
+      Case "path"
+        sPath = sVal
+    End Select
+  Next
+
+  If Not $enabled Or If sPath = "" Then
+    $enabled = False
+    Return
+  Endif
+
+  ' Espandi ~ iniziale
+  If Left$(sPath, 2) = "~/" Then sPath = User.Home &/ Mid$(sPath, 3)
+
+  ' Assicura che la directory esista (no error se gia' presente)
+  sDir = File.Dir(sPath)
+  If sDir And If Not Exist(sDir) Then Try Mkdir sDir
+
+  ' Apertura in append. Se fallisce, disattiva silenziosamente.
+  $hFile = Null
+  Try $hFile = Open sPath For Append
+  If Error Or If $hFile = Null Then
+    $enabled = False
+    $hFile = Null
+    Return
+  Endif
+
+  Try Write("registro_aperto", "path=" & sPath)
+End
+
+Public Sub Close()
+  If $hFile <> Null Then
+    Try Write("registro_chiuso", "")
+    Try Close #$hFile
+  Endif
+  $hFile = Null
+  $enabled = False
+End
+
+Public Sub Write(sType As String, sDetails As String)
+  Dim t As Date
+  Dim iMs As Integer
+  Dim sLine As String
+
+  If Not $enabled Or If $hFile = Null Then Return
+
+  t = Now
+  iMs = 0
+  Try iMs = CInt(Format$(t, "uuu"))
+  sLine = Format$(t, "yyyy-mm-dd hh:nn:ss") & "." & Format$(iMs, "000") & "  " & sType & "  " & sDetails
+
+  Try Print #$hFile, sLine
+  Try Flush #$hFile
+End
+
+' Helper: formatta una Date come "HH:MM:SS.mmm" — usato per orari di gara.
+Public Function FmtTime(d As Date) As String
+  Dim iMs As Integer = 0
+  Try iMs = CInt(Format$(d, "uuu"))
+  Return Format$(d, "hh:nn:ss") & "." & Format$(iMs, "000")
+End

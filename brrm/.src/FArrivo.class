@@ -38,15 +38,20 @@ ENDIF
 ELSE 
 Confermato = TRUE
 ENDIF 
-IF Confermato = TRUE THEN 
+IF Confermato = TRUE THEN
 FMain.SetArrivo(Numero, Label1.Text)
+Try MLog.Write("arrivo", "numero=" & CStr(Numero) & " orario=" & Label1.Text)
 FArrivo.Close
-ENDIF 
-ELSE 
+ENDIF
+ELSE
 Message("Numero non riconosciuto!")
-ENDIF 
+Try MLog.Write("arrivo_numero_invalido", "input=" & TextBox1.Text & " orario=" & Label1.Text)
+ENDIF
 END
 
 PUBLIC SUB Button2_Click()
-  IF FMain.ConfermaScartoOrario("arrivo") THEN FArrivo.Close
+  IF FMain.ConfermaScartoOrario("arrivo") THEN
+    Try MLog.Write("scarto_orario", "tipo=arrivo orario=" & Label1.Text)
+    FArrivo.Close
+  ENDIF
 END

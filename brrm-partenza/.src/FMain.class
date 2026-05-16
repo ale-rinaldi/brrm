@@ -57,6 +57,12 @@ Private $rsRgtOrigLeft As New Integer[]
 ' TimerArduino_Timer in WAIT.
 Private $shuttingDown As Boolean
 
+' Stato Arduino precedente: usato da SetArduinoStatus per loggare solo
+' le transizioni online <-> offline (TimerArduino chiama ogni 2s e non
+' vogliamo spammare il registro). Init valore = False, quindi il primo
+' "ARDUINO OK" generera' un log "arduino_online".
+Private $arduinoOnline As Boolean
+
 Public Sub _new()
 
 End
@@ -120,8 +126,12 @@ If Error Then
   ArduinoClose()
   Return
 Endif
+Dim sNow As String = Format$(Time, "hh:nn:ss.uuu")
 If FotON = True Then
-BPartenze.Add(Format$(Time, "hh:nn:ss.uuu"))
+  BPartenze.Add(sNow)
+  Try MLog.Write("fotocellula", "source=arduino orario=" & sNow)
+Else
+  Try MLog.Write("fotocellula_ignorata", "source=arduino motivo=FotOFF orario=" & sNow)
 Endif
 
 End
@@ -129,6 +139,15 @@ End
 Private Sub SetArduinoStatus(bConnected As Boolean)
   ' Durante shutdown LabelArduino puo' essere gia' distrutto.
   If $shuttingDown Then Return
+  ' Log solo sulle transizioni di stato (TimerArduino chiama ogni 2s)
+  If bConnected <> $arduinoOnline Then
+    $arduinoOnline = bConnected
+    If bConnected Then
+      Try MLog.Write("arduino_online", "")
+    Else
+      Try MLog.Write("arduino_offline", "")
+    Endif
+  Endif
   If bConnected Then
     LabelArduino.Background = &H00CC00&
     LabelArduino.Foreground = &HFFFFFF&
@@ -207,6 +226,8 @@ Public Sub Form_Close()
   Try TimerAlign.Stop
   Try TimerAlignHeartbeat.Stop
   ArduinoClose()
+  Try MLog.Write("app_stop", "")
+  Try MLog.Close()
 End
 
 Public Sub ConfermaScartoOrario(che As String) As Boolean
@@ -558,6 +579,8 @@ Dim iNum As Integer
 FotON = True
 FMain.Center()
 SetupGridHeader()
+MLog.Init()
+Try MLog.Write("app_start", "ruolo=partenza")
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 If Exist(User.Home &/ ".local/share/brrm/partenza-session") Then sTest = File.Load(User.Home &/ ".local/share/brrm/partenza-session")
@@ -630,6 +653,7 @@ Public Sub ButtonReset_Click()
   Wend
   UpgradeSessionFile()
   TimerGrid.Start
+  Try MLog.Write("reset", "")
 End
 
 Public Sub EditOrder(Order As String)
@@ -679,18 +703,24 @@ Public Sub ButtonEsporta_Click()
   sPath = Dialog.Path
   If LCase$(File.Ext(sPath)) <> "csv" Then sPath = sPath & ".csv"
   Try File.Save(sPath, sOut)
-  If Error Then Message.Error("Impossibile salvare il file: " & Error.Text)
+  If Error Then
+    Message.Error("Impossibile salvare il file: " & Error.Text)
+    Try MLog.Write("esporta_errore", "path=" & sPath & " errore=" & Error.Text)
+  Else
+    Try MLog.Write("esporta", "path=" & sPath & " righe=" & CStr(LEquipaggi.Count))
+  Endif
 End
 
 Public Sub GridView1_Click()
   If GridView1.Row > 0 Then
-  If CurrAct = ACT_ANNPART Then 
-  If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then 
+  If CurrAct = ACT_ANNPART Then
+  If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then
   TimerGrid.Stop
   Dim iAnnNum As Integer = LEquipaggi[GridView1.Row - 1].Text
+  Try MLog.Write("annulla_partenza", "numero=" & CStr(iAnnNum) & " orario_prec=" & MLog.FmtTime(partenze[iAnnNum]))
   partenze[iAnnNum] = 0
   AlignEnqueue(iAnnNum, 0)
-  Endif 
+  Endif
     GridView1.Background = &H0FFFFFF&
   GridView1.Mouse = 0
   CurrAct = ACT_NONE
@@ -812,6 +842,7 @@ Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
   UpgradeSessionFile()
   AlignEnqueue(oldNum, 0)
   AlignEnqueue(newNum, dPart)
+  Try MLog.Write("cambia_numero", "old=" & CStr(oldNum) & " new=" & CStr(newNum) & " orario=" & MLog.FmtTime(dPart))
 End
 
 Private Sub InvertiPartenze(n1 As Integer, n2 As Integer)
@@ -823,27 +854,26 @@ Private Sub InvertiPartenze(n1 As Integer, n2 As Integer)
   partenze[n1] = pt2
   partenze[n2] = pt1
   UpgradeSessionFile()
+  Try MLog.Write("inverti_partenze", "n1=" & CStr(n1) & " orario1_prec=" & MLog.FmtTime(pt1) & " n2=" & CStr(n2) & " orario2_prec=" & MLog.FmtTime(pt2))
   AlignEnqueue(n1, pt2)
   AlignEnqueue(n2, pt1)
 End
   
 
 Public Sub ButtonFotON_Click()
-
   FotON = True
   TimerBlink.Stop
   ButtonFotOFF.Background = &HFFFFFF&
   ButtonFotON.Background = &H00FF00&
-
+  Try MLog.Write("foto_toggle", "stato=ON")
 End
 
 Public Sub ButtonFotOFF_Click()
-
   FotON = False
-    ButtonFotOFF.Background = &HFF0000&
-    ButtonFotON.Background = &HFFFFFF&
-    TimerBlink.Start
-
+  ButtonFotOFF.Background = &HFF0000&
+  ButtonFotON.Background = &HFFFFFF&
+  TimerBlink.Start
+  Try MLog.Write("foto_toggle", "stato=OFF")
 End
 
 Public Sub TimerBlink_Timer()
@@ -858,9 +888,9 @@ Public Sub TimerBlink_Timer()
 End
 
 Public Sub ButtonPartenza_Click()
-
-BPartenze.Add(Format$(Time, "hh:nn:ss.uuu"))
-
+  Dim sNow As String = Format$(Time, "hh:nn:ss.uuu")
+  BPartenze.Add(sNow)
+  Try MLog.Write("fotocellula", "source=bottone orario=" & sNow)
 End
 
 Public Sub TimerPartenzaQueue_Timer()
