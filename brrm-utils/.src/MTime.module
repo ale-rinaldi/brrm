@@ -100,3 +100,19 @@ Public Function PadMillis(s As String) As String
       Return Left$(s, 3)
   End Select
 End
+
+Public Function ParseTimeFromCsvParts(sHh As String, sMm As String, sSs As String, sMs As String) As Date
+  ' Costruisce una Date time-only "hh:nn:ss.uuu" a partire dai 4 campi
+  ' "split" come compaiono nei CSV di brrm-partenza/brrm: ore, minuti,
+  ' secondi (interi non-zero-padded, es. "8" non "08") e ms (string
+  ' arbitraria, normalizzata via PadMillis). Ritorna CDate(0) se uno
+  ' qualunque dei campi non e' parsabile o se la stringa risultante
+  ' non e' una Date valida.
+  Dim iHh As Integer = 0
+  Dim iMm As Integer = 0
+  Dim iSs As Integer = 0
+  Try iHh = CInt(Trim$(sHh))
+  Try iMm = CInt(Trim$(sMm))
+  Try iSs = CInt(Trim$(sSs))
+  Return ParseDateMs(Format$(iHh, "00") & ":" & Format$(iMm, "00") & ":" & Format$(iSs, "00") & "." & PadMillis(Trim$(sMs)))
+End

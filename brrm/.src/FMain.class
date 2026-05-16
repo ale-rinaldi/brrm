@@ -806,7 +806,6 @@ PUBLIC SUB ButtonImporta_Click()
   DIM sLine AS String
   DIM aFields AS String[]
   DIM iEqui AS Integer
-  DIM sDateStr AS String
   DIM dPart AS Date
   DIM iImportati AS Integer
 
@@ -831,14 +830,12 @@ PUBLIC SUB ButtonImporta_Click()
     iEqui = 0
     TRY iEqui = CInt(Trim$(aFields[0]))
     IF iEqui <= 0 OR iEqui >= MAX_NUMERO THEN CONTINUE
-    sDateStr = Trim$(aFields[1]) & ":" & Trim$(aFields[2]) & ":" & Trim$(aFields[3]) & "." & MTime.PadMillis(Trim$(aFields[4]))
-    dPart = 0
-    TRY dPart = sDateStr
+    dPart = MTime.ParseTimeFromCsvParts(aFields[1], aFields[2], aFields[3], aFields[4])
     IF dPart = 0 THEN CONTINUE
     partenze[iEqui] = dPart
     IF LEquipaggi.Find(iEqui) < 0 THEN LEquipaggi.Add(iEqui)
     iImportati = iImportati + 1
-    Try MLog.Write("importa_partenze_riga", "numero=" & CStr(iEqui) & " orario=" & sDateStr)
+    Try MLog.Write("importa_partenze_riga", "numero=" & CStr(iEqui) & " orario=" & MTime.FormatDateMs(dPart))
   NEXT
 
   UpgradeSessionFile()
