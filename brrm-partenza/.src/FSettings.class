@@ -1,15 +1,18 @@
 ' Gambas class file
 
-' Form di configurazione runtime. Per ora solo settings di sync; layout
-' prevede di accomodare altre sezioni in futuro (frame separati).
+' Form di configurazione runtime: 2 tab — sync (align.conf) e registro
+' di gara (log.conf).
 
 Public Sub Form_Open()
-  Dim sPath As String
-  Dim sLine As String
-  Dim iEq As Integer
-  Dim sKey As String
-  Dim sVal As String
   FSettings.Center()
+  LoadSyncConfig()
+  LoadLogConfig()
+End
+
+Private Sub LoadSyncConfig()
+  Dim sPath As String
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
   TextURL.Text = ""
   TextUser.Text = ""
   TextPass.Text = ""
@@ -18,8 +21,7 @@ Public Sub Form_Open()
   If Not Exist(sPath) Then Return
   For Each sLine In Split(File.Load(sPath), gb.NewLine)
     sLine = Trim$(sLine)
-    If sLine = "" Then Continue
-    If Left$(sLine, 1) = "#" Then Continue
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
     iEq = InStr(sLine, "=")
     If iEq < 2 Then Continue
     sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
@@ -37,24 +39,69 @@ Public Sub Form_Open()
   Next
 End
 
+Private Sub LoadLogConfig()
+  Dim sPath As String
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
+  CheckLogEnabled.Value = False
+  TextLogPath.Text = "~/race-log.txt"
+  sPath = User.Home &/ ".config/brrm/log.conf"
+  If Not Exist(sPath) Then Return
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "enabled"
+        CheckLogEnabled.Value = (LCase$(sVal) = "true" Or sVal = "1")
+      Case "path"
+        TextLogPath.Text = sVal
+    End Select
+  Next
+End
+
 Public Sub ButtonSave_Click()
   Dim sDir As String
-  Dim sPath As String
-  Dim sOut As String
   sDir = User.Home &/ ".config/brrm"
   If Not Exist(sDir) Then Try Mkdir sDir
-  sPath = sDir &/ "align.conf"
+  If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
+  If Not SaveLogConfig(sDir &/ "log.conf") Then Return
+  Try FMain.AlignReinit()
+  Try FMain.LogReinit()
+  Me.Close
+End
+
+Private Function SaveSyncConfig(sPath As String) As Boolean
+  Dim sOut As String
   sOut = "url = " & Trim$(TextURL.Text) & gb.NewLine
   sOut &= "username = " & Trim$(TextUser.Text) & gb.NewLine
   sOut &= "password = " & Trim$(TextPass.Text) & gb.NewLine
   sOut &= "session = " & Trim$(TextSession.Text) & gb.NewLine
   Try MFile.AtomicSave(sPath, sOut)
   If Error Then
-    Message.Error("Impossibile salvare le impostazioni: " & Error.Text)
-    Return
+    Message.Error("Impossibile salvare align.conf: " & Error.Text)
+    Return False
   Endif
-  FMain.AlignReinit()
-  Me.Close
+  Return True
+End
+
+Private Function SaveLogConfig(sPath As String) As Boolean
+  Dim sOut As String
+  If CheckLogEnabled.Value Then
+    sOut = "enabled = true" & gb.NewLine
+  Else
+    sOut = "enabled = false" & gb.NewLine
+  Endif
+  sOut &= "path = " & Trim$(TextLogPath.Text) & gb.NewLine
+  Try MFile.AtomicSave(sPath, sOut)
+  If Error Then
+    Message.Error("Impossibile salvare log.conf: " & Error.Text)
+    Return False
+  Endif
+  Return True
 End
 
 Public Sub ButtonCancel_Click()

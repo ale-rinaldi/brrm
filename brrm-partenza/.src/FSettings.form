@@ -1,56 +1,79 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,68,40)
+  MoveScaled(0,0,68,45)
   Text = ("Impostazioni")
-  { FrameSync Frame
-    MoveScaled(1,1,66,28)
+  { TabSettings TabStrip
+    MoveScaled(1,1,66,37)
+    Count = 2
+    Index = 0
     Text = ("Sincronizzazione")
     { Label1 Label
-      MoveScaled(1,4,15,3)
+      MoveScaled(1,1,15,3)
       Text = ("URL")
     }
     { TextURL TextBox
-      MoveScaled(17,4,48,3)
+      MoveScaled(17,1,48,3)
       Text = ("")
     }
     { Label2 Label
-      MoveScaled(1,8,15,3)
+      MoveScaled(1,5,15,3)
       Text = ("Username")
     }
     { TextUser TextBox
-      MoveScaled(17,8,48,3)
+      MoveScaled(17,5,48,3)
       Text = ("")
     }
     { Label3 Label
-      MoveScaled(1,12,15,3)
+      MoveScaled(1,9,15,3)
       Text = ("Password")
     }
     { TextPass TextBox
-      MoveScaled(17,12,48,3)
+      MoveScaled(17,9,48,3)
       Text = ("")
       Password = True
     }
     { Label4 Label
-      MoveScaled(1,16,15,3)
+      MoveScaled(1,13,15,3)
       Text = ("Session")
     }
     { TextSession TextBox
-      MoveScaled(17,16,48,3)
+      MoveScaled(17,13,48,3)
       Text = ("default")
     }
     { LabelHint Label
-      MoveScaled(1,20,64,5)
+      MoveScaled(1,17,64,5)
       Foreground = &H666666&
       Text = ("La stessa session deve essere usata sia su partenza che su arrivo.\nLasciare URL/username/password vuoti disattiva il sync.")
     }
+    Index = 1
+    Text = ("Registro")
+    { CheckLogEnabled CheckBox
+      MoveScaled(1,1,16,3)
+      Text = ("Abilita")
+    }
+    { LabelLogPath Label
+      MoveScaled(18,1,6,3)
+      Text = ("Path")
+    }
+    { TextLogPath TextBox
+      MoveScaled(25,1,40,3)
+      Text = ("")
+    }
+    { LabelLogHint TextLabel
+      MoveScaled(1,5,64,7)
+      AutoResize = False
+      Foreground = &H666666&
+      Text = ("File append-only. Accetta ~/ come scorciatoia per la home. Una sessione successiva accoda al file esistente (ogni nuovo avvio dell'app inizia con un evento registro_aperto).")
+    }
+    Index = 0
   }
   { ButtonCancel Button
-    MoveScaled(31,33,16,5)
+    MoveScaled(31,39,16,5)
     Text = ("Annulla")
   }
   { ButtonSave Button
-    MoveScaled(49,33,16,5)
+    MoveScaled(49,39,16,5)
     Default = True
     Text = ("Salva")
   }

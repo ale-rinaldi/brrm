@@ -1,13 +1,13 @@
 ' Gambas class file
 
-' Form di configurazione runtime: sync (align.conf) e foglio Google (sheet.conf).
-' Layout a frame impilati invece di TabStrip per semplicità di codice (la form
-' fa scrolling implicito se non sta in finestra).
+' Form di configurazione runtime: 3 tab — sync (align.conf), foglio
+' Google (sheet.conf), registro di gara (log.conf).
 
 Public Sub Form_Open()
   FSettings.Center()
   LoadSyncConfig()
   LoadSheetConfig()
+  LoadLogConfig()
 End
 
 Private Sub LoadSyncConfig()
@@ -39,6 +39,30 @@ Private Sub LoadSheetConfig()
   ReadKvFile(sPath, ["credentials", "document_id", "sheet_name", "equipaggio_column", "header_rows", "partenza_split_column", "partenza_unixms_column", "arrivo_split_column", "arrivo_unixms_column", "tempo_split_column", "tempo_ms_column"], [TextCred, TextDocId, TextSheetName, TextEqCol, TextHeaderRows, TextPartSplit, TextPartUnix, TextArrSplit, TextArrUnix, TextTempoSplit, TextTempoMs])
 End
 
+Private Sub LoadLogConfig()
+  Dim sPath As String
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
+  CheckLogEnabled.Value = False
+  TextLogPath.Text = "~/race-log.txt"
+  sPath = User.Home &/ ".config/brrm/log.conf"
+  If Not Exist(sPath) Then Return
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = Trim$(Mid$(sLine, iEq + 1))
+    Select Case sKey
+      Case "enabled"
+        CheckLogEnabled.Value = (LCase$(sVal) = "true" Or sVal = "1")
+      Case "path"
+        TextLogPath.Text = sVal
+    End Select
+  Next
+End
+
 Private Sub ReadKvFile(sPath As String, keys As String[], controls As Object[])
   ' Parser key=value molto semplice, ignora commenti #.
   Dim sLine, sKey, sVal As String
@@ -68,9 +92,27 @@ Public Sub ButtonSave_Click()
   If Not Exist(sDir) Then Try Mkdir sDir
   If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
   If Not SaveSheetConfig(sDir &/ "sheet.conf") Then Return
+  If Not SaveLogConfig(sDir &/ "log.conf") Then Return
   Try FMain.AlignReinit()
   Try FMain.SheetReinit()
+  Try FMain.LogReinit()
   Me.Close
+End
+
+Private Function SaveLogConfig(sPath As String) As Boolean
+  Dim sOut As String
+  If CheckLogEnabled.Value Then
+    sOut = "enabled = true" & gb.NewLine
+  Else
+    sOut = "enabled = false" & gb.NewLine
+  Endif
+  sOut &= "path = " & Trim$(TextLogPath.Text) & gb.NewLine
+  Try MFile.AtomicSave(sPath, sOut)
+  If Error Then
+    Message.Error("Impossibile salvare log.conf: " & Error.Text)
+    Return False
+  Endif
+  Return True
 End
 
 Private Function SaveSyncConfig(sPath As String) As Boolean

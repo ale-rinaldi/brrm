@@ -274,6 +274,13 @@ Private Sub AlignLoadConfig() As Boolean
   Return ($alignUrl <> "" And $alignUser <> "" And $alignPass <> "")
 End
 
+Public Sub LogReinit()
+  ' Chiamato da FSettings dopo salvataggio log.conf: chiude il file di
+  ' log corrente (se aperto), rilegge la config e riapre se enabled.
+  Try MLog.Close()
+  MLog.Init()
+End
+
 Public Sub AlignReinit()
   ' Chiamato dalla form Settings dopo aver scritto il config: chiude
   ' la sessione corrente e fa ripartire AlignInit da zero, in modo che

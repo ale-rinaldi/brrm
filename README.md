@@ -152,7 +152,7 @@ Senza il file (o senza `credentials`/`document_id`/`sheet_name`/`equipaggio_colu
 
 ## Registro di gara (opzionale)
 
-Entrambe le app possono scrivere un *registro di gara* su file: una riga per ogni evento operativo, utile a ricostruire gli avvenimenti in caso di dubbi su una classifica. **Disabilitato di default**. Per attivarlo crea `~/.config/brrm/log.conf`:
+Entrambe le app possono scrivere un *registro di gara* su file: una riga per ogni evento operativo, utile a ricostruire gli avvenimenti in caso di dubbi su una classifica. **Disabilitato di default**. Attivabile da *Impostazioni…* → tab **Registro** (checkbox *Abilita* + path), oppure scrivendo a mano `~/.config/brrm/log.conf`:
 
 ```ini
 enabled = true

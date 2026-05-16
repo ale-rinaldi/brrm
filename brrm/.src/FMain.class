@@ -603,6 +603,13 @@ Public Sub SheetReinit()
   If $sheet Then $sheet.Reinit()
 End
 
+Public Sub LogReinit()
+  ' Chiamato da FSettings dopo salvataggio log.conf: chiude il file di
+  ' log corrente (se aperto), rilegge la config e riapre se enabled.
+  Try MLog.Close()
+  MLog.Init()
+End
+
 PUBLIC SUB TimerGrid_Timer()
 ' Guard: ogni Message dialog (Question/Info/Error) resetta il formatting
 ' delle celle del row 0. Ricontrolliamo qui e ri-applichiamo se serve.

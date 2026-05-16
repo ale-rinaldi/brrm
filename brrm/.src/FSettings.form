@@ -1,163 +1,184 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,76,80)
+  MoveScaled(0,0,76,60)
   Text = ("Impostazioni")
-  { FrameSync Frame
-    MoveScaled(1,1,74,26)
+  { TabSettings TabStrip
+    MoveScaled(1,1,74,52)
+    Count = 3
+    Index = 0
     Text = ("Sincronizzazione")
     { Label1 Label
-      MoveScaled(1,4,15,3)
+      MoveScaled(1,1,15,3)
       Text = ("URL")
     }
     { TextURL TextBox
-      MoveScaled(17,4,56,3)
+      MoveScaled(17,1,56,3)
       Text = ("")
     }
     { Label2 Label
-      MoveScaled(1,8,15,3)
+      MoveScaled(1,5,15,3)
       Text = ("Username")
     }
     { TextUser TextBox
-      MoveScaled(17,8,56,3)
+      MoveScaled(17,5,56,3)
       Text = ("")
     }
     { Label3 Label
-      MoveScaled(1,12,15,3)
+      MoveScaled(1,9,15,3)
       Text = ("Password")
     }
     { TextPass TextBox
-      MoveScaled(17,12,56,3)
+      MoveScaled(17,9,56,3)
       Text = ("")
       Password = True
     }
     { Label4 Label
-      MoveScaled(1,16,15,3)
+      MoveScaled(1,13,15,3)
       Text = ("Session")
     }
     { TextSession TextBox
-      MoveScaled(17,16,56,3)
+      MoveScaled(17,13,56,3)
       Text = ("default")
     }
     { LabelSyncHint Label
-      MoveScaled(1,20,72,5)
+      MoveScaled(1,17,72,5)
       Foreground = &H666666&
       Text = ("La stessa session su partenza e arrivo. Campi vuoti = sync disattivo.")
     }
-  }
-  { FrameSheet Frame
-    MoveScaled(1,28,74,45)
-    Text = ("Foglio Google (opzionale)")
+    Index = 1
+    Text = ("Google Sheets")
     { Label5 Label
-      MoveScaled(1,4,21,3)
+      MoveScaled(1,1,21,3)
       Text = ("File credenziali JSON")
     }
     { TextCred TextBox
-      MoveScaled(23,4,40,3)
+      MoveScaled(23,1,40,3)
       Text = ("")
     }
     { ButtonBrowse Button
-      MoveScaled(64,4,9,3)
+      MoveScaled(64,1,9,3)
       Text = ("Sfoglia…")
     }
     { Label6 Label
-      MoveScaled(1,8,21,3)
+      MoveScaled(1,5,21,3)
       Text = ("ID documento")
     }
     { TextDocId TextBox
-      MoveScaled(23,8,50,3)
+      MoveScaled(23,5,50,3)
       Text = ("")
     }
     { Label7 Label
-      MoveScaled(1,12,21,3)
+      MoveScaled(1,9,21,3)
       Text = ("Nome foglio (scheda)")
     }
     { TextSheetName TextBox
-      MoveScaled(23,12,50,3)
+      MoveScaled(23,9,50,3)
       Text = ("")
     }
     { Label8 Label
-      MoveScaled(1,16,21,3)
+      MoveScaled(1,13,21,3)
       Text = ("Colonna equipaggio")
     }
     { TextEqCol TextBox
-      MoveScaled(23,16,8,3)
+      MoveScaled(23,13,8,3)
       Text = ("A")
     }
     { LabelHeaderRows Label
-      MoveScaled(34,16,22,3)
+      MoveScaled(34,13,22,3)
       Text = ("Righe di intestazione")
     }
     { TextHeaderRows TextBox
-      MoveScaled(57,16,6,3)
+      MoveScaled(57,13,6,3)
       Text = ("1")
     }
     { LabelOptHint Label
-      MoveScaled(1,20,72,3)
+      MoveScaled(1,17,72,3)
       Foreground = &H666666&
       Text = ("Colonne opzionali (vuoto = disattivata). Per i range split indica la prima colonna.")
     }
     { Label9 Label
-      MoveScaled(1,24,32,3)
+      MoveScaled(1,21,32,3)
       Text = ("Partenza split (h, m, s, ms)")
     }
     { TextPartSplit TextBox
-      MoveScaled(34,24,8,3)
+      MoveScaled(34,21,8,3)
       Text = ("")
     }
     { Label10 Label
-      MoveScaled(44,24,21,3)
+      MoveScaled(44,21,21,3)
       Text = ("Partenza UNIX ms")
     }
     { TextPartUnix TextBox
-      MoveScaled(65,24,8,3)
+      MoveScaled(65,21,8,3)
       Text = ("")
     }
     { Label11 Label
-      MoveScaled(1,28,32,3)
+      MoveScaled(1,25,32,3)
       Text = ("Arrivo split (h, m, s, ms)")
     }
     { TextArrSplit TextBox
-      MoveScaled(34,28,8,3)
+      MoveScaled(34,25,8,3)
       Text = ("")
     }
     { Label12 Label
-      MoveScaled(44,28,21,3)
+      MoveScaled(44,25,21,3)
       Text = ("Arrivo UNIX ms")
     }
     { TextArrUnix TextBox
-      MoveScaled(65,28,8,3)
+      MoveScaled(65,25,8,3)
       Text = ("")
     }
     { Label13 Label
-      MoveScaled(1,32,32,3)
+      MoveScaled(1,29,32,3)
       Text = ("Tempo split (m, s, ms)")
     }
     { TextTempoSplit TextBox
-      MoveScaled(34,32,8,3)
+      MoveScaled(34,29,8,3)
       Text = ("")
     }
     { Label14 Label
-      MoveScaled(44,32,21,3)
+      MoveScaled(44,29,21,3)
       Text = ("Tempo totale ms")
     }
     { TextTempoMs TextBox
-      MoveScaled(65,32,8,3)
+      MoveScaled(65,29,8,3)
       Text = ("")
     }
     { LabelSheetHint TextLabel
-      MoveScaled(1,36,72,7)
+      MoveScaled(1,33,72,7)
       AutoResize = False
       Foreground = &H666666&
       Text = ("Condividi il foglio col client_email del service account (ruolo Editor). brrm cerca il numero nella colonna equipaggio: se non c'è lo aggiunge in una nuova riga.")
     }
+    Index = 2
+    Text = ("Registro")
+    { CheckLogEnabled CheckBox
+      MoveScaled(1,1,16,3)
+      Text = ("Abilita")
+    }
+    { LabelLogPath Label
+      MoveScaled(18,1,6,3)
+      Text = ("Path")
+    }
+    { TextLogPath TextBox
+      MoveScaled(25,1,48,3)
+      Text = ("")
+    }
+    { LabelLogHint TextLabel
+      MoveScaled(1,5,72,7)
+      AutoResize = False
+      Foreground = &H666666&
+      Text = ("File append-only. Accetta ~/ come scorciatoia per la home. Una sessione successiva accoda al file esistente (ogni nuovo avvio dell'app inizia con un evento registro_aperto).")
+    }
+    Index = 0
   }
   { ButtonCancel Button
-    MoveScaled(39,74,16,5)
+    MoveScaled(39,54,16,5)
     Text = ("Annulla")
   }
   { ButtonSave Button
-    MoveScaled(57,74,16,5)
+    MoveScaled(57,54,16,5)
     Default = True
     Text = ("Salva")
   }
