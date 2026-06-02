@@ -1,6 +1,6 @@
 Public Sub Main()
   File.Save("/tmp/main-ran", "yes at " & CStr(Now))
-  Test.Plan(199)
+  Test.Plan(213)
   TestMClock.RunAll()
   TestMillisOf.RunAll()
   TestMsInDay.RunAll()

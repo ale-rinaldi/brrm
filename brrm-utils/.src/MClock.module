@@ -105,3 +105,39 @@ Public Function LabelState(devicePresent As Boolean, portOpen As Boolean, lastPo
       Return HW_UNRESPONSIVE
   End Select
 End
+
+Public Function LabelText(st As Integer) As String
+  Select Case st
+    Case HW_GPS
+      Return "ARDUINO GPS"
+    Case HW_RTC
+      Return "ARDUINO RTC"
+    Case HW_NOSYNC
+      Return "ARDUINO NO SYNC"
+    Case HW_UNRESPONSIVE
+      Return "ARDUINO ?"
+    Case Else
+      Return "NO ARDUINO"
+  End Select
+End
+
+Public Function LabelBg(st As Integer) As Integer
+  Select Case st
+    Case HW_GPS
+      Return &H00CC00&
+    Case HW_RTC
+      Return &HCCCC00&
+    Case HW_NOSYNC
+      Return &HCC8800&
+    Case HW_UNRESPONSIVE
+      Return &H888888&
+    Case Else
+      Return &HCC0000&
+  End Select
+End
+
+Public Function LabelFg(st As Integer) As Integer
+  ' Testo nero solo su giallo (RTC) per contrasto; altrove bianco.
+  If st = HW_RTC Then Return &H000000&
+  Return &HFFFFFF&
+End

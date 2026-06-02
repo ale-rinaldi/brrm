@@ -36,4 +36,17 @@ Public Sub RunAll()
   '     c'e' Arduino, quindi ritorna ""; non possiamo fare di meglio.
   Dim sDev As String = MFile.FindArduinoDevice()
   Assert.Equals(sDev, "", "FindArduinoDevice = '' senza Arduino nel container")
+
+  ' --- LoadHardwareModeFrom ---
+  Dim sHw As String = "/tmp/brrm-test-hwconf"
+  File.Save(sHw, "mode = internal" & gb.NewLine)
+  Assert.Equals(MFile.LoadHardwareModeFrom(sHw), "internal", "hwconf internal")
+  File.Save(sHw, "mode = legacy" & gb.NewLine)
+  Assert.Equals(MFile.LoadHardwareModeFrom(sHw), "legacy", "hwconf legacy")
+  File.Save(sHw, "mode = INTERNAL" & gb.NewLine)
+  Assert.Equals(MFile.LoadHardwareModeFrom(sHw), "internal", "hwconf case-insensitive")
+  File.Save(sHw, "# commento" & gb.NewLine & "mode=internal" & gb.NewLine)
+  Assert.Equals(MFile.LoadHardwareModeFrom(sHw), "internal", "hwconf con commento")
+  Assert.Equals(MFile.LoadHardwareModeFrom("/tmp/brrm-test-hwconf-nonesiste"), "legacy", "hwconf assente -> legacy")
+  Try Kill sHw
 End

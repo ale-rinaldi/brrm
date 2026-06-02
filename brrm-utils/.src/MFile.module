@@ -47,3 +47,31 @@ Public Function FindArduinoDevice() As String
   Next
   Return ""
 End
+
+Public Function HardwareConfigPath() As String
+  Return User.Home &/ ".config/brrm/hardware.conf"
+End
+
+Public Function LoadHardwareModeFrom(sPath As String) As String
+  ' Ritorna "internal" se il file contiene una riga "mode=internal"
+  ' (case-insensitive), altrimenti "legacy". File assente -> "legacy".
+  ' Validazione inlinata (no Private function: bug Gambas 3.20 symlink).
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
+  If Not Exist(sPath) Then Return "legacy"
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = LCase$(Trim$(Mid$(sLine, iEq + 1)))
+    If sKey = "mode" And If sVal = "internal" Then Return "internal"
+  Next
+  Return "legacy"
+End
+
+Public Function LoadHardwareMode() As String
+  ' Wrapper sul percorso standard ~/.config/brrm/hardware.conf.
+  Return LoadHardwareModeFrom(HardwareConfigPath())
+End

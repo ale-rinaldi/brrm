@@ -61,4 +61,15 @@ Public Sub RunAll()
   Assert.Equals(MClock.LabelState(True,  True,  500,  "G"), MClock.HW_GPS,          "src G -> GPS")
   Assert.Equals(MClock.LabelState(True,  True,  500,  "R"), MClock.HW_RTC,          "src R -> RTC")
   Assert.Equals(MClock.LabelState(True,  True,  500,  "N"), MClock.HW_NOSYNC,       "src N -> NOSYNC")
+
+  ' --- Label visuals (testo/colore per stato) ---
+  Assert.Equals(MClock.LabelText(MClock.HW_GPS),         "ARDUINO GPS",     "label GPS")
+  Assert.Equals(MClock.LabelText(MClock.HW_RTC),         "ARDUINO RTC",     "label RTC")
+  Assert.Equals(MClock.LabelText(MClock.HW_NOSYNC),      "ARDUINO NO SYNC", "label NOSYNC")
+  Assert.Equals(MClock.LabelText(MClock.HW_UNRESPONSIVE),"ARDUINO ?",       "label UNRESP")
+  Assert.Equals(MClock.LabelText(MClock.HW_ABSENT),      "NO ARDUINO",      "label ABSENT")
+  Assert.Equals(MClock.LabelBg(MClock.HW_GPS),  &H00CC00&, "bg GPS verde")
+  Assert.Equals(MClock.LabelBg(MClock.HW_RTC),  &HCCCC00&, "bg RTC giallo")
+  Assert.Equals(MClock.LabelFg(MClock.HW_RTC),  &H000000&, "fg RTC nero")
+  Assert.Equals(MClock.LabelFg(MClock.HW_GPS),  &HFFFFFF&, "fg GPS bianco")
 End
