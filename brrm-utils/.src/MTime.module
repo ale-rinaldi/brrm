@@ -116,3 +116,44 @@ Public Function ParseTimeFromCsvParts(sHh As String, sMm As String, sSs As Strin
   Try iSs = CInt(Trim$(sSs))
   Return ParseDateMs(Format$(iHh, "00") & ":" & Format$(iMm, "00") & ":" & Format$(iSs, "00") & "." & PadMillis(Trim$(sMs)))
 End
+
+Public Function CivilFromDays(days As Long) As Integer[]
+  ' Inverso di DaysFromEpoch (Howard Hinnant civil_from_days). Int puro.
+  ' days = giorni dal 1970-01-01. Ritorna [anno, mese, giorno].
+  Dim z As Long = days + 719468
+  Dim era As Long
+  If z >= 0 Then era = z \ 146097 Else era = (z - 146096) \ 146097
+  Dim doe As Long = z - era * 146097
+  Dim yoe As Long = (doe - doe \ 1460 + doe \ 36524 - doe \ 146096) \ 365
+  Dim y As Long = yoe + era * 400
+  Dim doy As Long = doe - (365 * yoe + yoe \ 4 - yoe \ 100)
+  Dim mp As Long = (5 * doy + 2) \ 153
+  Dim d As Long = doy - (153 * mp + 2) \ 5 + 1
+  Dim m As Long
+  If mp < 10 Then m = mp + 3 Else m = mp - 9
+  If m <= 2 Then y = y + 1
+  Return [CInt(y), CInt(m), CInt(d)]
+End
+
+Public Function UnixMsToDateTZ(unixMs As Long, tzSec As Long) As Date
+  ' Inverso di DateToUnixMs con fuso esplicito. tzSec = secondi a ovest
+  ' di UTC (POSIX, come System.TimeZone): locale = UTC - tzSec.
+  Dim localMs As Long = unixMs - tzSec * 1000
+  Dim days As Long = localMs \ 86400000
+  Dim msInDay As Long = localMs Mod 86400000
+  If msInDay < 0 Then
+    msInDay = msInDay + 86400000
+    days = days - 1
+  Endif
+  Dim ymd As Integer[] = CivilFromDays(days)
+  Dim hh As Integer = CInt(msInDay \ 3600000)
+  Dim mm As Integer = CInt((msInDay \ 60000) Mod 60)
+  Dim ss As Integer = CInt((msInDay \ 1000) Mod 60)
+  Dim uuu As Integer = CInt(msInDay Mod 1000)
+  Return Date(ymd[0], ymd[1], ymd[2], hh, mm, ss, uuu)
+End
+
+Public Function UnixMsToDate(unixMs As Long) As Date
+  ' Wrapper col fuso di sistema corrente.
+  Return UnixMsToDateTZ(unixMs, CLong(System.TimeZone))
+End

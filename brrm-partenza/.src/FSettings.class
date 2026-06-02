@@ -1,12 +1,13 @@
 ' Gambas class file
 
-' Form di configurazione runtime: 2 tab — sync (align.conf) e registro
-' di gara (log.conf).
+' Form di configurazione runtime: 3 tab — sync (align.conf), registro
+' di gara (log.conf) e hardware (hardware.conf).
 
 Public Sub Form_Open()
   FSettings.Center()
   LoadSyncConfig()
   LoadLogConfig()
+  LoadHardwareConfig()
 End
 
 Private Sub LoadSyncConfig()
@@ -69,8 +70,10 @@ Public Sub ButtonSave_Click()
   If Not Exist(sDir) Then Try Mkdir sDir
   If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
   If Not SaveLogConfig(sDir &/ "log.conf") Then Return
+  If Not SaveHardwareConfig(MFile.HardwareConfigPath()) Then Return
   Try FMain.AlignReinit()
   Try FMain.LogReinit()
+  Try FMain.HardwareReinit()
   Me.Close
 End
 
@@ -99,6 +102,25 @@ Private Function SaveLogConfig(sPath As String) As Boolean
   Try MFile.AtomicSave(sPath, sOut)
   If Error Then
     Message.Error("Impossibile salvare log.conf: " & Error.Text)
+    Return False
+  Endif
+  Return True
+End
+
+Private Sub LoadHardwareConfig()
+  ComboHwMode.Clear
+  ComboHwMode.Add("Legacy")
+  ComboHwMode.Add("Clock interno")
+  Dim sMode As String = MFile.LoadHardwareMode()
+  If sMode = "internal" Then ComboHwMode.Index = 1 Else ComboHwMode.Index = 0
+End
+
+Private Function SaveHardwareConfig(sPath As String) As Boolean
+  Dim sMode As String
+  If ComboHwMode.Index = 1 Then sMode = "internal" Else sMode = "legacy"
+  Try MFile.AtomicSave(sPath, "mode = " & sMode & gb.NewLine)
+  If Error Then
+    Message.Error("Impossibile salvare hardware.conf: " & Error.Text)
     Return False
   Endif
   Return True

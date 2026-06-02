@@ -1,0 +1,21 @@
+' Test per MTime.CivilFromDays — inverso di DaysFromEpoch (Hinnant
+' days_from_civil). Vettori verificati con datetime Python (UTC).
+Public Sub RunAll()
+  Dim r As Integer[]
+  r = MTime.CivilFromDays(0)
+  Assert.Equals(r[0], 1970, "day 0 -> anno 1970")
+  Assert.Equals(r[1], 1,    "day 0 -> mese 1")
+  Assert.Equals(r[2], 1,    "day 0 -> giorno 1")
+  r = MTime.CivilFromDays(10957)
+  Assert.Equals(r[0], 2000, "day 10957 -> 2000")
+  Assert.Equals(r[1], 1,    "day 10957 -> mese 1")
+  Assert.Equals(r[2], 1,    "day 10957 -> giorno 1")
+  r = MTime.CivilFromDays(19723)
+  Assert.Equals(r[0], 2024, "day 19723 -> 2024")
+  Assert.Equals(r[1], 1,    "day 19723 -> mese 1")
+  Assert.Equals(r[2], 1,    "day 19723 -> giorno 1")
+  r = MTime.CivilFromDays(19884)
+  Assert.Equals(r[0], 2024, "day 19884 -> 2024")
+  Assert.Equals(r[1], 6,    "day 19884 -> mese 6")
+  Assert.Equals(r[2], 10,   "day 19884 -> giorno 10")
+End

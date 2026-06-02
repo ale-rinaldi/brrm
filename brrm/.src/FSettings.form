@@ -5,7 +5,7 @@
   Text = ("Impostazioni")
   { TabSettings TabStrip
     MoveScaled(1,1,74,52)
-    Count = 3
+    Count = 4
     Index = 0
     Text = ("Sincronizzazione")
     { Label1 Label
@@ -170,6 +170,21 @@
       AutoResize = False
       Foreground = &H666666&
       Text = ("File append-only. Accetta ~/ come scorciatoia per la home. Una sessione successiva accoda al file esistente (ogni nuovo avvio dell'app inizia con un evento registro_aperto).")
+    }
+    Index = 3
+    Text = ("Hardware")
+    { LabelHw1 Label
+      MoveScaled(1,1,30,3)
+      Text = ("Tipo hardware fotocellula")
+    }
+    { ComboHwMode ComboBox
+      MoveScaled(1,5,40,3)
+      ReadOnly = True
+    }
+    { LabelHwHint Label
+      MoveScaled(1,10,72,8)
+      Foreground = &H666666&
+      Text = ("Legacy: trigger semplice, tempo dal PC (9600 baud). Clock interno: timestamp assoluto dall'Arduino GPS (115200 baud), label di stato e diagnostica.")
     }
     Index = 0
   }
