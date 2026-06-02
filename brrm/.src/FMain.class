@@ -220,6 +220,21 @@ Private Sub SetClockLabel(st As Integer)
   End Select
 End
 
+Public Sub LabelArduino_MouseUp()
+  If $hwMode <> "internal" Then Return
+  RequestId()
+  RequestDiag()
+  FClockDiag.Show
+End
+
+Public Sub RequestDiag()
+  If $hSerial <> Null And If $hSerial.Status >= 1 Then Try Print #$hSerial, MClock.CMD_DIAG
+End
+
+Public Sub RequestId()
+  If $hSerial <> Null And If $hSerial.Status >= 1 Then Try Print #$hSerial, MClock.CMD_ID
+End
+
 PUBLIC SUB ConfermaScartoOrario(che AS String) AS Boolean
   ' Conferma per chiudere senza salvare un dialog che contiene un orario
   ' volatile (es. cattura fotocellula). Ritorna True se l'utente conferma

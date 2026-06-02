@@ -1,0 +1,64 @@
+' Modal diagnostica del clock interno. Legge i dati cache da FMain
+' (popolati da DIAG/PONG/ID) e li renderizza. Refresh live ~1s finche'
+' aperta: chiede a FMain di inviare "@" e ri-renderizza.
+
+Public Sub Form_Open()
+  FClockDiag.Center()
+  TimerDiag.Start()
+  Render()
+End
+
+Public Sub TimerDiag_Timer()
+  Try FMain.RequestDiag()
+  Render()
+End
+
+Public Sub ButtonRefresh_Click()
+  Try FMain.RequestDiag()
+  Try FMain.RequestId()
+  Render()
+End
+
+Public Sub ButtonClose_Click()
+  Me.Close
+End
+
+Public Sub Form_Close()
+  TimerDiag.Stop
+End
+
+Private Sub Render()
+  ' Header sorgente con colore coerente con la label
+  Select Case FMain.ClockSrc
+    Case "G"
+      LblSrc.Text = "Sorgente: GPS (PPS)"
+      LblSrc.Background = &H00CC00&
+      LblSrc.Foreground = &HFFFFFF&
+    Case "R"
+      LblSrc.Text = "Sorgente: RTC"
+      LblSrc.Background = &HCCCC00&
+      LblSrc.Foreground = &H000000&
+    Case "N"
+      LblSrc.Text = "Sorgente: nessun tempo valido"
+      LblSrc.Background = &HCC8800&
+      LblSrc.Foreground = &HFFFFFF&
+    Case Else
+      LblSrc.Text = "Sorgente: --"
+      LblSrc.Background = &H888888&
+      LblSrc.Foreground = &HFFFFFF&
+  End Select
+
+  Dim d As String[] = MClock.ParseLine(FMain.ClockDiagRaw)
+  If d <> Null And If d[0] = "D" Then
+    ' D = [tag, unix, src, dev_tcnt, nmea_ms, fix, sat, hdop, alt, persi, since_pps, since_rtc, uptime]
+    LblGps.Text = "GPS: fix=" & d[5] & "  sat=" & d[6] & "  hdop=" & d[7] & "  alt=" & d[8] & "m  nmea_delay=" & d[4] & "ms  persi=" & d[9]
+    LblRtc.Text = "RTC: dev_tcnt=" & d[3] & "  ultimo_write=" & d[11] & "s fa  since_pps=" & d[10] & "s"
+    LblTime.Text = "Tempo: unix=" & d[1] & "  uptime=" & d[12] & "s"
+  Else
+    LblGps.Text = "GPS: --"
+    LblRtc.Text = "RTC: --"
+    LblTime.Text = "Tempo: --"
+  Endif
+  LblTime.Text &= "   live=" & FMain.ClockTimeLive
+  LblLink.Text = "Link: " & FMain.ClockDevice & "  fw=" & FMain.ClockFwVer
+End
