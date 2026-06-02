@@ -1,37 +1,41 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,64,60)
+  MoveScaled(0,0,92,80)
   Text = ("Diagnostica clock")
+  Arrangement = Arrange.Vertical
+  Margin = True
+  Spacing = True
   { LblSrc Label
-    MoveScaled(1,1,62,4)
+    MoveScaled(1,1,90,6)
     Alignment = Align.Center
     Font = Font["+4"]
     Text = ("—")
   }
-  { LblGps Label
-    MoveScaled(1,6,62,5)
-    Text = ("GPS: —")
+  { TxtBody TextArea
+    MoveScaled(1,8,90,58)
+    Expand = True
+    ReadOnly = True
+    Wrap = True
+    Font = Font["Monospace"]
+    Text = ("")
   }
-  { LblRtc Label
-    MoveScaled(1,12,62,4)
-    Text = ("RTC: —")
-  }
-  { LblTime Label
-    MoveScaled(1,17,62,4)
-    Text = ("Tempo: —")
-  }
-  { LblLink Label
-    MoveScaled(1,22,62,4)
-    Text = ("Link: —")
-  }
-  { ButtonRefresh Button
-    MoveScaled(1,52,18,5)
-    Text = ("Aggiorna")
-  }
-  { ButtonClose Button
-    MoveScaled(45,52,18,5)
-    Text = ("Chiudi")
+  { PanelBtns Panel
+    MoveScaled(1,68,90,6)
+    Arrangement = Arrange.Horizontal
+    Spacing = True
+    { ButtonRefresh Button
+      MoveScaled(0,0,18,5)
+      Text = ("Aggiorna")
+    }
+    { PanelSpacer Panel
+      MoveScaled(19,0,50,5)
+      Expand = True
+    }
+    { ButtonClose Button
+      MoveScaled(70,0,18,5)
+      Text = ("Chiudi")
+    }
   }
   { TimerDiag #Timer
     #X = 600
