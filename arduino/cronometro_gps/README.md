@@ -55,23 +55,38 @@ dall'accensione, prima ancora del fix GPS.
 GND comune obbligatorio fra tutti i dispositivi. Verificare la tensione di
 alimentazione del modulo GPS (3.3V sul chip nudo, 5V sulle breakout con regolatore).
 
-## Formato output seriale (115200 baud)
+## Protocollo seriale (115200 baud, USB-CDC, righe terminate da `\n`)
 
-```
-PASSAGGIO:<unix>.<ms a 3 cifre>
-DIAG:<unix>,<fonte>,<dev_tcnt>,<ritardo_nmea_ms>,<fix>,<sat>,<hdop>,<alt>,<nmea_persi>
-DIAG_NOPPS:<uptime>s,<fonte>,-,-,<fix>,<sat>,<hdop>,<alt>,<nmea_persi>
-```
+Protocollo terso a tag di singolo carattere: nessun invio ciclico, le
+diagnostiche sono su richiesta (request/response), il passaggio è asincrono.
 
-Campi `DIAG`:
+### Arduino → PC (asincrono / risposte)
 
-- `unix` — secondo UTC (oppure `<n>s` di uptime se non ancora inizializzato);
-- `fonte` — `PPS` / `RTC` / `WAIT` / `NONE` / `INIT`;
+| Msg     | Formato                         | Esempio                                            |
+|---------|---------------------------------|----------------------------------------------------|
+| Passage | `P<unix>.<ms><G\|R>`            | `P1718000000.347G` (G=GPS, R=RTC)                  |
+| Pong    | `K<src>[<unix>.<ms>]`           | `KG1718000000.347` / `KN` (src `G`/`R`/`N`)        |
+| Diag    | `D<CSV 12 campi>`               | `D1718000000,G,-1,187.3,A,9,0.93,142,0,12,3,57`    |
+| Id      | `Y<ver>`                        | `Y1`                                               |
+| Warn    | `W<nmea>,<ref>`                 | `W1718000001,1718000003` (evento desync)           |
+
+Ordine colonne `D` (posizionale): `unix, src, dev_tcnt, nmea_ms, fix, sat,
+hdop, alt, nmea_persi, since_pps_s, since_rtc_write_s, uptime_s`.
+
+- `src` — `G` (PPS), `R` (RTC), `N` (nessun tempo valido);
 - `dev_tcnt` — deviazione di TCNT1 da 32768 al PPS (ideale 0 / +-1);
-- `ritardo_nmea_ms` — latenza dell'RMC dopo il PPS;
-- `fix` — `A` valido / `V` non valido;
-- `sat` — numero satelliti; `hdop`; `alt` — altitudine in metri;
-- `nmea_persi` — contatore di secondi senza RMC valido.
+- `nmea_ms` — latenza dell'RMC dopo il PPS;
+- `fix` — `A` valido / `V` non valido; `sat`; `hdop`; `alt` (metri);
+- `nmea_persi` — contatore di secondi senza RMC valido;
+- `since_pps_s` / `since_rtc_write_s` / `uptime_s` — secondi.
+
+### PC → Arduino (1 byte + `\n`)
+
+| Comando | Byte | Risposta              |
+|---------|------|-----------------------|
+| Ping    | `?`  | `K<src>[<unix>.<ms>]` |
+| Diag    | `@`  | `D<...>`              |
+| Id      | `#`  | `Y<ver>`              |
 
 ## Dipendenze (Library Manager)
 
