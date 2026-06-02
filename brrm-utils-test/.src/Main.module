@@ -1,6 +1,6 @@
 Public Sub Main()
   File.Save("/tmp/main-ran", "yes at " & CStr(Now))
-  Test.Plan(138)
+  Test.Plan(162)
   TestMillisOf.RunAll()
   TestMsInDay.RunAll()
   TestDaysFromEpoch.RunAll()
@@ -12,4 +12,5 @@ Public Sub Main()
   TestAlignSync.RunAll()
   TestOrarioWire.RunAll()
   TestCivilFromDays.RunAll()
+  TestUnixMsToDate.RunAll()
 End

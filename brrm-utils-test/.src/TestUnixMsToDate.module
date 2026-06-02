@@ -1,0 +1,38 @@
+' Test per MTime.UnixMsToDateTZ — unix ms (UTC) -> Date locale, con
+' offset di fuso esplicito (tz in secondi a ovest di UTC, POSIX) per
+' determinismo. Vettori verificati con datetime Python (UTC).
+Public Sub RunAll()
+  Dim d As Date
+  ' epoch 0 UTC = 1970-01-01 00:00:00.000
+  d = MTime.UnixMsToDateTZ(0, 0)
+  Assert.Equals(Year(d),  1970, "epoch0 anno")
+  Assert.Equals(Month(d), 1,    "epoch0 mese")
+  Assert.Equals(Day(d),   1,    "epoch0 giorno")
+  Assert.Equals(Hour(d),  0,    "epoch0 ora")
+  Assert.Equals(Minute(d),0,    "epoch0 minuto")
+  Assert.Equals(Second(d),0,    "epoch0 secondo")
+  Assert.Equals(MTime.MillisOf(d), 0, "epoch0 ms")
+  ' 1718000000.347 UTC = 2024-06-10 06:13:20.347
+  d = MTime.UnixMsToDateTZ(1718000000347, 0)
+  Assert.Equals(Year(d),  2024, "v1 anno")
+  Assert.Equals(Month(d), 6,    "v1 mese")
+  Assert.Equals(Day(d),   10,   "v1 giorno")
+  Assert.Equals(Hour(d),  6,    "v1 ora")
+  Assert.Equals(Minute(d),13,   "v1 minuto")
+  Assert.Equals(Second(d),20,   "v1 secondo")
+  Assert.Equals(MTime.MillisOf(d), 347, "v1 ms")
+  ' 1735689599000 UTC = 2024-12-31 23:59:59.000
+  d = MTime.UnixMsToDateTZ(1735689599000, 0)
+  Assert.Equals(Year(d),  2024, "v2 anno")
+  Assert.Equals(Month(d), 12,   "v2 mese")
+  Assert.Equals(Day(d),   31,   "v2 giorno")
+  Assert.Equals(Hour(d),  23,   "v2 ora")
+  Assert.Equals(Minute(d),59,   "v2 minuto")
+  Assert.Equals(Second(d),59,   "v2 secondo")
+  Assert.Equals(MTime.MillisOf(d), 0, "v2 ms")
+  ' offset CEST: tz = -7200 (2h a est) -> epoch0 locale = 02:00
+  d = MTime.UnixMsToDateTZ(0, -7200)
+  Assert.Equals(Year(d), 1970, "tz anno")
+  Assert.Equals(Day(d),  1,    "tz giorno")
+  Assert.Equals(Hour(d), 2,    "tz ora (UTC+2)")
+End

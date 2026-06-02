@@ -134,3 +134,26 @@ Public Function CivilFromDays(days As Long) As Integer[]
   If m <= 2 Then y = y + 1
   Return [CInt(y), CInt(m), CInt(d)]
 End
+
+Public Function UnixMsToDateTZ(unixMs As Long, tzSec As Long) As Date
+  ' Inverso di DateToUnixMs con fuso esplicito. tzSec = secondi a ovest
+  ' di UTC (POSIX, come System.TimeZone): locale = UTC - tzSec.
+  Dim localMs As Long = unixMs - tzSec * 1000
+  Dim days As Long = localMs \ 86400000
+  Dim msInDay As Long = localMs Mod 86400000
+  If msInDay < 0 Then
+    msInDay = msInDay + 86400000
+    days = days - 1
+  Endif
+  Dim ymd As Integer[] = CivilFromDays(days)
+  Dim hh As Integer = CInt(msInDay \ 3600000)
+  Dim mm As Integer = CInt((msInDay \ 60000) Mod 60)
+  Dim ss As Integer = CInt((msInDay \ 1000) Mod 60)
+  Dim uuu As Integer = CInt(msInDay Mod 1000)
+  Return Date(ymd[0], ymd[1], ymd[2], hh, mm, ss, uuu)
+End
+
+Public Function UnixMsToDate(unixMs As Long) As Date
+  ' Wrapper col fuso di sistema corrente.
+  Return UnixMsToDateTZ(unixMs, CLong(System.TimeZone))
+End
