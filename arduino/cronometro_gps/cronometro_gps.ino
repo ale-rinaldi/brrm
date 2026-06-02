@@ -75,6 +75,7 @@ volatile bool compa_recente = false;
 volatile uint32_t unix_cattura     = 0;
 volatile uint16_t cattura_timer    = 0;
 volatile bool evento_fotocellula   = false;
+volatile uint8_t cattura_fonte = 'R';   // 'G' (PPS) o 'R' (RTC) al momento della cattura
 
 // --- Dati diagnostici ---
 volatile uint16_t diag_tcnt_al_pps     = 0;
@@ -285,7 +286,24 @@ ISR(TIMER1_CAPT_vect) {
     snap--;
   }
   unix_cattura = snap;
+  cattura_fonte = (stato_attuale == PPS_ACTIVE) ? 'G' : 'R';
   evento_fotocellula = true;
+}
+
+// ============================================================
+// HELPER TEMPO ASSOLUTO
+// ============================================================
+// Stampa "<unix>.<ms a 3 cifre>" su Serial (no newline). Applica la
+// saturazione frazione>=32768 come la stampa del passaggio.
+void stampaTempo(uint32_t secondo, uint16_t frazione) {
+  while (frazione >= 32768) { frazione -= 32768; secondo += 1; }
+  uint16_t ms = (uint16_t)(frazione / 32.768f);
+  if (ms > 999) ms = 999;
+  Serial.print(secondo);
+  Serial.print('.');
+  if (ms < 100) Serial.print('0');
+  if (ms < 10)  Serial.print('0');
+  Serial.print(ms);
 }
 
 // ============================================================
@@ -351,22 +369,12 @@ void loop() {
       uint16_t frazione = cattura_timer;
       interrupts();
 
-      // Saturazione: in PPS_ACTIVE TCNT1 puo' arrivare fino a 49151 (1.5s).
-      // Il while gestisce sia drift sia capture avvenute oltre la fine del secondo.
-      while (frazione >= 32768) {
-        frazione -= 32768;
-        secondo  += 1;
-      }
-
-      uint16_t ms = (uint16_t)(frazione / 32.768f);
-      if (ms > 999) ms = 999;
-
-      Serial.print(F("PASSAGGIO:"));
-      Serial.print(secondo);
-      Serial.print('.');
-      if (ms < 100) Serial.print('0');
-      if (ms < 10)  Serial.print('0');
-      Serial.println(ms);
+      noInterrupts();
+      uint8_t fonte = cattura_fonte;
+      interrupts();
+      Serial.print('P');
+      stampaTempo(secondo, frazione);
+      Serial.println((char) fonte);
 
       ultimo_passaggio_valido = m;
 
@@ -376,25 +384,6 @@ void loop() {
     evento_fotocellula = false;
   }
 
-  // --- Emissione diagnostica dopo PPS ---
-  if (pps_appena_arrivato) {
-    pps_appena_arrivato = false;
-    emettiDiagnostica(true);
-  }
-
-  // --- Heartbeat diagnostico se PPS perso o non ancora arrivato ---
-  static unsigned long ultimo_heartbeat = 0;
-  noInterrupts();
-  unsigned long t_pps = ultimo_pps_ms;
-  interrupts();
-
-  unsigned long ora = millis();
-  bool pps_assente = (t_pps == 0) || (ora - t_pps > 2000);
-
-  if (pps_assente && (ora - ultimo_heartbeat >= INTERVALLO_HB_MS)) {
-    emettiDiagnostica(false);
-    ultimo_heartbeat = ora;
-  }
 }
 
 // ============================================================
