@@ -90,3 +90,18 @@ Public Function ParseLine(sLine As String) As String[]
       Return Null
   End Select
 End
+
+Public Function LabelState(devicePresent As Boolean, portOpen As Boolean, lastPongAgeMs As Long, src As String) As Integer
+  If Not devicePresent Or If Not portOpen Then Return HW_ABSENT
+  If lastPongAgeMs > PONG_TIMEOUT_MS Then Return HW_UNRESPONSIVE
+  Select Case src
+    Case "G"
+      Return HW_GPS
+    Case "R"
+      Return HW_RTC
+    Case "N"
+      Return HW_NOSYNC
+    Case Else
+      Return HW_UNRESPONSIVE
+  End Select
+End

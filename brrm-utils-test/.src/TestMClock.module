@@ -52,4 +52,13 @@ Public Sub RunAll()
   Assert.Equals(IsNull(MClock.ParseLine("")),   True, "vuoto -> Null")
   Assert.Equals(IsNull(MClock.ParseLine("Z9")), True, "tag ignoto -> Null")
   Assert.Equals(IsNull(MClock.ParseLine("P")),  True, "P vuoto -> Null")
+
+  ' --- LabelState(devicePresent, portOpen, lastPongAgeMs, src) ---
+  Assert.Equals(MClock.LabelState(False, False, 0,    "G"), MClock.HW_ABSENT,       "no device -> ABSENT")
+  Assert.Equals(MClock.LabelState(True,  False, 0,    "G"), MClock.HW_ABSENT,       "porta chiusa -> ABSENT")
+  Assert.Equals(MClock.LabelState(True,  True,  5000, "G"), MClock.HW_UNRESPONSIVE, "pong vecchio -> UNRESPONSIVE")
+  Assert.Equals(MClock.LabelState(True,  True,  500,  ""),  MClock.HW_UNRESPONSIVE, "src vuoto -> UNRESPONSIVE")
+  Assert.Equals(MClock.LabelState(True,  True,  500,  "G"), MClock.HW_GPS,          "src G -> GPS")
+  Assert.Equals(MClock.LabelState(True,  True,  500,  "R"), MClock.HW_RTC,          "src R -> RTC")
+  Assert.Equals(MClock.LabelState(True,  True,  500,  "N"), MClock.HW_NOSYNC,       "src N -> NOSYNC")
 End
