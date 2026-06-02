@@ -1,0 +1,55 @@
+' Test per MClock.ParseLine / IsAllDigits / LabelState.
+Public Sub RunAll()
+  Dim r As String[]
+
+  ' --- IsAllDigits ---
+  Assert.Equals(MClock.IsAllDigits("123"), True,  "digits ok")
+  Assert.Equals(MClock.IsAllDigits("12a"), False, "non-digit")
+  Assert.Equals(MClock.IsAllDigits(""),    False, "vuoto")
+
+  ' --- Passage P<unix>.<ms><src> ---
+  r = MClock.ParseLine("P1718000000.347G")
+  Assert.Equals(r[0], "P",          "P kind")
+  Assert.Equals(r[1], "1718000000", "P unix")
+  Assert.Equals(r[2], "347",        "P ms")
+  Assert.Equals(r[3], "G",          "P src G")
+  r = MClock.ParseLine("P1718000000.000R")
+  Assert.Equals(r[3], "R", "P src R")
+  Assert.Equals(IsNull(MClock.ParseLine("P1718000000.347X")), True, "P src invalido -> Null")
+  Assert.Equals(IsNull(MClock.ParseLine("P17a8000000.347G")), True, "P unix non-num -> Null")
+
+  ' --- Pong K<src>[<unix>.<ms>] ---
+  r = MClock.ParseLine("KG1718000000.347")
+  Assert.Equals(r[0], "K",          "K kind")
+  Assert.Equals(r[1], "G",          "K src")
+  Assert.Equals(r[2], "1718000000", "K unix")
+  Assert.Equals(r[3], "347",        "K ms")
+  r = MClock.ParseLine("KN")
+  Assert.Equals(r[0], "K", "KN kind")
+  Assert.Equals(r[1], "N", "KN src")
+  Assert.Equals(r.Count, 2, "KN senza timestamp")
+
+  ' --- Diag D<csv 12 campi> ---
+  r = MClock.ParseLine("D1718000000,G,-1,187.3,A,9,0.93,142,0,12,3,57")
+  Assert.Equals(r[0], "D",          "D kind")
+  Assert.Equals(r.Count, 13,        "D = kind + 12 campi")
+  Assert.Equals(r[1], "1718000000", "D unix")
+  Assert.Equals(r[5], "A",          "D fix")
+  Assert.Equals(IsNull(MClock.ParseLine("D1,2,3")), True, "D campi insufficienti -> Null")
+
+  ' --- Id Y<ver> ---
+  r = MClock.ParseLine("Y1")
+  Assert.Equals(r[0], "Y", "Y kind")
+  Assert.Equals(r[1], "1", "Y ver")
+
+  ' --- Warn W<nmea>,<ref> ---
+  r = MClock.ParseLine("W123,456")
+  Assert.Equals(r[0], "W",   "W kind")
+  Assert.Equals(r[1], "123", "W nmea")
+  Assert.Equals(r[2], "456", "W ref")
+
+  ' --- malformati ---
+  Assert.Equals(IsNull(MClock.ParseLine("")),   True, "vuoto -> Null")
+  Assert.Equals(IsNull(MClock.ParseLine("Z9")), True, "tag ignoto -> Null")
+  Assert.Equals(IsNull(MClock.ParseLine("P")),  True, "P vuoto -> Null")
+End

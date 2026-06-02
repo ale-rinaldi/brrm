@@ -1,0 +1,92 @@
+' MClock — parser del protocollo seriale "clock interno" e calcolo dello
+' stato label. Funzioni pure, unit-testabili. Source-of-truth: gli altri
+' progetti puntano qui via symlink. Solo Public (bug Gambas 3.20 sulle
+' Private function nei moduli symlinkati).
+
+' Comandi PC -> Arduino (1 byte + newline)
+Public Const CMD_PING As String = "?"
+Public Const CMD_DIAG As String = "@"
+Public Const CMD_ID As String = "#"
+
+' Stati label (modalita' internal)
+Public Const HW_ABSENT As Integer = 0
+Public Const HW_UNRESPONSIVE As Integer = 1
+Public Const HW_GPS As Integer = 2
+Public Const HW_RTC As Integer = 3
+Public Const HW_NOSYNC As Integer = 4
+
+Public Const PONG_TIMEOUT_MS As Long = 3000
+
+Public Function IsAllDigits(s As String) As Boolean
+  If s = "" Then Return False
+  Dim i As Integer
+  Dim c As Integer
+  For i = 1 To Len(s)
+    c = Asc(Mid$(s, i, 1))
+    If c < Asc("0") Or If c > Asc("9") Then Return False
+  Next
+  Return True
+End
+
+Public Function ParseLine(sLine As String) As String[]
+  ' Parsa una riga del protocollo. Dispatch sul primo byte. Ritorna un
+  ' String[] [kind, campi...] oppure Null se malformata. Validazione
+  ' inlinata (no Private function: bug Gambas 3.20 sui symlink).
+  sLine = Trim$(sLine)
+  If sLine = "" Then Return Null
+  Dim tag As String = Left$(sLine, 1)
+  Dim rest As String = Mid$(sLine, 2)
+  Dim parts As String[]
+
+  Select Case tag
+    Case "P"   ' P<unix>.<ms><src>, src = ultimo char (G|R), ms 3 cifre
+      If Len(rest) < 6 Then Return Null
+      Dim src As String = Right$(rest, 1)
+      If src <> "G" And If src <> "R" Then Return Null
+      Dim body As String = Left$(rest, Len(rest) - 1)
+      Dim dot As Integer = InStr(body, ".")
+      If dot < 2 Then Return Null
+      Dim unixp As String = Left$(body, dot - 1)
+      Dim msp As String = Mid$(body, dot + 1)
+      If Not IsAllDigits(unixp) Then Return Null
+      If Len(msp) <> 3 Or If Not IsAllDigits(msp) Then Return Null
+      Return [tag, unixp, msp, src]
+
+    Case "K"   ' K<src>[<unix>.<ms>]
+      If rest = "" Then Return Null
+      Dim ks As String = Left$(rest, 1)
+      If ks <> "G" And If ks <> "R" And If ks <> "N" Then Return Null
+      Dim ktail As String = Mid$(rest, 2)
+      If ktail = "" Then Return [tag, ks]
+      Dim kdot As Integer = InStr(ktail, ".")
+      If kdot < 2 Then Return Null
+      Dim ku As String = Left$(ktail, kdot - 1)
+      Dim km As String = Mid$(ktail, kdot + 1)
+      If Not IsAllDigits(ku) Then Return Null
+      If Len(km) <> 3 Or If Not IsAllDigits(km) Then Return Null
+      Return [tag, ks, ku, km]
+
+    Case "D"   ' D<csv 12 campi>
+      parts = Split(rest, ",")
+      If parts.Count <> 12 Then Return Null
+      Dim outd As New String[]
+      outd.Add(tag)
+      Dim f As String
+      For Each f In parts
+        outd.Add(f)
+      Next
+      Return outd
+
+    Case "Y"   ' Y<ver>
+      If rest = "" Then Return Null
+      Return [tag, rest]
+
+    Case "W"   ' W<nmea>,<ref>
+      parts = Split(rest, ",")
+      If parts.Count <> 2 Then Return Null
+      Return [tag, parts[0], parts[1]]
+
+    Case Else
+      Return Null
+  End Select
+End
