@@ -37,11 +37,16 @@
 //    Fotocellula -> D8  (ICP1) - uscita NPN NO, fronte di discesa
 //    GND comune a tutti i dispositivi.
 //
-//  Output seriale (115200 baud)
-//  ----------------------------
-//    PASSAGGIO:<unix>.<ms a 3 cifre>
-//    DIAG:<unix>,<fonte>,<dev_tcnt>,<ritardo_nmea_ms>,<fix>,<sat>,<hdop>,<alt>,<nmea_persi>
-//    DIAG_NOPPS:<uptime>s,<fonte>,-,-,<fix>,<sat>,<hdop>,<alt>,<nmea_persi>
+//  Protocollo seriale (115200 baud, USB-CDC, righe terminate da '\n')
+//  ------------------------------------------------------------------
+//  Arduino -> PC (asincrono / risposte):
+//    P<unix>.<ms><G|R>                 passaggio fotocellula (G=GPS, R=RTC)
+//    K<src>[<unix>.<ms>]               pong (src G|R|N); timestamp se src!=N
+//    D<unix,src,dev_tcnt,nmea_ms,fix,sat,hdop,alt,persi,since_pps,since_rtc,uptime>
+//    Y<ver>                            identita' firmware
+//    W<nmea>,<ref>                     evento desync (bassa frequenza)
+//  PC -> Arduino (1 byte + '\n'):
+//    '?' -> pong   '@' -> diag   '#' -> id
 //
 //  NOTA: i checksum dei comandi PUBX qui sotto sono stati verificati
 //  (XOR dei caratteri tra '$' e '*'). Vedi README per il dettaglio.
@@ -90,8 +95,10 @@ unsigned long ultimo_aggiornamento_rtc_ms = 0;
 const unsigned long INTERVALLO_AGGIORNAMENTO_RTC_MS = 5UL * 60UL * 1000UL;
 
 // --- Debounce e timeout ---
+char cmdBuf[8];
+uint8_t cmdLen = 0;
+
 const unsigned long DEBOUNCE_TIME_MS     = 1000;
-const unsigned long INTERVALLO_HB_MS     = 1000;
 const unsigned long TIMEOUT_BOOTSTRAP_MS = 1500;
 const unsigned long TIMEOUT_BUSY_WAIT_MS = 2000;
 unsigned long ultimo_passaggio_valido = 0;
@@ -158,7 +165,6 @@ void bootstrapRtc() {
 
   DateTime ora_iniziale = rtc.now();
   if (ora_iniziale.year() < 2024) {
-    Serial.println(F("INFO: RTC non programmato"));
     noInterrupts();
     if (stato_attuale != PPS_ACTIVE) {
       stato_attuale = UNSYNCED;
@@ -191,8 +197,6 @@ void bootstrapRtc() {
         tempo_inizializzato = true;
         stato_attuale = RTC_ACTIVE;
         compa_recente = false;
-        Serial.print(F("INFO: RTC sincronizzato, unix="));
-        Serial.println(t_unix);
       }
       interrupts();
       return;
@@ -200,7 +204,6 @@ void bootstrapRtc() {
   }
 
   // Timeout: RTC non risponde o si e' inceppato
-  Serial.println(F("WARN: timeout bootstrap RTC"));
   noInterrupts();
   if (stato_attuale != PPS_ACTIVE) {
     stato_attuale = UNSYNCED;
@@ -307,9 +310,78 @@ void stampaTempo(uint32_t secondo, uint16_t frazione) {
 }
 
 // ============================================================
+// HELPER FONTE CORRENTE
+// ============================================================
+char fonteCorrente() {
+  if (!tempo_inizializzato) return 'N';
+  return (stato_attuale == PPS_ACTIVE) ? 'G' : 'R';
+}
+
+// ============================================================
+// RISPOSTE AI COMANDI
+// ============================================================
+void inviaPong() {
+  char s = fonteCorrente();
+  Serial.print('K');
+  Serial.print(s);
+  if (s != 'N') {
+    noInterrupts();
+    uint32_t sec = unix_riferimento;
+    uint16_t fr  = TCNT1;
+    interrupts();
+    stampaTempo(sec, fr);
+  }
+  Serial.println();
+}
+
+void inviaId() {
+  Serial.println(F("Y1"));
+}
+
+void inviaDiag() {
+  noInterrupts();
+  uint32_t secondo   = unix_riferimento;
+  uint16_t tcnt_diag = diag_tcnt_al_pps;
+  uint16_t persi     = contatore_nmea_persi;
+  unsigned long tpps = ultimo_pps_ms;
+  unsigned long trtc = ultimo_aggiornamento_rtc_ms;
+  interrupts();
+  unsigned long ora = millis();
+  Serial.print('D');
+  Serial.print(secondo);                 Serial.print(',');
+  Serial.print(fonteCorrente());         Serial.print(',');
+  Serial.print((int16_t) tcnt_diag - 32768); Serial.print(',');
+  Serial.print(ultimo_ritardo_ticks / 32.768f, 1); Serial.print(',');
+  Serial.print(gps.location.isValid() ? 'A' : 'V'); Serial.print(',');
+  Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0); Serial.print(',');
+  if (gps.hdop.isValid()) Serial.print(gps.hdop.hdop(), 2); else Serial.print(F("0")); Serial.print(',');
+  if (gps.altitude.isValid()) Serial.print(gps.altitude.meters(), 0); else Serial.print(F("0")); Serial.print(',');
+  Serial.print(persi);                   Serial.print(',');
+  Serial.print((ora - tpps) / 1000);     Serial.print(',');
+  Serial.print(trtc == 0 ? 0 : (ora - trtc) / 1000); Serial.print(',');
+  Serial.println(ora / 1000);
+}
+
+// ============================================================
 // LOOP
 // ============================================================
 void loop() {
+  // --- Comandi da PC via USB Serial ---
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdLen > 0) {
+        char cmd = cmdBuf[0];
+        if      (cmd == '?') inviaPong();
+        else if (cmd == '@') inviaDiag();
+        else if (cmd == '#') inviaId();
+        cmdLen = 0;
+      }
+    } else if (cmdLen < sizeof(cmdBuf) - 1) {
+      cmdBuf[cmdLen++] = c;
+    }
+  }
+
   // --- Lettura NMEA dal GPS ---
   while (ss.available() > 0) {
     if (gps.encode(ss.read())) {
@@ -336,8 +408,6 @@ void loop() {
             stato_attuale = RTC_ACTIVE;
           }
           interrupts();
-          Serial.print(F("INFO: bootstrap da GPS, unix="));
-          Serial.println(t_nmea);
         } else {
           // Sanity check
           noInterrupts();
@@ -346,9 +416,9 @@ void loop() {
 
           int32_t diff = (int32_t)t_nmea - (int32_t)attuale;
           if (diff != 0 && diff != -1) {
-            Serial.print(F("WARN: desync NMEA="));
+            Serial.print('W');
             Serial.print(t_nmea);
-            Serial.print(F(" ref="));
+            Serial.print(',');
             Serial.println(attuale);
             noInterrupts();
             unix_riferimento = t_nmea;
@@ -455,73 +525,4 @@ void tentaAggiornamentoRtc() {
   Wire.endTransmission();
 
   ultimo_aggiornamento_rtc_ms = millis();
-  Serial.println(F("INFO: RTC aggiornato"));
-}
-
-// ============================================================
-// DIAGNOSTICA
-// ============================================================
-void emettiDiagnostica(bool pps_attivo) {
-  noInterrupts();
-  uint32_t secondo   = unix_riferimento;
-  uint16_t tcnt_diag = diag_tcnt_al_pps;
-  uint16_t persi     = contatore_nmea_persi;
-  Stato s            = stato_attuale;
-  interrupts();
-
-  const __FlashStringHelper* fonte;
-  switch (s) {
-    case PPS_ACTIVE:    fonte = F("PPS"); break;
-    case RTC_ACTIVE:    fonte = F("RTC"); break;
-    case WAIT_RTC_SYNC: fonte = F("WAIT"); break;
-    case UNSYNCED:      fonte = F("NONE"); break;
-    default:            fonte = F("INIT"); break;
-  }
-
-  Serial.print(pps_attivo ? F("DIAG:") : F("DIAG_NOPPS:"));
-
-  if (tempo_inizializzato) {
-    Serial.print(secondo);
-  } else {
-    Serial.print(millis() / 1000);
-    Serial.print('s');
-  }
-  Serial.print(',');
-  Serial.print(fonte);
-  Serial.print(',');
-
-  if (pps_attivo) {
-    Serial.print((int16_t)tcnt_diag - 32768);
-  } else {
-    Serial.print('-');
-  }
-  Serial.print(',');
-
-  if (pps_attivo) {
-    Serial.print(ultimo_ritardo_ticks / 32.768f, 1);
-  } else {
-    Serial.print('-');
-  }
-  Serial.print(',');
-
-  Serial.print(gps.location.isValid() ? 'A' : 'V');
-  Serial.print(',');
-  Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
-  Serial.print(',');
-
-  if (gps.hdop.isValid()) {
-    Serial.print(gps.hdop.hdop(), 2);
-  } else {
-    Serial.print(F("--"));
-  }
-  Serial.print(',');
-
-  if (gps.altitude.isValid()) {
-    Serial.print(gps.altitude.meters(), 0);
-  } else {
-    Serial.print(F("--"));
-  }
-  Serial.print(',');
-
-  Serial.println(persi);
 }
