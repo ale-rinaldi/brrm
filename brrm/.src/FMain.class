@@ -196,28 +196,9 @@ Private Sub SetClockLabel(st As Integer)
     $arduinoOnline = bOnline
     If bOnline Then Try MLog.Write("arduino_online", "") Else Try MLog.Write("arduino_offline", "")
   Endif
-  Select Case st
-    Case MClock.HW_GPS
-      LabelArduino.Background = &H00CC00&
-      LabelArduino.Foreground = &HFFFFFF&
-      LabelArduino.Text = "ARDUINO GPS"
-    Case MClock.HW_RTC
-      LabelArduino.Background = &HCCCC00&
-      LabelArduino.Foreground = &H000000&
-      LabelArduino.Text = "ARDUINO RTC"
-    Case MClock.HW_NOSYNC
-      LabelArduino.Background = &HCC8800&
-      LabelArduino.Foreground = &HFFFFFF&
-      LabelArduino.Text = "ARDUINO NO SYNC"
-    Case MClock.HW_UNRESPONSIVE
-      LabelArduino.Background = &H888888&
-      LabelArduino.Foreground = &HFFFFFF&
-      LabelArduino.Text = "ARDUINO ?"
-    Case Else
-      LabelArduino.Background = &HCC0000&
-      LabelArduino.Foreground = &HFFFFFF&
-      LabelArduino.Text = "NO ARDUINO"
-  End Select
+  LabelArduino.Background = MClock.LabelBg(st)
+  LabelArduino.Foreground = MClock.LabelFg(st)
+  LabelArduino.Text = MClock.LabelText(st)
 End
 
 Public Sub LabelArduino_MouseUp()
@@ -282,20 +263,7 @@ Private Sub AlignLoadConfig() As Boolean
 End
 
 Public Sub LoadHardwareConfig()
-  Dim sPath As String = User.Home &/ ".config/brrm/hardware.conf"
-  Dim sLine, sKey, sVal As String
-  Dim iEq As Integer
-  $hwMode = "legacy"
-  If Not Exist(sPath) Then Return
-  For Each sLine In Split(File.Load(sPath), gb.NewLine)
-    sLine = Trim$(sLine)
-    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
-    iEq = InStr(sLine, "=")
-    If iEq < 2 Then Continue
-    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
-    sVal = LCase$(Trim$(Mid$(sLine, iEq + 1)))
-    If sKey = "mode" And If sVal = "internal" Then $hwMode = "internal"
-  Next
+  $hwMode = MFile.LoadHardwareMode()
 End
 
 Public Sub AlignReinit()

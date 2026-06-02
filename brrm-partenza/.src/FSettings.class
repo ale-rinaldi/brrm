@@ -70,7 +70,7 @@ Public Sub ButtonSave_Click()
   If Not Exist(sDir) Then Try Mkdir sDir
   If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
   If Not SaveLogConfig(sDir &/ "log.conf") Then Return
-  If Not SaveHardwareConfig(sDir &/ "hardware.conf") Then Return
+  If Not SaveHardwareConfig(MFile.HardwareConfigPath()) Then Return
   Try FMain.AlignReinit()
   Try FMain.LogReinit()
   Try FMain.HardwareReinit()
@@ -111,21 +111,7 @@ Private Sub LoadHardwareConfig()
   ComboHwMode.Clear
   ComboHwMode.Add("Legacy")
   ComboHwMode.Add("Clock interno")
-  Dim sPath As String = User.Home &/ ".config/brrm/hardware.conf"
-  Dim sMode As String = "legacy"
-  If Exist(sPath) Then
-    Dim sLine, sKey, sVal As String
-    Dim iEq As Integer
-    For Each sLine In Split(File.Load(sPath), gb.NewLine)
-      sLine = Trim$(sLine)
-      If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
-      iEq = InStr(sLine, "=")
-      If iEq < 2 Then Continue
-      sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
-      sVal = LCase$(Trim$(Mid$(sLine, iEq + 1)))
-      If sKey = "mode" Then sMode = sVal
-    Next
-  Endif
+  Dim sMode As String = MFile.LoadHardwareMode()
   If sMode = "internal" Then ComboHwMode.Index = 1 Else ComboHwMode.Index = 0
 End
 
