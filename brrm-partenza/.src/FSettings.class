@@ -1,12 +1,13 @@
 ' Gambas class file
 
-' Form di configurazione runtime: 2 tab — sync (align.conf) e registro
-' di gara (log.conf).
+' Form di configurazione runtime: 3 tab — sync (align.conf), registro
+' di gara (log.conf) e hardware (hardware.conf).
 
 Public Sub Form_Open()
   FSettings.Center()
   LoadSyncConfig()
   LoadLogConfig()
+  LoadHardwareConfig()
 End
 
 Private Sub LoadSyncConfig()
@@ -69,8 +70,10 @@ Public Sub ButtonSave_Click()
   If Not Exist(sDir) Then Try Mkdir sDir
   If Not SaveSyncConfig(sDir &/ "align.conf") Then Return
   If Not SaveLogConfig(sDir &/ "log.conf") Then Return
+  If Not SaveHardwareConfig(sDir &/ "hardware.conf") Then Return
   Try FMain.AlignReinit()
   Try FMain.LogReinit()
+  Try FMain.HardwareReinit()
   Me.Close
 End
 
@@ -99,6 +102,39 @@ Private Function SaveLogConfig(sPath As String) As Boolean
   Try MFile.AtomicSave(sPath, sOut)
   If Error Then
     Message.Error("Impossibile salvare log.conf: " & Error.Text)
+    Return False
+  Endif
+  Return True
+End
+
+Private Sub LoadHardwareConfig()
+  ComboHwMode.Clear
+  ComboHwMode.Add("Legacy")
+  ComboHwMode.Add("Clock interno")
+  Dim sPath As String = User.Home &/ ".config/brrm/hardware.conf"
+  Dim sMode As String = "legacy"
+  If Exist(sPath) Then
+    Dim sLine, sKey, sVal As String
+    Dim iEq As Integer
+    For Each sLine In Split(File.Load(sPath), gb.NewLine)
+      sLine = Trim$(sLine)
+      If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+      iEq = InStr(sLine, "=")
+      If iEq < 2 Then Continue
+      sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+      sVal = LCase$(Trim$(Mid$(sLine, iEq + 1)))
+      If sKey = "mode" Then sMode = sVal
+    Next
+  Endif
+  If sMode = "internal" Then ComboHwMode.Index = 1 Else ComboHwMode.Index = 0
+End
+
+Private Function SaveHardwareConfig(sPath As String) As Boolean
+  Dim sMode As String
+  If ComboHwMode.Index = 1 Then sMode = "internal" Else sMode = "legacy"
+  Try MFile.AtomicSave(sPath, "mode = " & sMode & gb.NewLine)
+  If Error Then
+    Message.Error("Impossibile salvare hardware.conf: " & Error.Text)
     Return False
   Endif
   Return True

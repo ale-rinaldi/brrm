@@ -63,6 +63,16 @@ Private $shuttingDown As Boolean
 ' "ARDUINO OK" generera' un log "arduino_online".
 Private $arduinoOnline As Boolean
 
+' --- Hardware clock (modalita' internal) ---
+Private $hwMode As String           ' "legacy" | "internal"
+Private $serialBuf As String        ' buffer di riga (modalita' internal)
+Private $lastPongMs As Long         ' Timer*1000 dell'ultimo pong
+Public ClockSrc As String           ' "G"/"R"/"N"/"" (per label e modal)
+Public ClockTimeLive As String      ' "<unix>.<ms>" dall'ultimo pong
+Public ClockDiagRaw As String       ' ultima riga "D..." ricevuta
+Public ClockFwVer As String         ' versione firmware ("Y<ver>")
+Public ClockDevice As String        ' device path corrente
+
 Public Sub _new()
 
 End
@@ -126,6 +136,10 @@ If Error Then
   ArduinoClose()
   Return
 Endif
+If $hwMode = "internal" Then
+  HandleInternalBytes(s)
+  Return
+Endif
 Dim sNow As String = Format$(Time, "hh:nn:ss.uuu")
 If FotON = True Then
   BPartenze.Add(sNow)
@@ -159,15 +173,68 @@ Private Sub SetArduinoStatus(bConnected As Boolean)
   Endif
 End
 
+Private Sub SetClockLabel(st As Integer)
+  If $shuttingDown Then Return
+  Dim bOnline As Boolean = (st <> MClock.HW_ABSENT)
+  If bOnline <> $arduinoOnline Then
+    $arduinoOnline = bOnline
+    If bOnline Then Try MLog.Write("arduino_online", "") Else Try MLog.Write("arduino_offline", "")
+  Endif
+  Select Case st
+    Case MClock.HW_GPS
+      LabelArduino.Background = &H00CC00&
+      LabelArduino.Foreground = &HFFFFFF&
+      LabelArduino.Text = "ARDUINO GPS"
+    Case MClock.HW_RTC
+      LabelArduino.Background = &HCCCC00&
+      LabelArduino.Foreground = &H000000&
+      LabelArduino.Text = "ARDUINO RTC"
+    Case MClock.HW_NOSYNC
+      LabelArduino.Background = &HCC8800&
+      LabelArduino.Foreground = &HFFFFFF&
+      LabelArduino.Text = "ARDUINO NO SYNC"
+    Case MClock.HW_UNRESPONSIVE
+      LabelArduino.Background = &H888888&
+      LabelArduino.Foreground = &HFFFFFF&
+      LabelArduino.Text = "ARDUINO ?"
+    Case Else
+      LabelArduino.Background = &HCC0000&
+      LabelArduino.Foreground = &HFFFFFF&
+      LabelArduino.Text = "NO ARDUINO"
+  End Select
+End
+
 Public Sub TimerArduino_Timer()
   ' Reconnect/status check: ogni 2s verifica che la porta sia aperta
   ' E che il device file esista ancora (rileva USB disconnect hardware).
   Dim sDevice As String
+  Dim bOk As Boolean = False
   If $hSerial <> Null Then
-    If $hSerial.Status >= 1 And Exist($hSerial.PortName) Then
-      SetArduinoStatus(True)
-      Return
+    If $hSerial.Status >= 1 And Exist($hSerial.PortName) Then bOk = True
+  Endif
+  If $hwMode = "internal" Then
+    If bOk Then
+      Try Print #$hSerial, MClock.CMD_PING
     Endif
+    Dim age As Long
+    If $lastPongMs = 0 Then age = 999999 Else age = MTimerNowMs() - $lastPongMs
+    Dim st As Integer = MClock.LabelState(Exist(ClockDevice) Or bOk, bOk, age, ClockSrc)
+    SetClockLabel(st)
+    If Not bOk Then
+      ArduinoClose()
+      Wait 0.1
+      If $shuttingDown Then Return
+      Dim sDev As String = MFile.FindArduinoDevice()
+      If sDev <> "" Then
+        ClockDevice = sDev
+        ArduinoOpen(sDev)
+      Endif
+    Endif
+    Return
+  Endif
+  If bOk Then
+    SetArduinoStatus(True)
+    Return
   Endif
   ' Non connesso: distruggi l'oggetto e ricrea uno nuovo al prossimo Open.
   ' Senza ricreazione, SerialPort.Open su istanza riusata non riarma il
@@ -191,7 +258,13 @@ Private Function ArduinoOpen(sDevice As String) As Boolean
   $hSerial = New SerialPort
   Object.Attach($hSerial, Me, "Arduino")
   $hSerial.PortName = sDevice
-  $hSerial.Speed = 9600
+  If $hwMode = "internal" Then
+    $hSerial.Speed = 115200
+  Else
+    $hSerial.Speed = 9600
+  Endif
+  $serialBuf = ""
+  ClockSrc = ""
   $hSerial.Parity = SerialPort.None
   $hSerial.DataBits = 8
   $hSerial.StopBits = 1
@@ -208,6 +281,109 @@ Private Sub ArduinoClose()
   If $hSerial <> Null Then
     Try $hSerial.Close
     $hSerial = Null
+  Endif
+End
+
+Private Sub HandleInternalBytes(sChunk As String)
+  Dim iNl As Integer
+  Dim sLine As String
+  $serialBuf &= sChunk
+  Do
+    iNl = InStr($serialBuf, Chr(10))
+    If iNl = 0 Then Break
+    sLine = Left$($serialBuf, iNl - 1)
+    $serialBuf = Mid$($serialBuf, iNl + 1)
+    DispatchClockLine(Trim$(sLine))
+  Loop
+  ' Protezione anti-crescita se non arrivano newline
+  If Len($serialBuf) > 256 Then $serialBuf = ""
+End
+
+Private Sub DispatchClockLine(sLine As String)
+  Dim r As String[] = MClock.ParseLine(sLine)
+  If r = Null Then Return
+  Select Case r[0]
+    Case "P"
+      HandlePassage(r)
+    Case "K"
+      $lastPongMs = MTimerNowMs()
+      ClockSrc = r[1]
+      If r.Count >= 4 Then ClockTimeLive = r[2] & "." & r[3] Else ClockTimeLive = ""
+    Case "D"
+      ClockDiagRaw = sLine
+    Case "Y"
+      ClockFwVer = r[1]
+    Case "W"
+      Try MLog.Write("clock_desync", "nmea=" & r[1] & " ref=" & r[2])
+  End Select
+End
+
+Private Function MTimerNowMs() As Long
+  ' Riferimento monotono in ms per l'eta' del pong (Timer = secondi Float).
+  Return CLong(Timer * 1000)
+End
+
+Private Sub HandlePassage(r As String[])
+  ' r = ["P", unix, ms, src]. Converte UTC->locale e instrada come partenza.
+  Dim unixMs As Long = CLong(r[1]) * 1000 + CLong(r[2])
+  Dim dFull As Date = MTime.UnixMsToDate(unixMs)
+  ' Date time-only "hh:nn:ss.uuu" per restare compatibili col flusso
+  ' BPartenze -> FPartenza.setOrario (che si aspetta solo l'orario).
+  Dim dLocal As Date = Time(Hour(dFull), Minute(dFull), Second(dFull), MTime.MillisOf(dFull))
+  Dim sNow As String = MTime.FormatDateMs(dLocal)
+  If FotON Then
+    BPartenze.Add(sNow)
+    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3])
+  Else
+    Try MLog.Write("fotocellula_ignorata", "source=clock motivo=FotOFF orario=" & sNow)
+  Endif
+End
+
+Public Sub LabelArduino_MouseUp()
+  If $hwMode <> "internal" Then Return
+  RequestId()
+  RequestDiag()
+  FClockDiag.Show
+End
+
+Public Sub RequestDiag()
+  If $hSerial <> Null And If $hSerial.Status >= 1 Then Try Print #$hSerial, MClock.CMD_DIAG
+End
+
+Public Sub RequestId()
+  If $hSerial <> Null And If $hSerial.Status >= 1 Then Try Print #$hSerial, MClock.CMD_ID
+End
+
+Public Sub LoadHardwareConfig()
+  Dim sPath As String = User.Home &/ ".config/brrm/hardware.conf"
+  Dim sLine, sKey, sVal As String
+  Dim iEq As Integer
+  $hwMode = "legacy"
+  If Not Exist(sPath) Then Return
+  For Each sLine In Split(File.Load(sPath), gb.NewLine)
+    sLine = Trim$(sLine)
+    If sLine = "" Or If Left$(sLine, 1) = "#" Then Continue
+    iEq = InStr(sLine, "=")
+    If iEq < 2 Then Continue
+    sKey = LCase$(Trim$(Left$(sLine, iEq - 1)))
+    sVal = LCase$(Trim$(Mid$(sLine, iEq + 1)))
+    If sKey = "mode" And If sVal = "internal" Then $hwMode = "internal"
+  Next
+End
+
+Public Sub HardwareReinit()
+  ' Rilegge la modalita', resetta lo stato e forza la riconnessione al
+  ' baud corretto. La label viene ricalcolata al prossimo TimerArduino.
+  LoadHardwareConfig()
+  ClockSrc = ""
+  ClockDiagRaw = ""
+  ClockFwVer = ""
+  $lastPongMs = 0
+  ArduinoClose()
+  If $hwMode = "internal" Then
+    TimerArduino.Delay = 1000
+  Else
+    TimerArduino.Delay = 2000
   Endif
 End
 
@@ -604,6 +780,7 @@ If aLines.Count >= 1 And If aLines[0] = "brrm-partenza-session v1" Then
   Next
 Endif
 TimerGrid.Start()
+LoadHardwareConfig()
 AlignInit()
 End 
 
