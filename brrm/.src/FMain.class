@@ -95,6 +95,10 @@ IF Error THEN
   ArduinoClose()
   RETURN
 ENDIF
+  If $hwMode = "internal" Then
+    HandleInternalBytes(s)
+    Return
+  Endif
 DIM sNow AS String
 sNow = Format$(Time, "hh:nn:ss.uuu")
 IF FotON = TRUE THEN
@@ -105,6 +109,61 @@ ELSE
 ENDIF
 
 END
+
+Private Sub HandleInternalBytes(sChunk As String)
+  Dim iNl As Integer
+  Dim sLine As String
+  $serialBuf &= sChunk
+  Do
+    iNl = InStr($serialBuf, Chr(10))
+    If iNl = 0 Then Break
+    sLine = Left$($serialBuf, iNl - 1)
+    $serialBuf = Mid$($serialBuf, iNl + 1)
+    DispatchClockLine(Trim$(sLine))
+  Loop
+  ' Protezione anti-crescita se non arrivano newline
+  If Len($serialBuf) > 256 Then $serialBuf = ""
+End
+
+Private Sub DispatchClockLine(sLine As String)
+  Dim r As String[] = MClock.ParseLine(sLine)
+  If r = Null Then Return
+  Select Case r[0]
+    Case "P"
+      HandlePassage(r)
+    Case "K"
+      $lastPongMs = MTimerNowMs()
+      ClockSrc = r[1]
+      If r.Count >= 4 Then ClockTimeLive = r[2] & "." & r[3] Else ClockTimeLive = ""
+    Case "D"
+      ClockDiagRaw = sLine
+    Case "Y"
+      ClockFwVer = r[1]
+    Case "W"
+      Try MLog.Write("clock_desync", "nmea=" & r[1] & " ref=" & r[2])
+  End Select
+End
+
+Private Function MTimerNowMs() As Long
+  ' Riferimento monotono in ms per l'eta' del pong (Timer = secondi Float).
+  Return CLong(Timer * 1000)
+End
+
+Private Sub HandlePassage(r As String[])
+  ' r = ["P", unix, ms, src]. Converte UTC->locale e instrada come arrivo.
+  Dim unixMs As Long = CLong(r[1]) * 1000 + CLong(r[2])
+  Dim dFull As Date = MTime.UnixMsToDate(unixMs)
+  ' Date time-only "hh:nn:ss.uuu" per restare compatibili col flusso
+  ' BArrivi -> FArrivo.setOrario (che si aspetta solo l'orario).
+  Dim dLocal As Date = Time(Hour(dFull), Minute(dFull), Second(dFull), MTime.MillisOf(dFull))
+  Dim sNow As String = MTime.FormatDateMs(dLocal)
+  If FotON Then
+    BArrivi.Add(sNow)
+    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3])
+  Else
+    Try MLog.Write("fotocellula_ignorata", "source=clock motivo=FotOFF orario=" & sNow)
+  Endif
+End
 
 PRIVATE SUB SetArduinoStatus(bConnected AS Boolean)
   ' Durante shutdown LabelArduino puo' essere gia' distrutto: ritorno
