@@ -350,7 +350,10 @@ void inviaDiag() {
   Serial.print('D');
   Serial.print(secondo);                 Serial.print(',');
   Serial.print(fonteCorrente());         Serial.print(',');
-  Serial.print((int16_t) tcnt_diag - 32768); Serial.print(',');
+  // Deviazione firmata da 32768 (tick ideali in 1s). Cast a long PRIMA
+  // della sottrazione: un cast a int16_t manderebbe 32768 (il caso
+  // perfetto) a -65536 per wrap-around.
+  Serial.print((long) tcnt_diag - 32768L); Serial.print(',');
   Serial.print(ultimo_ritardo_ticks / 32.768f, 1); Serial.print(',');
   Serial.print(gps.location.isValid() ? 'A' : 'V'); Serial.print(',');
   Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0); Serial.print(',');
