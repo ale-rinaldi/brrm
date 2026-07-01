@@ -55,6 +55,34 @@ dall'accensione, prima ancora del fix GPS.
 GND comune obbligatorio fra tutti i dispositivi. Verificare la tensione di
 alimentazione del modulo GPS (3.3V sul chip nudo, 5V sulle breakout con regolatore).
 
+### Interfacciamento fotocellula (Omron E3Z-T61, NPN open-collector, Dark-ON)
+
+La E3Z-T61 ha uscita **NPN open-collector**: tira a massa quando il fascio è
+interrotto (Dark-ON → fronte di discesa = evento catturato), altrimenti resta
+in alta impedenza. Serve quindi una pull-up sull'uscita, e conviene
+**rinforzare** quella interna dell'ATmega (`INPUT_PULLUP`, ~20-50 kΩ, debole)
+con una pull-up esterna verso i +5V per fronti puliti e immunità al rumore su
+cavi lunghi:
+
+```
+                       +5V (Arduino)
+                        |
+                      [4.7k]        <- pull-up esterna (fino a 1-2.2k se cavo lungo/rumoroso)
+                        |
+   E3Z nero (OUT) ------+-------- D8 (ICP1)
+   E3Z marrone -- +12..24V (alim. sensore)
+   E3Z blu ------- GND -- comune -- GND Arduino
+```
+
+- **CRITICO**: la pull-up va verso i **+5V**, MAI verso i 12-24V. L'uscita NPN
+  tira solo a massa, quindi sul pin non arrivano mai piu' di 5V. (Un modello
+  PNP, es. `-T81`, sorgerebbe 24V e richiederebbe partitore/optoisolatore.)
+- Alimentare il sensore a 12-24V; **GND in comune** con l'Arduino.
+- Si puo' lasciare `INPUT_PULLUP` nel firmware (le pull-up vanno in parallelo,
+  domina l'esterna) oppure passare a `pinMode(8, INPUT)` e usare solo l'esterna.
+- Opzionale, se resta rumore: filtro RC (1 kΩ in serie + 100 nF verso GND sul
+  pin 8), in aggiunta al noise canceller del Timer1 gia' attivo.
+
 ## Protocollo seriale (115200 baud, USB-CDC, righe terminate da `\n`)
 
 Protocollo terso a tag di singolo carattere: nessun invio ciclico, le
