@@ -35,8 +35,8 @@ PUBLIC SUB Form_Open()
 DIM counter AS Integer
 Listbox1.Clear()
 counter = 0
-WHILE counter < FMain.LEquipaggi.Count 
-ListBox1.Add(FMain.LEquipaggi[counter].Text)
+WHILE counter < FMain.EntryCount()
+ListBox1.Add(FMain.EntryNumeroAt(counter))
 counter = counter + 1
 WEND 
 END 

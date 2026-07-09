@@ -28,9 +28,6 @@ Confermato = FALSE
 Numero = 0
 TRY Numero = TextBox1.Text
 IF Numero > 0 AND Numero < 10000 THEN 
-IF FMain.LEquipaggi.Find(Numero) < 0 THEN 
-FMain.LEquipaggi.Add(Numero)
-ENDIF 
 IF FMain.ReturnPartenza(Numero) <> 0 THEN 
 IF Message.Question("L'equipaggio " & Numero & " risulta essere già partito! Si desidera sostituire il suo orario di partenza con questo?", "Sì", "No") = 1 THEN
 Confermato = TRUE

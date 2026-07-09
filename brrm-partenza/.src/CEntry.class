@@ -1,0 +1,12 @@
+' Gambas class file
+
+' Record di un equipaggio: numero + orario di partenza (Date time-only). La
+' lista ordinata $entries in FMain e' l'unica fonte di verita': l'ordine di
+' partenza e' l'indice nell'array, e il dato vive nello stesso oggetto della
+' membership (niente piu' ListBox nascosto LEquipaggi + array partenze[]
+' parallelo indicizzato per numero).
+'
+' Una entry con Partenza=0 e' una entry "vuota" ma presente in lista: serve a
+' pre-definire l'ordine di partenza prima che arrivino gli orari.
+Public Numero As Integer
+Public Partenza As Date
