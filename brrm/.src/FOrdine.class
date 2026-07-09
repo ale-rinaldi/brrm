@@ -31,14 +31,22 @@ Listbox1.Index = Listbox1.Index + 1
 ENDIF
 END
 
+PUBLIC SUB RefreshFromState()
+  ' Ricarica la lista dallo stato di gara corrente. DEVE essere chiamata a ogni
+  ' apertura: la form si usa con .Show/.Hide e Form_Open scatta una sola volta
+  ' nella vita dell'istanza, quindi da solo mostrerebbe dati stantii (equipaggi
+  ' creati dopo, o rimasti in lista dopo un RESET).
+  DIM counter AS Integer
+  ListBox1.Clear()
+  counter = 0
+  WHILE counter < FMain.EntryCount()
+    ListBox1.Add(FMain.EntryNumeroAt(counter))
+    counter = counter + 1
+  WEND
+END
+
 PUBLIC SUB Form_Open()
-DIM counter AS Integer
-Listbox1.Clear()
-counter = 0
-WHILE counter < FMain.EntryCount()
-ListBox1.Add(FMain.EntryNumeroAt(counter))
-counter = counter + 1
-WEND
+  RefreshFromState()
 END
 
 PUBLIC SUB Button6_Click()
