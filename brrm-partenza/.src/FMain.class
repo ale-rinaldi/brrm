@@ -1099,6 +1099,7 @@ Public Sub ButtonInvert_Click()
 End
 
 Public Sub ButtonOrdine_Click()
+  FOrdine.RefreshFromState()
   FOrdine.Show
 End
 
@@ -1221,7 +1222,7 @@ End
 Public Sub TimerPartenzaQueue_Timer()
   Dim sOrario As String
   Dim iNum As Integer
-  If FPartenza.Visible Or CurrAct <> ACT_NONE Then Return
+  If FPartenza.Visible Or FOrdine.Visible Or CurrAct <> ACT_NONE Then Return
   If BPartenze.Count = 0 Then Return
   sOrario = BPartenze[0].Text
   iNum = FirstSenzaPartenza()

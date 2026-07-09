@@ -1254,7 +1254,7 @@ PUBLIC SUB TimerArrivoQueue_Timer()
   DIM sOrario AS String
   DIM iNum AS Integer
   ' Non intervenire se un dialog e' aperto o c'e' un'azione su griglia in corso.
-  IF FArrivo.Visible OR FPartenza.Visible OR CurrAct <> ACT_NONE THEN RETURN
+  IF FArrivo.Visible OR FPartenza.Visible OR FOrdine.Visible OR CurrAct <> ACT_NONE THEN RETURN
   IF BArrivi.Count = 0 THEN RETURN
   sOrario = BArrivi[0].Text
   iNum = FirstSenzaArrivo()
@@ -1421,9 +1421,8 @@ PUBLIC SUB Form_Close()
 END
 
 PUBLIC SUB ButtonOrdine_Click()
-
+  FOrdine.RefreshFromState()
   FOrdine.Show
-
 END
 
 PUBLIC SUB ButtonChangeNum_Click()
