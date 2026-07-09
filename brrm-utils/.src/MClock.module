@@ -17,6 +17,12 @@ Public Const HW_NOSYNC As Integer = 4
 
 Public Const PONG_TIMEOUT_MS As Long = 3000
 
+' Oltre questa eta' del pong CON LA PORTA ANCORA APERTA, il firmware e'
+' considerato appeso: si forza un reset (close+reopen -> il DTR resetta il
+' Nano). Rate-limited a questo stesso intervallo per non intrappolare la
+' scheda in un loop di reset che le impedisce di ripartire.
+Public Const RECOVERY_TIMEOUT_MS As Long = 10000
+
 Public Function IsAllDigits(s As String) As Boolean
   If s = "" Then Return False
   Dim i As Integer
@@ -103,6 +109,22 @@ Public Function LabelState(devicePresent As Boolean, portOpen As Boolean, lastPo
       Return HW_NOSYNC
     Case Else
       Return HW_UNRESPONSIVE
+  End Select
+End
+
+Public Function StateName(st As Integer) As String
+  ' Nome terso dello stato per il registro di gara.
+  Select Case st
+    Case HW_GPS
+      Return "GPS"
+    Case HW_RTC
+      Return "RTC"
+    Case HW_NOSYNC
+      Return "NOSYNC"
+    Case HW_UNRESPONSIVE
+      Return "UNRESPONSIVE"
+    Case Else
+      Return "ABSENT"
   End Select
 End
 

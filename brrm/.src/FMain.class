@@ -44,6 +44,8 @@ Private $hSerial As SerialPort
 Private $hwMode As String           ' "legacy" | "internal"
 Private $serialBuf As String        ' buffer di riga (modalita' internal)
 Private $lastPongMs As Long         ' Timer*1000 dell'ultimo pong
+Private $lastForceResetMs As Long    ' Timer*1000 dell'ultimo reset forzato (throttle)
+Private $lastClockState As Integer   ' ultimo stato clock loggato (HW_*), per clock_stato
 Public ClockSrc As String           ' "G"/"R"/"N"/"" (per label e modal)
 Public ClockTimeLive As String      ' "<unix>.<ms>" dall'ultimo pong
 Public ClockDiagRaw As String       ' ultima riga "D..." ricevuta
@@ -220,7 +222,7 @@ Private Sub HandlePassage(r As String[])
   Dim sNow As String = MTime.FormatDateMs(dLocal)
   If FotON Then
     BArrivi.Add(sNow)
-    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3])
+    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3] & " ricezione=" & Format$(Time, "hh:nn:ss.uuu") & " delta_ms=" & CStr(MTime.DateToUnixMs(Now) - unixMs))
   Else
     Try MLog.Write("fotocellula_ignorata", "source=clock motivo=FotOFF orario=" & sNow)
   Endif
@@ -256,6 +258,13 @@ Private Sub SetClockLabel(st As Integer)
   If bOnline <> $arduinoOnline Then
     $arduinoOnline = bOnline
     If bOnline Then Try MLog.Write("arduino_online", "") Else Try MLog.Write("arduino_offline", "")
+  Endif
+  ' Registro: logga ogni transizione di stato qualitativo (sorgente GPS/RTC/
+  ' NOSYNC, ingresso in UNRESPONSIVE, ecc.). ABSENT e' gia' coperto da
+  ' arduino_offline, quindi non lo ri-logghiamo qui.
+  If st <> $lastClockState Then
+    If st <> MClock.HW_ABSENT Then Try MLog.Write("clock_stato", "stato=" & MClock.StateName(st))
+    $lastClockState = st
   Endif
   LabelArduino.Background = MClock.LabelBg(st)
   LabelArduino.Foreground = MClock.LabelFg(st)
@@ -352,6 +361,7 @@ Public Sub HardwareReinit()
   ClockDiagRaw = ""
   ClockFwVer = ""
   $lastPongMs = 0
+  $lastForceResetMs = 0
   ArduinoClose()
   If $hwMode = "internal" Then
     TimerArduino.Delay = 1000
@@ -795,6 +805,7 @@ IF aLines.Count >= 1 AND IF aLines[0] = "brrm-session v1" THEN
 ENDIF
 TimerGrid.Start()
 LoadHardwareConfig()
+If $hwMode = "internal" Then TimerArduino.Delay = 1000 Else TimerArduino.Delay = 2000
 AlignInit()
 $sheet = New CSheet
 $sheet.Init()
@@ -1313,14 +1324,15 @@ PUBLIC SUB TimerArduino_Timer()
     Dim st As Integer = MClock.LabelState(Exist(ClockDevice) Or bOk, bOk, age, ClockSrc)
     SetClockLabel(st)
     If Not bOk Then
-      ArduinoClose()
-      WAIT 0.1
-      If $shuttingDown Then Return
-      Dim sDev As String = MFile.FindArduinoDevice()
-      If sDev <> "" Then
-        ClockDevice = sDev
-        ArduinoOpen(sDev)
-      Endif
+      ' Porta chiusa o device sparito: riconnessione classica.
+      ReconnectArduino()
+    Else If age > MClock.RECOVERY_TIMEOUT_MS And If (MTimerNowMs() - $lastForceResetMs) > MClock.RECOVERY_TIMEOUT_MS Then
+      ' Porta aperta ma firmware muto da troppo tempo (hang): forza un reset
+      ' chiudendo e riaprendo la USB-CDC (il DTR resetta il Nano). Rate-limited
+      ' a RECOVERY_TIMEOUT_MS per non intrappolare la scheda in un loop di reset.
+      $lastForceResetMs = MTimerNowMs()
+      Try MLog.Write("arduino_reset_forzato", "age_ms=" & CStr(age))
+      ReconnectArduino()
     Endif
     Return
   Endif
@@ -1343,6 +1355,21 @@ PUBLIC SUB TimerArduino_Timer()
   ENDIF
   SetArduinoStatus(ArduinoOpen(sDevice))
 END
+
+Private Sub ReconnectArduino()
+  ' Chiude la seriale e riapre sul primo device disponibile. Usato sia per la
+  ' riconnessione dopo un distacco, sia per il reset forzato di un firmware
+  ' appeso (riaprendo la USB-CDC il DTR resetta il Nano).
+  Dim sDev As String
+  ArduinoClose()
+  Wait 0.1
+  If $shuttingDown Then Return
+  sDev = MFile.FindArduinoDevice()
+  If sDev <> "" Then
+    ClockDevice = sDev
+    ArduinoOpen(sDev)
+  Endif
+End
 
 PRIVATE FUNCTION ArduinoOpen(sDevice AS String) AS Boolean
   ' Crea un nuovo SerialPort dynamic, attacca gli event handler con
