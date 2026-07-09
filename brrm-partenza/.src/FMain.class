@@ -12,11 +12,17 @@ Private Const ACT_MODNUM As String = "modnum"
 ' Limite massimo numero equipaggio (e dimensione array statici).
 Private Const MAX_NUMERO As Integer = 10000
 
-Private partenze As New Date[MAX_NUMERO]
+' Unica fonte di verita': lista ordinata di equipaggi (numero + partenza).
+' L'ordine di partenza e' l'indice nell'array. Sostituisce il ListBox nascosto
+' LEquipaggi + l'array partenze[] indicizzato per numero.
+Private $entries As New CEntry[]
 Private CurrAct As String
 Private FotON As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
+' Ultimo passaggio auto-assegnato dalla fotocellula (per il pulsante "Annulla
+' ultimo passaggio"). 0 = nessuno.
+Private $lastAutoNum As Integer
 
 ' --- Arduino (gestito dinamicamente per workaround bug Gambas) ---
 ' SerialPort.Open su un oggetto gia' chiuso (.Close) non riarma il
@@ -77,6 +83,61 @@ Public Sub _new()
 
 End
 
+' --- Accesso alla lista equipaggi ($entries) -------------------------------
+' Le entry sono l'unica fonte di verita'. Ricerca per numero lineare: gli
+' equipaggi sono al massimo qualche centinaio, il costo e' trascurabile.
+
+Private Function FindIndex(Numero As Integer) As Integer
+  Dim i As Integer
+  For i = 0 To $entries.Max
+    If $entries[i].Numero = Numero Then Return i
+  Next
+  Return -1
+End
+
+Private Function FindEntry(Numero As Integer) As CEntry
+  Dim idx As Integer
+  idx = FindIndex(Numero)
+  If idx < 0 Then Return Null
+  Return $entries[idx]
+End
+
+Private Function PartenzaOf(Numero As Integer) As Date
+  Dim e As CEntry
+  e = FindEntry(Numero)
+  If e = Null Then Return 0
+  Return e.Partenza
+End
+
+Private Sub ClearPartenza(Numero As Integer)
+  Dim e As CEntry
+  e = FindEntry(Numero)
+  If e <> Null Then e.Partenza = 0
+End
+
+' Ritorna la entry per Numero, creandola (vuota, in coda) se assente.
+Public Function EnsureEntry(Numero As Integer) As CEntry
+  Dim e As CEntry
+  e = FindEntry(Numero)
+  If e <> Null Then Return e
+  e = New CEntry
+  e.Numero = Numero
+  $entries.Add(e)
+  Return e
+End
+
+Public Function HasEntry(Numero As Integer) As Boolean
+  Return FindIndex(Numero) >= 0
+End
+
+Public Function EntryCount() As Integer
+  Return $entries.Count
+End
+
+Public Function EntryNumeroAt(Indice As Integer) As Integer
+  Return $entries[Indice].Numero
+End
+
 Public Sub Form_Resize()
   ' Vedi commento omonimo in brrm/FMain.class per la logica generale.
   Dim i As Integer
@@ -89,7 +150,7 @@ Public Sub Form_Resize()
     $rsOrigGridW = GridView1.Width
     $rsOrigGridH = GridView1.Height
     ' brrm-partenza non ha Label1/Label2 (niente IN ARRIVO) ne' LabelSheet
-    $rsBtmCtrl = [ButtonAnnullaPart, ButtonChangeNum, ButtonInvert, ButtonSettings, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonPartenza, LabelArduino, LabelSync]
+    $rsBtmCtrl = [ButtonAnnullaPart, ButtonChangeNum, ButtonInvert, ButtonSettings, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonPartenza, ButtonOrdine, ButtonAnnullaUltimo, LabelArduino, LabelSync]
     $rsRgtCtrl = [ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonSettings]
     For Each c In $rsBtmCtrl
       $rsBtmOrigTop.Add(c.Top)
@@ -553,7 +614,7 @@ Private Sub AlignSetStatus(connected As Boolean, Optional detail As String)
   LabelSync.Tooltip = detail & gb.NewLine & "URL: " & $alignUrl & gb.NewLine & "Session: " & $alignSessionConfig & gb.NewLine & "Run id: " & CStr($alignSession) & gb.NewLine & "Seq: " & CStr($alignSeq)
 End
 
-Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
+Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date, Optional sType As String = "partenza")
   ' Accoda un evento di partenza per sync. orarioOrZero=0 -> annullamento.
   If Not $alignEnabled Then Return
   Dim sOrarioJson As String
@@ -570,10 +631,10 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date)
   Else
     sOrarioJson = Chr(34) & MTime.FormatDateMs(orarioOrZero) & Chr(34)
   Endif
-  sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.zzz") & "Z"
+  sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.uuu") & "Z"
   sEvent = "{" & Chr(34) & "session_id" & Chr(34) & ":" & $alignSession
   sEvent &= "," & Chr(34) & "seq" & Chr(34) & ":" & $alignSeq
-  sEvent &= "," & Chr(34) & "type" & Chr(34) & ":" & Chr(34) & "partenza" & Chr(34)
+  sEvent &= "," & Chr(34) & "type" & Chr(34) & ":" & Chr(34) & sType & Chr(34)
   sEvent &= "," & Chr(34) & "numero" & Chr(34) & ":" & numero
   sEvent &= "," & Chr(34) & "orario" & Chr(34) & ":" & sOrarioJson
   sEvent &= "," & Chr(34) & "ts_origine" & Chr(34) & ":" & Chr(34) & sTsOrigine & Chr(34)
@@ -676,35 +737,35 @@ End
 Public Sub UpgradeSessionFile()
   ' Formato v1: prima riga = magic header, righe successive numero|partenza.
   Dim Counter As Integer
-  Dim iEqui As Integer
+  Dim e As CEntry
   Dim sFileOut As String
   Dim sPart As String
 
   sFileOut = "brrm-partenza-session v1" & gb.NewLine
-  For Counter = 0 To LEquipaggi.Count - 1
-    iEqui = 0
-    Try iEqui = LEquipaggi[Counter].Text
-    If iEqui <= 0 Then Continue
+  For Counter = 0 To $entries.Max
+    e = $entries[Counter]
+    If e.Numero <= 0 Then Continue
     sPart = ""
-    If partenze[iEqui] <> 0 Then sPart = MTime.FormatDateMs(partenze[iEqui])
-    sFileOut &= iEqui & "|" & sPart & gb.NewLine
+    If e.Partenza <> 0 Then sPart = MTime.FormatDateMs(e.Partenza)
+    sFileOut &= e.Numero & "|" & sPart & gb.NewLine
   Next
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-session", sFileOut)
 End
 
 Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
-  
+  Dim e As CEntry
   TimerGrid.Stop
-  partenze[Equipaggio] = Partenza
+  e = EnsureEntry(Equipaggio)
+  e.Partenza = Partenza
   UpgradeSessionFile()
   AlignEnqueue(Equipaggio, Partenza)
   TimerGrid.Start
 End
 
 Public Sub ReturnPartenza(Numero As Integer) As Date
-  
-  Return partenze[Numero]
-  
+
+  Return PartenzaOf(Numero)
+
 End
 
 Public Sub SetupGridHeader()
@@ -727,6 +788,7 @@ Dim aLines As String[]
 Dim aFields As String[]
 Dim iEqui As Integer
 Dim iNum As Integer
+Dim e As CEntry
 FotON = True
 FMain.Center()
 SetupGridHeader()
@@ -743,8 +805,8 @@ If aLines.Count >= 1 And If aLines[0] = "brrm-partenza-session v1" Then
     iNum = 0
     Try iNum = CInt(aFields[0])
     If iNum <= 0 Or iNum >= MAX_NUMERO Then Continue
-    LEquipaggi.Add(iNum)
-    If aFields[1] <> "" Then Try partenze[iNum] = aFields[1]
+    e = EnsureEntry(iNum)
+    If aFields[1] <> "" Then Try e.Partenza = aFields[1]
   Next
 Endif
 TimerGrid.Start()
@@ -755,8 +817,8 @@ End
 Public Sub TimerGrid_Timer()
 ' Guard: ricontrolla header e riapplica se Message dialog l'ha resettato.
 If GridView1[0, 0].Background <> &H000000& Then SetupGridHeader()
+Dim e As CEntry
 Dim concorrente As Integer
-Dim tDelta As Date
 Dim sDisplay As String
 Dim indice As Integer
 Dim totale As Integer
@@ -764,23 +826,20 @@ Dim Counter As Integer
 totale = 0
 indice = 0
 sDisplay = ""
-totale = LEquipaggi.Count
+totale = $entries.Count
 Counter = 0
 GridView1.Rows.Count = totale + 1
 While Counter < totale 
-Try concorrente = LEquipaggi[Counter].Text
+e = $entries[Counter]
+concorrente = e.Numero
 GridView1[Counter + 1, 0].Text = concorrente
-If partenze[concorrente] <> 0 Then
-tDelta = partenze[concorrente]
-sDisplay = MTime.FormatDateMs(tDelta)
-Endif  
-If partenze[concorrente] = 0 Then 
-  LEquipaggi.Remove(LEquipaggi.Find(concorrente))
-  UpgradeSessionFile()
-  totale = totale - 1
-  GridView1.Rows.Count = totale + 1
-  Continue
-Endif 
+' Nessuna auto-rimozione: le entry vuote restano in lista (rimozione
+' esplicita dalla schermata Modifica ordine).
+If e.Partenza <> 0 Then
+sDisplay = MTime.FormatDateMs(e.Partenza)
+Else
+sDisplay = ""
+Endif
 
 Try GridView1[Counter + 1, 1].Text = sDisplay
 indice = indice + 1
@@ -793,16 +852,10 @@ Public Sub ButtonReset_Click()
   ' partenza si fa tipicamente a inizio gara o per correggere errori di
   ' setup; non vogliamo cancellare anche gli arrivi gia' acquisiti su
   ' brrm/arrivo. Ogni postazione gestisce il proprio reset.
-  Dim Counter As Integer
   If Message.Question("Sei sicuro?", "Sì", "No") <> 1 Then Return
   If Message.Question("Sei DAVVERO sicuro??? Poi non pentirti eh, non puoi più annullare ciò che stai per fare!", "Sì, dai non rompere e fammi resettare!!!", "No no!!! Argh, cosa stavo per fare! Per fortuna mi hai avvertito!") <> 1 Then Return
   TimerGrid.Stop
-  LEquipaggi.Clear
-  Counter = 0
-  While Counter < MAX_NUMERO
-    partenze[Counter] = 0
-    Counter = Counter + 1
-  Wend
+  $entries.Clear
   UpgradeSessionFile()
   TimerGrid.Start
   Try MLog.Write("reset", "")
@@ -811,17 +864,58 @@ End
 Public Sub EditOrder(Order As String)
   
   Dim aOrdine As String[]
-  Dim iEqui As Integer
-  Dim Number As Integer
+  Dim oldEntries As CEntry[]
+  Dim sNum As String
+  Dim iNum As Integer
+  Dim j As Integer
+  Dim e As CEntry
+  Dim oi As Integer
+  Dim ni As Integer
+  Dim found As Boolean
   TimerGrid.Stop
-  LEquipaggi.Clear
+  ' Ricostruisce la lista nell'ordine dato PRESERVANDO le entry (e quindi gli
+  ' orari) degli equipaggi ancora presenti; gli altri vengono scartati.
+  oldEntries = $entries
+  $entries = New CEntry[]
   aOrdine = Split(Order, "-")
   GridView1.Rows.Count = aOrdine.Count + 1
-  Number = 0
-  For Each iEqui In aOrdine
-  LEquipaggi.Add(iEqui)
-  Next 
+  For Each sNum In aOrdine
+    iNum = 0
+    Try iNum = CInt(Trim$(sNum))
+    If iNum <= 0 Or iNum >= MAX_NUMERO Then Continue
+    If FindIndex(iNum) >= 0 Then Continue
+    e = Null
+    For j = 0 To oldEntries.Max
+      If oldEntries[j].Numero = iNum Then
+        e = oldEntries[j]
+        Break
+      Endif
+    Next
+    If e = Null Then
+      e = New CEntry
+      e.Numero = iNum
+    Endif
+    $entries.Add(e)
+  Next
+  ' Sync verso arrivo delle differenze (solo partenza ha il canale upstream):
+  ' equipaggi rimossi -> evento remove; equipaggi nuovi -> orario null (che su
+  ' arrivo crea una riga vuota).
+  For oi = 0 To oldEntries.Max
+    If FindIndex(oldEntries[oi].Numero) < 0 Then AlignEnqueue(oldEntries[oi].Numero, 0, "remove")
+  Next
+  For ni = 0 To $entries.Max
+    found = False
+    For oi = 0 To oldEntries.Max
+      If oldEntries[oi].Numero = $entries[ni].Numero Then
+        found = True
+        Break
+      Endif
+    Next
+    If Not found Then AlignEnqueue($entries[ni].Numero, 0, "partenza")
+  Next
+  UpgradeSessionFile()
   TimerGrid.Start
+  Try MLog.Write("modifica_ordine", "ordine=" & Order)
 End
 
 Public Sub ButtonEsporta_Click()
@@ -830,6 +924,7 @@ Public Sub ButtonEsporta_Click()
   ' Stesso schema dei campi inviati a Google Sheets. Tutto int puro (niente
   ' CStr di Date che truncherebbe i ms).
   Dim Counter As Integer
+  Dim e As CEntry
   Dim iEqui As Integer
   Dim tPart As Date
   Dim iMillis As Integer
@@ -838,12 +933,12 @@ Public Sub ButtonEsporta_Click()
 
   sOut = "numero,partenza_hh,partenza_mm,partenza_ss,partenza_ms,partenza_unix_ms\n"
 
-  For Counter = 0 To LEquipaggi.Count - 1
-    iEqui = 0
-    Try iEqui = LEquipaggi[Counter].Text
+  For Counter = 0 To $entries.Max
+    e = $entries[Counter]
+    iEqui = e.Numero
     If iEqui = 0 Then Continue
-    If partenze[iEqui] = 0 Then Continue
-    tPart = partenze[iEqui]
+    If e.Partenza = 0 Then Continue
+    tPart = e.Partenza
     iMillis = MTime.MillisOf(tPart)
     sOut = sOut & iEqui & "," & Hour(tPart) & "," & Minute(tPart) & "," & Second(tPart) & "," & Format$(iMillis, "000") & "," & MTime.DateToUnixMs(tPart) & "\n"
   Next
@@ -859,18 +954,18 @@ Public Sub ButtonEsporta_Click()
     Message.Error("Impossibile salvare il file: " & Error.Text)
     Try MLog.Write("esporta_errore", "path=" & sPath & " errore=" & Error.Text)
   Else
-    Try MLog.Write("esporta", "path=" & sPath & " righe=" & CStr(LEquipaggi.Count))
+    Try MLog.Write("esporta", "path=" & sPath & " righe=" & CStr($entries.Count))
   Endif
 End
 
 Public Sub GridView1_Click()
   If GridView1.Row > 0 Then
   If CurrAct = ACT_ANNPART Then
-  If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & LEquipaggi[GridView1.Row - 1].Text & "?", "Sì", "No") = 1 Then
+  If Message.Question("Sei sicuro di voler annullare la partenza dell'equipaggio numero " & EntryNumeroAt(GridView1.Row - 1) & "?", "Sì", "No") = 1 Then
   TimerGrid.Stop
-  Dim iAnnNum As Integer = LEquipaggi[GridView1.Row - 1].Text
-  Try MLog.Write("annulla_partenza", "numero=" & CStr(iAnnNum) & " orario_prec=" & MLog.FmtTime(partenze[iAnnNum]))
-  partenze[iAnnNum] = 0
+  Dim iAnnNum As Integer = EntryNumeroAt(GridView1.Row - 1)
+  Try MLog.Write("annulla_partenza", "numero=" & CStr(iAnnNum) & " orario_prec=" & MLog.FmtTime(PartenzaOf(iAnnNum)))
+  ClearPartenza(iAnnNum)
   AlignEnqueue(iAnnNum, 0)
   Endif
     GridView1.Background = &H0FFFFFF&
@@ -883,12 +978,12 @@ Public Sub GridView1_Click()
     Dim iOld As Integer
     Dim sNew As String
     Dim iNew As Integer
-    iOld = LEquipaggi[GridView1.Row - 1].Text
-    If partenze[iOld] = 0 Then
+    iOld = EntryNumeroAt(GridView1.Row - 1)
+    If PartenzaOf(iOld) = 0 Then
       Message.Error("L'equipaggio " & iOld & " non ha un orario di partenza da spostare.")
     Else
       TimerGrid.Stop
-      sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & " (partenza " & partenze[iOld] & "):", "Cambia numero")
+      sNew = InputBox("Nuovo numero per l'equipaggio " & iOld & " (partenza " & PartenzaOf(iOld) & "):", "Cambia numero")
       If sNew <> "" Then
         iNew = 0
         Try iNew = CInt(Trim$(sNew))
@@ -896,7 +991,7 @@ Public Sub GridView1_Click()
           Message.Error("Numero non valido. Deve essere fra 1 e 9999.")
         Else If iNew = iOld Then
           ' no-op
-        Else If LEquipaggi.Find(iNew) >= 0 Then
+        Else If HasEntry(iNew) Then
           Message.Error("L'equipaggio " & iNew & " esiste già: non posso assegnare lo stesso numero a due partenze.")
         Else
           ChangeNumero(iOld, iNew)
@@ -910,7 +1005,7 @@ Public Sub GridView1_Click()
   End If
 
   If CurrAct = ACT_INVPART2 Then
-    INV2 = LEquipaggi[GridView1.Row - 1].Text
+    INV2 = EntryNumeroAt(GridView1.Row - 1)
     If INV2 = INV1 Then
       Message.Error("Non posso invertire un equipaggio con se stesso.")
     Else If Message.Question("Sei sicuro di voler invertire le partenze degli equipaggi " & INV1 & " e " & INV2 & "?", "Sì", "No") = 1 Then
@@ -924,7 +1019,7 @@ Public Sub GridView1_Click()
   End If
 
   If CurrAct = ACT_INVPART1 Then
-    INV1 = LEquipaggi[GridView1.Row - 1].Text
+    INV1 = EntryNumeroAt(GridView1.Row - 1)
     CurrAct = ACT_INVPART2
     GridView1.Background = &H007FFFFF&
     GridView1.Mouse = 2
@@ -973,6 +1068,31 @@ Public Sub ButtonInvert_Click()
   Endif
 End
 
+Public Sub ButtonOrdine_Click()
+  FOrdine.Show
+End
+
+Public Sub ButtonAnnullaUltimo_Click()
+  ' Annulla l'ultima partenza auto-assegnata dalla fotocellula. Conferma
+  ' esplicita; l'orario cancellato resta nel registro di gara (recuperabile).
+  Dim e As CEntry
+  If $lastAutoNum <= 0 Then
+    Message.Info("Nessun passaggio automatico da annullare.")
+    Return
+  Endif
+  If Message.Question("Sei sicuro di voler annullare l'ultima partenza (equipaggio " & $lastAutoNum & ")?", "Sì", "No") <> 1 Then Return
+  e = FindEntry($lastAutoNum)
+  If e <> Null Then
+    TimerGrid.Stop
+    Try MLog.Write("annulla_partenza", "numero=" & CStr($lastAutoNum) & " orario_prec=" & MLog.FmtTime(e.Partenza) & " motivo=annulla_ultimo")
+    e.Partenza = 0
+    UpgradeSessionFile()
+    AlignEnqueue($lastAutoNum, 0)
+    TimerGrid.Start
+  Endif
+  $lastAutoNum = 0
+End
+
 Public Sub ButtonSettings_Click()
   FSettings.Show
 End
@@ -980,17 +1100,13 @@ End
 Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
   ' Sostituisce oldNum → newNum preservando l'orario di partenza e la posizione
   ' nella lista equipaggi. Sync: invia annullamento per oldNum + nuovo per newNum.
-  Dim idx As Integer
+  Dim e As CEntry
   Dim dPart As Date
-  dPart = partenze[oldNum]
-  partenze[newNum] = dPart
-  partenze[oldNum] = 0
-  idx = LEquipaggi.Find(oldNum)
-  If idx >= 0 Then
-    LEquipaggi[idx].Text = newNum
-  Else
-    LEquipaggi.Add(newNum)
-  Endif
+  e = FindEntry(oldNum)
+  If e = Null Then Return
+  dPart = e.Partenza
+  ' Rinomina sul posto: l'oggetto (col suo orario e la sua posizione) resta.
+  e.Numero = newNum
   UpgradeSessionFile()
   AlignEnqueue(oldNum, 0)
   AlignEnqueue(newNum, dPart)
@@ -999,12 +1115,17 @@ End
 
 Private Sub InvertiPartenze(n1 As Integer, n2 As Integer)
   ' Scambia gli orari di partenza fra due equipaggi. I numeri restano.
+  Dim e1 As CEntry
+  Dim e2 As CEntry
   Dim pt1 As Date
   Dim pt2 As Date
-  pt1 = partenze[n1]
-  pt2 = partenze[n2]
-  partenze[n1] = pt2
-  partenze[n2] = pt1
+  e1 = FindEntry(n1)
+  e2 = FindEntry(n2)
+  If e1 = Null Or e2 = Null Then Return
+  pt1 = e1.Partenza
+  pt2 = e2.Partenza
+  e1.Partenza = pt2
+  e2.Partenza = pt1
   UpgradeSessionFile()
   Try MLog.Write("inverti_partenze", "n1=" & CStr(n1) & " orario1_prec=" & MLog.FmtTime(pt1) & " n2=" & CStr(n2) & " orario2_prec=" & MLog.FmtTime(pt2))
   AlignEnqueue(n1, pt2)
@@ -1045,12 +1166,33 @@ Public Sub ButtonPartenza_Click()
   Try MLog.Write("fotocellula", "source=bottone orario=" & sNow)
 End
 
+Private Function FirstSenzaPartenza() As Integer
+  ' Primo equipaggio in ordine senza orario di partenza (0 se non ce ne sono).
+  Dim i As Integer
+  For i = 0 To $entries.Max
+    If $entries[i].Partenza = 0 Then Return $entries[i].Numero
+  Next
+  Return 0
+End
+
 Public Sub TimerPartenzaQueue_Timer()
-
-  If FPartenza.Visible = False And BPartenze.Count > 0 And CurrAct = ACT_NONE Then 
-  FPartenza.Show
-  FPartenza.setOrario(BPartenze[0].Text)
-  BPartenze.Remove(0)
-  Endif  
-
+  Dim sOrario As String
+  Dim iNum As Integer
+  If FPartenza.Visible Or CurrAct <> ACT_NONE Then Return
+  If BPartenze.Count = 0 Then Return
+  sOrario = BPartenze[0].Text
+  iNum = FirstSenzaPartenza()
+  If iNum > 0 Then
+    ' Auto-assegnazione silenziosa al primo equipaggio senza partenza
+    ' (SetPartenza sincronizza gia' verso arrivo via AlignEnqueue).
+    BPartenze.Remove(0)
+    SetPartenza(iNum, sOrario)
+    $lastAutoNum = iNum
+    Try MLog.Write("partenza", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
+  Else
+    ' Nessun equipaggio in attesa di partenza: chiedi il numero all'operatore.
+    FPartenza.Show
+    FPartenza.setOrario(sOrario)
+    BPartenze.Remove(0)
+  Endif
 End

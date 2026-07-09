@@ -15,10 +15,6 @@
     MoveScaled(1,40,23,4)
     Text = ("PARTENZA")
   }
-  { LEquipaggi ListBox
-    MoveScaled(1,1,90,3)
-    Visible = False
-  }
   { ButtonAnnullaPart Button
     MoveScaled(25,40,23,4)
     Text = ("Annulla partenza")
@@ -127,5 +123,9 @@
   { ButtonSettings Button
     MoveScaled(82,60,18,4)
     Text = ("Impostazioni…")
+  }
+  { ButtonAnnullaUltimo Button
+    MoveScaled(50,55,25,4)
+    Text = ("Annulla ultimo passaggio")
   }
 }

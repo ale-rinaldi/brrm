@@ -1,0 +1,13 @@
+' Gambas class file
+
+' Record di un equipaggio in gara: numero + orari (Date time-only). La lista
+' ordinata $entries in FMain e' l'unica fonte di verita': l'ordine di gara e'
+' l'indice nell'array, e i dati vivono nello stesso oggetto della membership
+' (niente piu' ListBox nascosto LEquipaggi + array partenze[]/arrivi[] paralleli
+' indicizzati per numero, che potevano andare fuori sincrono lasciando orfani).
+'
+' Una entry con Partenza=0 e Arrivo=0 e' una entry "vuota" ma presente in lista:
+' serve a pre-definire l'ordine di partenza prima che arrivino gli orari.
+Public Numero As Integer
+Public Partenza As Date
+Public Arrivo As Date

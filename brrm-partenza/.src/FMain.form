@@ -11,10 +11,6 @@
     #Y = 322
     Delay = 91
   }
-  { LEquipaggi ListBox
-    MoveScaled(1,1,90,3)
-    Visible = False
-  }
   { ButtonAnnullaPart Button
     MoveScaled(25,40,23,4)
     Text = ("Annulla partenza")
@@ -100,5 +96,13 @@
     Foreground = &HFFFFFF&
     Alignment = Align.Center
     Text = ("SYNC")
+  }
+  { ButtonOrdine Button
+    MoveScaled(50,40,22,5)
+    Text = ("MODIFICA ORDINE")
+  }
+  { ButtonAnnullaUltimo Button
+    MoveScaled(50,46,24,4)
+    Text = ("Annulla ultimo passaggio")
   }
 }
