@@ -112,6 +112,22 @@ Public Function LabelState(devicePresent As Boolean, portOpen As Boolean, lastPo
   End Select
 End
 
+Public Function StateName(st As Integer) As String
+  ' Nome terso dello stato per il registro di gara.
+  Select Case st
+    Case HW_GPS
+      Return "GPS"
+    Case HW_RTC
+      Return "RTC"
+    Case HW_NOSYNC
+      Return "NOSYNC"
+    Case HW_UNRESPONSIVE
+      Return "UNRESPONSIVE"
+    Case Else
+      Return "ABSENT"
+  End Select
+End
+
 Public Function LabelText(st As Integer) As String
   Select Case st
     Case HW_GPS

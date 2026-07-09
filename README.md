@@ -170,7 +170,7 @@ Il path supporta `~/` come scorciatoia per la home dell'utente. Il file è scrit
 
 **Eventi registrati** (entrambe le app):
 - `app_start`, `app_stop`, `registro_aperto`, `registro_chiuso`
-- `fotocellula` — rilevamento da Arduino o click del bottone PARTENZA/ARRIVO (anche `fotocellula_ignorata` quando FotOFF è attivo: include comunque l'orario per tracciare il passaggio)
+- `fotocellula` — rilevamento da Arduino o click del bottone PARTENZA/ARRIVO (anche `fotocellula_ignorata` quando FotOFF è attivo: include comunque l'orario per tracciare il passaggio). Con hardware **internal** la riga riporta l'orario autorevole dell'Arduino (`orario` time-only + `unixms` UTC assoluto) e la sorgente `src` (`G`=GPS / `R`=RTC), più `ricezione` (orario del PC alla ricezione) e `delta_ms` (differenza ricezione−orario Arduino: latenza di trasporto + eventuale scostamento dell'orologio del PC dal GPS). Il prefisso della riga di log resta comunque l'orario PC di scrittura.
 - `partenza` / `arrivo` — un orario è stato associato a un numero equipaggio (`auto=1` se assegnato automaticamente dalla fotocellula, assente se inserito a mano)
 - `scarto_orario` — l'operatore ha annullato l'inserimento di un orario catturato
 - `annulla_partenza` / `annulla_arrivo` — cancellazione di un orario già confermato (con l'orario precedente per riferimento; `motivo=annulla_ultimo` se dal pulsante «Annulla ultimo passaggio»)
@@ -180,7 +180,8 @@ Il path supporta `~/` come scorciatoia per la home dell'utente. Il file è scrit
 - `foto_toggle` — passaggio FotON ↔ FotOFF
 - `esporta` (e `esporta_errore` se File.Save fallisce)
 - `reset`
-- `arduino_online` / `arduino_offline` — solo sulle transizioni di stato, non a ogni probe (`TimerArduino` gira ogni 2 s)
+- `arduino_online` / `arduino_offline` — solo sulle transizioni presente↔assente, non a ogni probe (`TimerArduino` gira ogni 1–2 s)
+- **Solo hardware `internal`:** `clock_stato` (transizioni di stato del clock: `GPS` / `RTC` / `NOSYNC` / `UNRESPONSIVE`, utile a ricostruire la confidenza sui tempi), `clock_desync` (messaggio `W`: disallineamento fra NMEA e riferimento), `arduino_reset_forzato` (reset del firmware appeso dopo irresponsività prolungata — vedi *Dettagli tecnici*)
 
 **Solo su `brrm` (postazione arrivo):**
 - `partenza_manuale` — l'operatore ha digitato numero + orario in FPartenza (utile se la fotocellula partenza ha mancato un passaggio)

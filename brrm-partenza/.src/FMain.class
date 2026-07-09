@@ -74,6 +74,7 @@ Private $hwMode As String           ' "legacy" | "internal"
 Private $serialBuf As String        ' buffer di riga (modalita' internal)
 Private $lastPongMs As Long         ' Timer*1000 dell'ultimo pong
 Private $lastForceResetMs As Long    ' Timer*1000 dell'ultimo reset forzato (throttle)
+Private $lastClockState As Integer   ' ultimo stato clock loggato (HW_*), per clock_stato
 Public ClockSrc As String           ' "G"/"R"/"N"/"" (per label e modal)
 Public ClockTimeLive As String      ' "<unix>.<ms>" dall'ultimo pong
 Public ClockDiagRaw As String       ' ultima riga "D..." ricevuta
@@ -242,6 +243,13 @@ Private Sub SetClockLabel(st As Integer)
     $arduinoOnline = bOnline
     If bOnline Then Try MLog.Write("arduino_online", "") Else Try MLog.Write("arduino_offline", "")
   Endif
+  ' Registro: logga ogni transizione di stato qualitativo (sorgente GPS/RTC/
+  ' NOSYNC, ingresso in UNRESPONSIVE, ecc.). ABSENT e' gia' coperto da
+  ' arduino_offline, quindi non lo ri-logghiamo qui.
+  If st <> $lastClockState Then
+    If st <> MClock.HW_ABSENT Then Try MLog.Write("clock_stato", "stato=" & MClock.StateName(st))
+    $lastClockState = st
+  Endif
   LabelArduino.Background = MClock.LabelBg(st)
   LabelArduino.Foreground = MClock.LabelFg(st)
   LabelArduino.Text = MClock.LabelText(st)
@@ -392,7 +400,7 @@ Private Sub HandlePassage(r As String[])
   Dim sNow As String = MTime.FormatDateMs(dLocal)
   If FotON Then
     BPartenze.Add(sNow)
-    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3])
+    Try MLog.Write("fotocellula", "source=clock orario=" & sNow & " unixms=" & CStr(unixMs) & " src=" & r[3] & " ricezione=" & Format$(Time, "hh:nn:ss.uuu") & " delta_ms=" & CStr(MTime.DateToUnixMs(Now) - unixMs))
   Else
     Try MLog.Write("fotocellula_ignorata", "source=clock motivo=FotOFF orario=" & sNow)
   Endif
