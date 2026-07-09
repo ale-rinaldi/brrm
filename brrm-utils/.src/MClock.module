@@ -17,6 +17,12 @@ Public Const HW_NOSYNC As Integer = 4
 
 Public Const PONG_TIMEOUT_MS As Long = 3000
 
+' Oltre questa eta' del pong CON LA PORTA ANCORA APERTA, il firmware e'
+' considerato appeso: si forza un reset (close+reopen -> il DTR resetta il
+' Nano). Rate-limited a questo stesso intervallo per non intrappolare la
+' scheda in un loop di reset che le impedisce di ripartire.
+Public Const RECOVERY_TIMEOUT_MS As Long = 10000
+
 Public Function IsAllDigits(s As String) As Boolean
   If s = "" Then Return False
   Dim i As Integer

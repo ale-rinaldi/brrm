@@ -73,6 +73,7 @@ Private $arduinoOnline As Boolean
 Private $hwMode As String           ' "legacy" | "internal"
 Private $serialBuf As String        ' buffer di riga (modalita' internal)
 Private $lastPongMs As Long         ' Timer*1000 dell'ultimo pong
+Private $lastForceResetMs As Long    ' Timer*1000 dell'ultimo reset forzato (throttle)
 Public ClockSrc As String           ' "G"/"R"/"N"/"" (per label e modal)
 Public ClockTimeLive As String      ' "<unix>.<ms>" dall'ultimo pong
 Public ClockDiagRaw As String       ' ultima riga "D..." ricevuta
@@ -263,14 +264,15 @@ Public Sub TimerArduino_Timer()
     Dim st As Integer = MClock.LabelState(Exist(ClockDevice) Or bOk, bOk, age, ClockSrc)
     SetClockLabel(st)
     If Not bOk Then
-      ArduinoClose()
-      Wait 0.1
-      If $shuttingDown Then Return
-      Dim sDev As String = MFile.FindArduinoDevice()
-      If sDev <> "" Then
-        ClockDevice = sDev
-        ArduinoOpen(sDev)
-      Endif
+      ' Porta chiusa o device sparito: riconnessione classica.
+      ReconnectArduino()
+    Else If age > MClock.RECOVERY_TIMEOUT_MS And If (MTimerNowMs() - $lastForceResetMs) > MClock.RECOVERY_TIMEOUT_MS Then
+      ' Porta aperta ma firmware muto da troppo tempo (hang): forza un reset
+      ' chiudendo e riaprendo la USB-CDC (il DTR resetta il Nano). Rate-limited
+      ' a RECOVERY_TIMEOUT_MS per non intrappolare la scheda in un loop di reset.
+      $lastForceResetMs = MTimerNowMs()
+      Try MLog.Write("arduino_reset_forzato", "age_ms=" & CStr(age))
+      ReconnectArduino()
     Endif
     Return
   Endif
@@ -291,6 +293,21 @@ Public Sub TimerArduino_Timer()
     Return
   Endif
   SetArduinoStatus(ArduinoOpen(sDevice))
+End
+
+Private Sub ReconnectArduino()
+  ' Chiude la seriale e riapre sul primo device disponibile. Usato sia per la
+  ' riconnessione dopo un distacco, sia per il reset forzato di un firmware
+  ' appeso (riaprendo la USB-CDC il DTR resetta il Nano).
+  Dim sDev As String
+  ArduinoClose()
+  Wait 0.1
+  If $shuttingDown Then Return
+  sDev = MFile.FindArduinoDevice()
+  If sDev <> "" Then
+    ClockDevice = sDev
+    ArduinoOpen(sDev)
+  Endif
 End
 
 Private Function ArduinoOpen(sDevice As String) As Boolean
@@ -408,6 +425,7 @@ Public Sub HardwareReinit()
   ClockDiagRaw = ""
   ClockFwVer = ""
   $lastPongMs = 0
+  $lastForceResetMs = 0
   ArduinoClose()
   If $hwMode = "internal" Then
     TimerArduino.Delay = 1000
@@ -814,6 +832,7 @@ If aLines.Count >= 1 And If aLines[0] = "brrm-partenza-session v1" Then
 Endif
 TimerGrid.Start()
 LoadHardwareConfig()
+If $hwMode = "internal" Then TimerArduino.Delay = 1000 Else TimerArduino.Delay = 2000
 AlignInit()
 End 
 
