@@ -147,7 +147,7 @@ Public Sub Form_Resize()
     $rsOrigGridW = GridView1.Width
     $rsOrigGridH = GridView1.Height
     ' brrm-partenza non ha Label1/Label2 (niente IN ARRIVO) ne' LabelSheet
-    $rsBtmCtrl = [ButtonAnnullaPart, ButtonChangeNum, ButtonInvert, ButtonSettings, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonPartenza, LabelArduino, LabelSync]
+    $rsBtmCtrl = [ButtonAnnullaPart, ButtonChangeNum, ButtonInvert, ButtonSettings, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonPartenza, ButtonOrdine, LabelArduino, LabelSync]
     $rsRgtCtrl = [ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonReset, ButtonSettings]
     For Each c In $rsBtmCtrl
       $rsBtmOrigTop.Add(c.Top)
@@ -891,7 +891,9 @@ Public Sub EditOrder(Order As String)
     Endif
     $entries.Add(e)
   Next
+  UpgradeSessionFile()
   TimerGrid.Start
+  Try MLog.Write("modifica_ordine", "ordine=" & Order)
 End
 
 Public Sub ButtonEsporta_Click()
@@ -1042,6 +1044,10 @@ Public Sub ButtonInvert_Click()
     GridView1.Background = &H00FFFF7F&
     GridView1.Mouse = 2
   Endif
+End
+
+Public Sub ButtonOrdine_Click()
+  FOrdine.Show
 End
 
 Public Sub ButtonSettings_Click()

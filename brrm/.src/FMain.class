@@ -895,6 +895,7 @@ PUBLIC SUB EditOrder(Order AS String)
     ENDIF
     $entries.Add(e)
   NEXT
+  UpgradeSessionFile()
   TimerGrid.Start
   Try MLog.Write("modifica_ordine", "ordine=" & Order)
 END

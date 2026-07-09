@@ -97,4 +97,8 @@
     Alignment = Align.Center
     Text = ("SYNC")
   }
+  { ButtonOrdine Button
+    MoveScaled(50,40,22,5)
+    Text = ("MODIFICA ORDINE")
+  }
 }
