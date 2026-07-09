@@ -124,4 +124,8 @@
     MoveScaled(82,60,18,4)
     Text = ("Impostazioni…")
   }
+  { ButtonAnnullaUltimo Button
+    MoveScaled(50,55,25,4)
+    Text = ("Annulla ultimo passaggio")
+  }
 }

@@ -21,6 +21,9 @@ Private CurrAct As String
 Private FotON As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
+' Ultimo passaggio auto-assegnato dalla fotocellula (per il pulsante "Annulla
+' ultimo passaggio"). 0 = nessuno.
+Private $lastAutoNum As Integer
 
 ' Flag di shutdown: serve a evitare race tra Form_Close (distrugge i
 ' widget) e TimerArduino_Timer (che dopo un WAIT 0.1 potrebbe ancora chiamare
@@ -554,6 +557,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
   Dim bGap As Boolean
   Dim ev As Variant
   Dim eSync As CEntry
+  Dim sType As String
 
   ev = Null
   Try ev = JSON.Decode(sData)
@@ -596,12 +600,27 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       If iNumero <= 0 Or iNumero >= MAX_NUMERO Then Return
       sOrario = ""
       Try sOrario = CStr(ev["orario"])
+      sType = "partenza"
+      Try sType = CStr(ev["type"])
       TimerGrid.Stop
-      If sOrario = "" Then
-        ' Annullamento partenza: azzera se la entry esiste, senza crearla
-        ' (comportamento invariato rispetto agli array).
+      If sType = "remove" Then
+        ' Rimozione entry lato partenza. Se qui l'arrivo e' gia' registrato NON
+        ' eliminiamo la riga (perderemmo il dato acquisito localmente): degrada
+        ' ad annullamento partenza.
         eSync = FindEntry(iNumero)
-        If eSync <> Null Then eSync.Partenza = 0
+        If eSync <> Null Then
+          If eSync.Arrivo <> 0 Then
+            eSync.Partenza = 0
+          Else
+            $entries.Remove(FindIndex(iNumero))
+          Endif
+        Endif
+      Else If sOrario = "" Then
+        ' orario null = annullamento partenza OPPURE creazione riga vuota
+        ' (ordine pre-definito lato partenza). In entrambi i casi la riga deve
+        ' esistere, con partenza azzerata.
+        eSync = EnsureEntry(iNumero)
+        eSync.Partenza = 0
       Else
         dPartenza = 0
         Try dPartenza = sOrario
@@ -616,7 +635,7 @@ Private Sub AlignApplyEvent(sEventType As String, sData As String)
       UpgradeSessionFile()
       TimerGrid.Start
       If $sheet Then $sheet.UpdateForEquipaggio(iNumero)
-      Try MLog.Write("sync_evento", "sess=" & CStr(iSess) & " seq=" & CStr(iSeq) & " numero=" & CStr(iNumero) & " orario=" & sOrario)
+      Try MLog.Write("sync_evento", "sess=" & CStr(iSess) & " seq=" & CStr(iSeq) & " tipo=" & sType & " numero=" & CStr(iNumero) & " orario=" & sOrario)
 
     ' "keepalive" e altri tipi: nessuna azione (il reset del watchdog avviene
     ' gia' in AlignHttp_Read per qualsiasi chunk ricevuto).
@@ -711,7 +730,7 @@ Public Sub Form_Resize()
     $rsDesignH = Me.Height
     $rsOrigGridW = GridView1.Width
     $rsOrigGridH = GridView1.Height
-    $rsBtmCtrl = [ButtonPartenza, ButtonAnnullaPart, ButtonInvertiArr, ButtonAnnullaArr, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonArrivo, ButtonOrdine, ButtonReset, ButtonImporta, ButtonChangeNum, LabelInArrivo, LabelInArrivoNum, LabelArduino, LabelSync, LabelSheet, ButtonSettings]
+    $rsBtmCtrl = [ButtonPartenza, ButtonAnnullaPart, ButtonInvertiArr, ButtonAnnullaArr, ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonArrivo, ButtonOrdine, ButtonReset, ButtonImporta, ButtonChangeNum, LabelInArrivo, LabelInArrivoNum, LabelArduino, LabelSync, LabelSheet, ButtonSettings, ButtonAnnullaUltimo]
     $rsRgtCtrl = [ButtonEsporta, ButtonFotON, ButtonFotOFF, ButtonImporta, ButtonReset, ButtonSettings]
     For Each c In $rsBtmCtrl
       $rsBtmOrigTop.Add(c.Top)
@@ -1208,14 +1227,56 @@ TimerGrid.Start
 
 END
 
+Private Function FirstSenzaArrivo() As Integer
+  ' Primo equipaggio in ordine senza orario di arrivo (0 se non ce ne sono).
+  Dim i As Integer
+  For i = 0 To $entries.Max
+    If $entries[i].Arrivo = 0 Then Return $entries[i].Numero
+  Next
+  Return 0
+End
+
 PUBLIC SUB TimerArrivoQueue_Timer()
+  DIM sOrario AS String
+  DIM iNum AS Integer
+  ' Non intervenire se un dialog e' aperto o c'e' un'azione su griglia in corso.
+  IF FArrivo.Visible OR FPartenza.Visible OR CurrAct <> ACT_NONE THEN RETURN
+  IF BArrivi.Count = 0 THEN RETURN
+  sOrario = BArrivi[0].Text
+  iNum = FirstSenzaArrivo()
+  IF iNum > 0 THEN
+    ' Auto-assegnazione silenziosa al primo equipaggio senza arrivo.
+    BArrivi.Remove(0)
+    SetArrivo(iNum, sOrario)
+    $lastAutoNum = iNum
+    Try MLog.Write("arrivo", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
+  ELSE
+    ' Nessun equipaggio in attesa di arrivo: chiedi il numero all'operatore.
+    FArrivo.Show
+    FArrivo.setOrario(sOrario)
+    BArrivi.Remove(0)
+  ENDIF
+END
 
-  IF FArrivo.Visible = FALSE AND BArrivi.Count > 0 AND FPartenza.Visible = FALSE AND CurrAct = ACT_NONE THEN 
-  FArrivo.Show
-  FArrivo.setOrario(BArrivi[0].Text)
-  BArrivi.Remove(0)
-  ENDIF  
-
+PUBLIC SUB ButtonAnnullaUltimo_Click()
+  ' Annulla l'ultimo arrivo auto-assegnato dalla fotocellula. Conferma
+  ' esplicita; l'orario cancellato resta nel registro di gara (recuperabile).
+  DIM e AS CEntry
+  IF $lastAutoNum <= 0 THEN
+    Message.Info("Nessun passaggio automatico da annullare.")
+    RETURN
+  ENDIF
+  IF Message.Question("Sei sicuro di voler annullare l'ultimo arrivo (equipaggio " & $lastAutoNum & ")?", "Sì", "No") <> 1 THEN RETURN
+  e = FindEntry($lastAutoNum)
+  IF e <> Null THEN
+    TimerGrid.Stop
+    Try MLog.Write("annulla_arrivo", "numero=" & CStr($lastAutoNum) & " orario_prec=" & MLog.FmtTime(e.Arrivo) & " motivo=annulla_ultimo")
+    e.Arrivo = 0
+    UpgradeSessionFile()
+    IF $sheet THEN $sheet.UpdateForEquipaggio($lastAutoNum)
+    TimerGrid.Start
+  ENDIF
+  $lastAutoNum = 0
 END
 
 PUBLIC SUB TimerArduino_Timer()
