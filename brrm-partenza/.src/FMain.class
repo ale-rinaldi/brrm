@@ -631,7 +631,7 @@ Public Sub AlignEnqueue(numero As Integer, orarioOrZero As Date, Optional sType 
   Else
     sOrarioJson = Chr(34) & MTime.FormatDateMs(orarioOrZero) & Chr(34)
   Endif
-  sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.zzz") & "Z"
+  sTsOrigine = Format$(Now, "yyyy-mm-ddThh:nn:ss.uuu") & "Z"
   sEvent = "{" & Chr(34) & "session_id" & Chr(34) & ":" & $alignSession
   sEvent &= "," & Chr(34) & "seq" & Chr(34) & ":" & $alignSeq
   sEvent &= "," & Chr(34) & "type" & Chr(34) & ":" & Chr(34) & sType & Chr(34)

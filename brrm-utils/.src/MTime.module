@@ -140,16 +140,16 @@ Public Function UnixMsToDateTZ(unixMs As Long, tzSec As Long) As Date
   ' di UTC (POSIX, come System.TimeZone): locale = UTC - tzSec.
   Dim localMs As Long = unixMs - tzSec * 1000
   Dim days As Long = localMs \ 86400000
-  Dim msInDay As Long = localMs Mod 86400000
-  If msInDay < 0 Then
-    msInDay = msInDay + 86400000
+  Dim msOfDay As Long = localMs Mod 86400000
+  If msOfDay < 0 Then
+    msOfDay = msOfDay + 86400000
     days = days - 1
   Endif
   Dim ymd As Integer[] = CivilFromDays(days)
-  Dim hh As Integer = CInt(msInDay \ 3600000)
-  Dim mm As Integer = CInt((msInDay \ 60000) Mod 60)
-  Dim ss As Integer = CInt((msInDay \ 1000) Mod 60)
-  Dim uuu As Integer = CInt(msInDay Mod 1000)
+  Dim hh As Integer = CInt(msOfDay \ 3600000)
+  Dim mm As Integer = CInt((msOfDay \ 60000) Mod 60)
+  Dim ss As Integer = CInt((msOfDay \ 1000) Mod 60)
+  Dim uuu As Integer = CInt(msOfDay Mod 1000)
   Return Date(ymd[0], ymd[1], ymd[2], hh, mm, ss, uuu)
 End
 

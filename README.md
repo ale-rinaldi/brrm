@@ -56,12 +56,13 @@ Ogni evento seriale ricevuto dall'Arduino viene interpretato come un passaggio i
 Griglia principale con 4 colonne: **Equipaggio · Partenza · Arrivo · Tempo**.
 
 - **ARRIVO** / **PARTENZA** — finestre dedicate per inserire numero e orario.
-- **Coda fotocellula** — gli eventi seriali alimentano una coda di arrivi che apre automaticamente la finestra `FArrivo` per l'associazione al numero equipaggio.
+- **Coda fotocellula** — ogni passaggio assegna automaticamente l'orario al **primo equipaggio senza arrivo** (in ordine di lista), senza chiedere conferma. Se non c'è nessun equipaggio in attesa di arrivo, apre la finestra `FArrivo` per digitare il numero (creando la relativa riga).
 - **FotON / FotOFF** — abilita/disabilita la registrazione automatica dalla fotocellula (utile per testare o sospendere). In modalità OFF il pulsante lampeggia rosso.
 - **Annulla partenza / Annulla arrivo** — selezione contestuale: si clicca il pulsante, poi la riga in griglia.
+- **Annulla ultimo passaggio** — annulla l'ultimo arrivo assegnato automaticamente dalla fotocellula, con conferma. L'orario annullato resta nel registro di gara per un eventuale recupero.
 - **Inverti arrivo** — scambio degli orari di arrivo tra due equipaggi (per correggere assegnazioni errate).
 - **Cambia numero** — rinomina locale il numero equipaggio di una riga (sposta partenza+arrivo, valida che il nuovo numero non esista). Operazione solo locale: non viene propagata a brrm-partenza.
-- **MODIFICA ORDINE** — riordino manuale della lista equipaggi (sposta su / sposta giù / rimuovi).
+- **MODIFICA ORDINE** — gestione della lista equipaggi: riordino (sposta su / giù), **creazione** di equipaggi senza orari (per pre-definire l'ordine) e **rimozione**. Le righe senza orari **restano** in lista: annullare sia partenza sia arrivo non elimina più l'equipaggio, la rimozione è un'azione esplicita da questa schermata.
 - **Importa partenze** — carica orari di partenza da CSV (utile quando il sync via web non è disponibile e si lavora offline con scambio file). Compatibile con il CSV prodotto da `brrm-partenza` (sia vecchio formato 5-colonne sia nuovo 6-colonne con header e `partenza_unix_ms`); righe non numeriche (header inclusa) vengono saltate automaticamente.
 - **ESPORTA** — esportazione risultati in CSV con header. Colonne: `numero, partenza_hh, partenza_mm, partenza_ss, partenza_ms, partenza_unix_ms, arrivo_hh, arrivo_mm, arrivo_ss, arrivo_ms, arrivo_unix_ms, tempo_mm, tempo_ss, tempo_ms, tempo_total_ms` (stesso schema dei campi inviati a Google Sheets; `tempo_mm` sono minuti totali, può essere ≥ 60).
 - **RESET!** — azzera l'intera sessione, con doppia conferma.
@@ -76,8 +77,10 @@ Versione ridotta dedicata al solo registro partenze.
 
 - Griglia a 2 colonne: **Equipaggio · Tempo di partenza**.
 - Coda fotocellula e gestione FotON/FotOFF identica alla postazione arrivo.
-- **PARTENZA** — registra l'orario corrente, apre il dialog per associare il numero equipaggio.
+- **PARTENZA** / coda fotocellula — ogni passaggio assegna automaticamente l'orario al **primo equipaggio senza partenza** (in ordine di lista), senza conferma. Se non ce n'è nessuno, apre il dialog per digitare il numero.
 - **Annulla partenza** contestuale.
+- **Annulla ultimo passaggio** — annulla l'ultima partenza auto-assegnata, con conferma (orario conservato nel registro).
+- **MODIFICA ORDINE** — come sulla postazione arrivo: riordino, creazione e rimozione di equipaggi per pre-definire l'ordine di partenza.
 - **Cambia numero** — riassegna una partenza ad un equipaggio diverso (verifica unicità; emette annullamento del vecchio + nuovo evento sincronizzato).
 - **Inverti partenze** — scambia gli orari di due equipaggi (stesso pattern UX di *Inverti arrivo* su brrm; sincronizza entrambi gli orari swappati).
 - **ESPORTA** — esportazione orari in CSV con header. Colonne: `numero, partenza_hh, partenza_mm, partenza_ss, partenza_ms, partenza_unix_ms` (stesso schema dei campi inviati a Google Sheets).
@@ -89,7 +92,7 @@ Versione ridotta dedicata al solo registro partenze.
 
 Quando le due postazioni **non sono sulla stessa LAN**, è possibile sincronizzarle attraverso il servizio bridge **brrm-align** (vedi `server/`). La sincronizzazione è **opzionale** e **fire-and-forget**: un guasto di rete non blocca mai la registrazione locale. Un'etichetta `SYNC OK` (verde) / `SYNC FAIL` (rosso) accanto allo stato Arduino indica lo stato del bridge; passandoci sopra il mouse il tooltip mostra URL, session e il dettaglio dell'ultimo esito (es. `Probe OK`, `Errore di rete`, `HTTP 401`).
 
-**Eventi sincronizzati:** registrazione partenza, annullamento partenza, cambio numero equipaggio (annullamento + nuovo), inversione di due partenze (entrambi i nuovi orari).
+**Eventi sincronizzati:** registrazione partenza, annullamento partenza, cambio numero equipaggio (annullamento + nuovo), inversione di due partenze (entrambi i nuovi orari), **creazione e rimozione di equipaggi dalla Modifica ordine**. Un equipaggio creato senza orario compare come riga vuota anche in arrivo; una rimozione elimina la riga in arrivo, oppure — se lì l'arrivo è già stato registrato — annulla solo la partenza per non perdere il dato acquisito localmente.
 
 **Architettura:**
 - Partenza → eventi via `POST /events?session=…` (idempotente, seq monotono, outbox locale persistito per ritrasmissione).
@@ -168,20 +171,20 @@ Il path supporta `~/` come scorciatoia per la home dell'utente. Il file è scrit
 **Eventi registrati** (entrambe le app):
 - `app_start`, `app_stop`, `registro_aperto`, `registro_chiuso`
 - `fotocellula` — rilevamento da Arduino o click del bottone PARTENZA/ARRIVO (anche `fotocellula_ignorata` quando FotOFF è attivo: include comunque l'orario per tracciare il passaggio)
-- `partenza` / `arrivo` — l'operatore ha associato un orario a un numero equipaggio
+- `partenza` / `arrivo` — un orario è stato associato a un numero equipaggio (`auto=1` se assegnato automaticamente dalla fotocellula, assente se inserito a mano)
 - `scarto_orario` — l'operatore ha annullato l'inserimento di un orario catturato
-- `annulla_partenza` / `annulla_arrivo` — cancellazione di un orario già confermato (con l'orario precedente per riferimento)
+- `annulla_partenza` / `annulla_arrivo` — cancellazione di un orario già confermato (con l'orario precedente per riferimento; `motivo=annulla_ultimo` se dal pulsante «Annulla ultimo passaggio»)
 - `cambia_numero` — rinomina di un equipaggio
 - `inverti_partenze` (su `brrm-partenza`) / `inverti_arrivo` (su `brrm`)
+- `modifica_ordine` — riordino / creazione / rimozione equipaggi dalla schermata Modifica ordine (output di FOrdine)
 - `foto_toggle` — passaggio FotON ↔ FotOFF
 - `esporta` (e `esporta_errore` se File.Save fallisce)
 - `reset`
 - `arduino_online` / `arduino_offline` — solo sulle transizioni di stato, non a ogni probe (`TimerArduino` gira ogni 2 s)
 
 **Solo su `brrm` (postazione arrivo):**
-- `modifica_ordine` — riordino della lista equipaggi (output di FOrdine)
 - `partenza_manuale` — l'operatore ha digitato numero + orario in FPartenza (utile se la fotocellula partenza ha mancato un passaggio)
-- `sync_evento` — evento ricevuto via Sync da brrm-partenza con la tupla `(sess, seq, numero, orario)`
+- `sync_evento` — evento ricevuto via Sync da brrm-partenza con la tupla `(sess, seq, tipo, numero, orario)` (`tipo` = `partenza` o `remove`)
 - `importa_partenze_inizio` / `importa_partenze_riga` (una per equipaggio importato) / `importa_partenze_fine`
 
 **Comportamento difensivo:** ogni IO sul file è in `Try`. Una scrittura fallita (disco pieno, file system in sola lettura, ecc.) non causa mai un crash o un errore visibile all'operatore: nel peggiore dei casi una voce non viene scritta. Se l'apertura iniziale fallisce, il logging resta disabilitato silenziosamente per tutta la sessione. **Una riga vuota o malformata nel `log.conf` non blocca l'app**.
