@@ -126,6 +126,7 @@
   }
   { ButtonAnnullaUltimo Button
     MoveScaled(50,55,25,4)
+    Enabled = False
     Text = ("Annulla ultimo passaggio")
   }
 }

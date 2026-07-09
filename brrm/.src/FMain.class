@@ -662,6 +662,9 @@ PUBLIC SUB UpgradeSessionFile()
     sFileOut &= e.Numero & "|" & sPart & "|" & sArr & gb.NewLine
   NEXT
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/arrivo-session", sFileOut)
+  ' Qualunque persistenza di stato (=azione) disarma l'undo dell'ultimo
+  ' passaggio: resta armato solo finche' non succede nient'altro.
+  UndoDisarm()
 END
 
 PUBLIC SUB SetPartenza(Equipaggio AS Integer, Partenza AS Date)
@@ -1248,7 +1251,7 @@ PUBLIC SUB TimerArrivoQueue_Timer()
     ' Auto-assegnazione silenziosa al primo equipaggio senza arrivo.
     BArrivi.Remove(0)
     SetArrivo(iNum, sOrario)
-    $lastAutoNum = iNum
+    UndoArm(iNum)
     Try MLog.Write("arrivo", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
   ELSE
     ' Nessun equipaggio in attesa di arrivo: chiedi il numero all'operatore.
@@ -1258,25 +1261,38 @@ PUBLIC SUB TimerArrivoQueue_Timer()
   ENDIF
 END
 
+' Arma/disarma il pulsante "Annulla ultimo passaggio". E' attivo SOLO subito
+' dopo un'auto-assegnazione; qualunque altra azione (che passa da
+' UpgradeSessionFile) chiama UndoDisarm e lo spegne.
+Private Sub UndoArm(numero As Integer)
+  $lastAutoNum = numero
+  Try ButtonAnnullaUltimo.Enabled = True
+End
+
+Private Sub UndoDisarm()
+  $lastAutoNum = 0
+  Try ButtonAnnullaUltimo.Enabled = False
+End
+
 PUBLIC SUB ButtonAnnullaUltimo_Click()
   ' Annulla l'ultimo arrivo auto-assegnato dalla fotocellula. Conferma
   ' esplicita; l'orario cancellato resta nel registro di gara (recuperabile).
+  ' Il pulsante e' abilitato solo subito dopo l'auto-assegnazione.
   DIM e AS CEntry
-  IF $lastAutoNum <= 0 THEN
-    Message.Info("Nessun passaggio automatico da annullare.")
-    RETURN
-  ENDIF
-  IF Message.Question("Sei sicuro di voler annullare l'ultimo arrivo (equipaggio " & $lastAutoNum & ")?", "Sì", "No") <> 1 THEN RETURN
-  e = FindEntry($lastAutoNum)
+  DIM iUndo AS Integer
+  iUndo = $lastAutoNum
+  IF iUndo <= 0 THEN RETURN
+  IF Message.Question("Sei sicuro di voler annullare l'ultimo arrivo (equipaggio " & iUndo & ")?", "Sì", "No") <> 1 THEN RETURN
+  e = FindEntry(iUndo)
   IF e <> Null THEN
     TimerGrid.Stop
-    Try MLog.Write("annulla_arrivo", "numero=" & CStr($lastAutoNum) & " orario_prec=" & MLog.FmtTime(e.Arrivo) & " motivo=annulla_ultimo")
+    Try MLog.Write("annulla_arrivo", "numero=" & CStr(iUndo) & " orario_prec=" & MLog.FmtTime(e.Arrivo) & " motivo=annulla_ultimo")
     e.Arrivo = 0
     UpgradeSessionFile()
-    IF $sheet THEN $sheet.UpdateForEquipaggio($lastAutoNum)
+    IF $sheet THEN $sheet.UpdateForEquipaggio(iUndo)
     TimerGrid.Start
   ENDIF
-  $lastAutoNum = 0
+  UndoDisarm()
 END
 
 PUBLIC SUB TimerArduino_Timer()

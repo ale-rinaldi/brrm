@@ -750,6 +750,9 @@ Public Sub UpgradeSessionFile()
     sFileOut &= e.Numero & "|" & sPart & gb.NewLine
   Next
   MFile.AtomicSave(User.Home &/ ".local/share/brrm/partenza-session", sFileOut)
+  ' Qualunque persistenza di stato (=azione) disarma l'undo dell'ultimo
+  ' passaggio: resta armato solo finche' non succede nient'altro.
+  UndoDisarm()
 End
 
 Public Sub SetPartenza(Equipaggio As Integer, Partenza As Date)
@@ -1072,25 +1075,38 @@ Public Sub ButtonOrdine_Click()
   FOrdine.Show
 End
 
+' Arma/disarma il pulsante "Annulla ultimo passaggio". E' attivo SOLO subito
+' dopo un'auto-assegnazione; qualunque altra azione (che passa da
+' UpgradeSessionFile) chiama UndoDisarm e lo spegne.
+Private Sub UndoArm(numero As Integer)
+  $lastAutoNum = numero
+  Try ButtonAnnullaUltimo.Enabled = True
+End
+
+Private Sub UndoDisarm()
+  $lastAutoNum = 0
+  Try ButtonAnnullaUltimo.Enabled = False
+End
+
 Public Sub ButtonAnnullaUltimo_Click()
   ' Annulla l'ultima partenza auto-assegnata dalla fotocellula. Conferma
   ' esplicita; l'orario cancellato resta nel registro di gara (recuperabile).
+  ' Il pulsante e' abilitato solo subito dopo l'auto-assegnazione.
   Dim e As CEntry
-  If $lastAutoNum <= 0 Then
-    Message.Info("Nessun passaggio automatico da annullare.")
-    Return
-  Endif
-  If Message.Question("Sei sicuro di voler annullare l'ultima partenza (equipaggio " & $lastAutoNum & ")?", "Sì", "No") <> 1 Then Return
-  e = FindEntry($lastAutoNum)
+  Dim iUndo As Integer
+  iUndo = $lastAutoNum
+  If iUndo <= 0 Then Return
+  If Message.Question("Sei sicuro di voler annullare l'ultima partenza (equipaggio " & iUndo & ")?", "Sì", "No") <> 1 Then Return
+  e = FindEntry(iUndo)
   If e <> Null Then
     TimerGrid.Stop
-    Try MLog.Write("annulla_partenza", "numero=" & CStr($lastAutoNum) & " orario_prec=" & MLog.FmtTime(e.Partenza) & " motivo=annulla_ultimo")
+    Try MLog.Write("annulla_partenza", "numero=" & CStr(iUndo) & " orario_prec=" & MLog.FmtTime(e.Partenza) & " motivo=annulla_ultimo")
     e.Partenza = 0
     UpgradeSessionFile()
-    AlignEnqueue($lastAutoNum, 0)
+    AlignEnqueue(iUndo, 0)
     TimerGrid.Start
   Endif
-  $lastAutoNum = 0
+  UndoDisarm()
 End
 
 Public Sub ButtonSettings_Click()
@@ -1187,7 +1203,7 @@ Public Sub TimerPartenzaQueue_Timer()
     ' (SetPartenza sincronizza gia' verso arrivo via AlignEnqueue).
     BPartenze.Remove(0)
     SetPartenza(iNum, sOrario)
-    $lastAutoNum = iNum
+    UndoArm(iNum)
     Try MLog.Write("partenza", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
   Else
     ' Nessun equipaggio in attesa di partenza: chiedi il numero all'operatore.
