@@ -2,10 +2,8 @@
 
 
 PUBLIC SUB Form_Open()
-
-  Label1.Text = ""
+  ' L'orario lo imposta setOrario PRIMA di ShowModal: non azzerarlo qui.
   FPartenza.Center()
-
 END
 
 PUBLIC SUB setOrario(Orario AS String)

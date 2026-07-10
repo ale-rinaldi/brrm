@@ -91,5 +91,5 @@ counter = counter + 1
 WEND
 END IF
 FMain.EditOrder(sOut)
-FOrdine.Hide
+FOrdine.Close
 END

@@ -410,7 +410,7 @@ Public Sub LabelArduino_MouseUp()
   If $hwMode <> "internal" Then Return
   RequestId()
   RequestDiag()
-  FClockDiag.Show
+  FClockDiag.ShowModal
 End
 
 Public Sub RequestDiag()
@@ -459,6 +459,9 @@ Public Sub Form_Close()
   ArduinoClose()
   Try MLog.Write("app_stop", "")
   Try MLog.Close()
+  ' Termina il processo: senza, con una form secondaria aperta o un observer
+  ' residuo (SerialPort) il loop resterebbe vivo tenendo occupata la seriale.
+  Quit
 End
 
 Public Sub ConfermaScartoOrario(che As String) As Boolean
@@ -1100,7 +1103,7 @@ End
 
 Public Sub ButtonOrdine_Click()
   FOrdine.RefreshFromState()
-  FOrdine.Show
+  FOrdine.ShowModal
 End
 
 ' Arma/disarma il pulsante "Annulla ultimo passaggio". E' attivo SOLO subito
@@ -1138,7 +1141,7 @@ Public Sub ButtonAnnullaUltimo_Click()
 End
 
 Public Sub ButtonSettings_Click()
-  FSettings.Show
+  FSettings.ShowModal
 End
 
 Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
@@ -1235,8 +1238,9 @@ Public Sub TimerPartenzaQueue_Timer()
     Try MLog.Write("partenza", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
   Else
     ' Nessun equipaggio in attesa di partenza: chiedi il numero all'operatore.
-    FPartenza.Show
-    FPartenza.setOrario(sOrario)
+    ' Finestra MODALE (vedi FArrivo su brrm).
     BPartenze.Remove(0)
+    FPartenza.setOrario(sOrario)
+    FPartenza.ShowModal
   Endif
 End
