@@ -106,4 +106,9 @@
     Enabled = False
     Delay = 30000
   }
+  { TimerSpaceRelease #Timer
+    #X = 609
+    #Y = 400
+    Delay = 50
+  }
 }

@@ -57,7 +57,7 @@ Griglia principale con 4 colonne: **Equipaggio · Partenza · Arrivo · Tempo**.
 
 - **ARRIVO** / **PARTENZA** — finestre dedicate per inserire numero e orario.
 - **Coda fotocellula** — ogni passaggio assegna automaticamente l'orario al **primo equipaggio senza arrivo** (in ordine di lista), senza chiedere conferma. Se non c'è nessun equipaggio in attesa di arrivo, apre la finestra `FArrivo` per digitare il numero (creando la relativa riga).
-- **FotON / FotOFF** — abilita/disabilita la registrazione automatica dalla fotocellula (utile per testare o sospendere). In modalità OFF il pulsante lampeggia rosso.
+- **FotON / FotOFF** — abilita/disabilita la registrazione automatica dalla fotocellula (utile per testare o sospendere). In modalità OFF il pulsante lampeggia rosso. Scorciatoia: **tenendo premuta la barra spaziatrice** nella schermata principale la fotocellula è sospesa (FotOFF) finché la si rilascia, poi torna allo stato precedente (utile per ignorare un passaggio spurio senza mollare il mouse). Ogni attivazione/disattivazione è registrata come `foto_toggle`.
 - **Annulla partenza / Annulla arrivo** — selezione contestuale: si clicca il pulsante, poi la riga in griglia.
 - **Annulla ultimo passaggio** — annulla l'ultimo arrivo assegnato automaticamente dalla fotocellula, con conferma. L'orario annullato resta nel registro di gara per un eventuale recupero.
 - **Inverti arrivo** — scambio degli orari di arrivo tra due equipaggi (per correggere assegnazioni errate).

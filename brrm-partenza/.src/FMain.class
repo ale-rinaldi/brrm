@@ -18,6 +18,9 @@ Private Const MAX_NUMERO As Integer = 10000
 Private $entries As New CEntry[]
 Private CurrAct As String
 Private FotON As Boolean
+' Shortcut barra spaziatrice: sospende la fotocellula finche' e' premuta.
+Private $fotoWasOn As Boolean
+Private $spaceDown As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
 ' Ultimo passaggio auto-assegnato dalla fotocellula (per il pulsante "Annulla
@@ -456,6 +459,7 @@ Public Sub Form_Close()
   Try TimerArduino.Stop
   Try TimerAlign.Stop
   Try TimerAlignHeartbeat.Stop
+  Try TimerSpaceRelease.Stop
   ' Chiudi la connessione align async (fd osservato che terrebbe vivo il loop).
   If $hAlignHttp <> Null Then Try $hAlignHttp.Stop
   ArduinoClose()
@@ -1200,6 +1204,37 @@ Public Sub ButtonFotOFF_Click()
   ButtonFotON.Background = &HFFFFFF&
   TimerBlink.Start
   Try MLog.Write("foto_toggle", "stato=OFF")
+End
+
+Public Sub Form_KeyPress()
+  ' Barra spaziatrice tenuta premuta -> FotOFF. Stop Event: lo Spazio non
+  ' "clicca" il bottone col focus (nella principale i bottoni si usano col
+  ' mouse). Il flag $spaceDown fa agire solo il primo KeyPress.
+  If Key.Code = Key.Space Then
+    TimerSpaceRelease.Stop
+    If Not $spaceDown Then
+      $spaceDown = True
+      $fotoWasOn = FotON
+      If FotON Then ButtonFotOFF_Click
+    Endif
+    Stop Event
+  Endif
+End
+
+Public Sub Form_KeyRelease()
+  ' Rilascio: ripristino ritardato (annullato dal KeyPress di un auto-repeat).
+  If Key.Code = Key.Space Then
+    TimerSpaceRelease.Start
+    Stop Event
+  Endif
+End
+
+Public Sub TimerSpaceRelease_Timer()
+  TimerSpaceRelease.Stop
+  If $spaceDown Then
+    $spaceDown = False
+    If $fotoWasOn Then ButtonFotON_Click
+  Endif
 End
 
 Public Sub TimerBlink_Timer()
