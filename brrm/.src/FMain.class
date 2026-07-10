@@ -275,7 +275,7 @@ Public Sub LabelArduino_MouseUp()
   If $hwMode <> "internal" Then Return
   RequestId()
   RequestDiag()
-  FClockDiag.Show
+  FClockDiag.ShowModal
 End
 
 Public Sub RequestDiag()
@@ -1178,7 +1178,7 @@ PUBLIC SUB ButtonPartenza_Click()
   ' Apre il dialog di inserimento manuale di una partenza (numero + orario
   ' digitati a mano, senza fotocellula). L'effettiva conferma o cancel
   ' del dialog viene loggata da FPartenza.Button1_Click / Button2_Click.
-  FPartenza.Show()
+  FPartenza.ShowModal()
 END
 
 PUBLIC SUB ButtonAnnullaPart_Click()
@@ -1266,9 +1266,11 @@ PUBLIC SUB TimerArrivoQueue_Timer()
     Try MLog.Write("arrivo", "numero=" & CStr(iNum) & " orario=" & sOrario & " auto=1")
   ELSE
     ' Nessun equipaggio in attesa di arrivo: chiedi il numero all'operatore.
-    FArrivo.Show
-    FArrivo.setOrario(sOrario)
+    ' Finestra MODALE: non puo' finire dietro alla principale e ne blocca la
+    ' chiusura finche' non e' gestita.
     BArrivi.Remove(0)
+    FArrivo.setOrario(sOrario)
+    FArrivo.ShowModal
   ENDIF
 END
 
@@ -1418,11 +1420,14 @@ PUBLIC SUB Form_Close()
   ArduinoClose()
   TRY MLog.Write("app_stop", "")
   TRY MLog.Close()
+  ' Termina il processo: senza, con una form secondaria aperta o un observer
+  ' residuo (SerialPort) il loop resterebbe vivo tenendo occupata la seriale.
+  Quit
 END
 
 PUBLIC SUB ButtonOrdine_Click()
   FOrdine.RefreshFromState()
-  FOrdine.Show
+  FOrdine.ShowModal
 END
 
 PUBLIC SUB ButtonChangeNum_Click()
@@ -1439,7 +1444,7 @@ PUBLIC SUB ButtonChangeNum_Click()
 END
 
 PUBLIC SUB ButtonSettings_Click()
-  FSettings.Show
+  FSettings.ShowModal
 END
 
 Private Sub ChangeNumero(oldNum As Integer, newNum As Integer)
