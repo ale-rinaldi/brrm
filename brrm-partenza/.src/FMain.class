@@ -459,7 +459,7 @@ Public Sub Form_Close()
   ' Chiudi la connessione align async (fd osservato che terrebbe vivo il loop).
   If $hAlignHttp <> Null Then Try $hAlignHttp.Stop
   ArduinoClose()
-  MInstance.Release("partenza")
+  MInstance.Release()
   Try MLog.Write("app_stop", "")
   Try MLog.Close()
   ' Termina il processo in modo incondizionato (vedi brrm/FMain).
@@ -828,7 +828,10 @@ FMain.Center()
 SetupGridHeader()
 MLog.Init()
 Try MLog.Write("app_start", "ruolo=partenza")
-MInstance.Ensure("partenza", "brrm-partenza.gambas")
+If Not MInstance.Ensure() Then
+  Quit
+  Return
+Endif
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 If Exist(User.Home &/ ".local/share/brrm/partenza-session") Then sTest = File.Load(User.Home &/ ".local/share/brrm/partenza-session")

@@ -787,7 +787,10 @@ FMain.Center()
 SetupGridHeader()
 MLog.Init()
 Try MLog.Write("app_start", "ruolo=arrivo")
-MInstance.Ensure("arrivo", "brrm.gambas")
+IF NOT MInstance.Ensure() THEN
+  Quit
+  RETURN
+ENDIF
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 IF Exist(User.Home &/ ".local/share/brrm/arrivo-session") THEN sTest = File.Load(User.Home &/ ".local/share/brrm/arrivo-session")
@@ -1426,7 +1429,7 @@ PUBLIC SUB Form_Close()
   IF $hAlignHttp <> Null THEN Try $hAlignHttp.Stop
   IF $sheet <> Null THEN Try $sheet.Shutdown()
   ArduinoClose()
-  MInstance.Release("arrivo")
+  MInstance.Release()
   TRY MLog.Write("app_stop", "")
   TRY MLog.Close()
   ' Termina il processo in modo incondizionato: garantisce il rilascio di
