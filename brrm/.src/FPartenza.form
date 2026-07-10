@@ -3,10 +3,6 @@
 { Form Form
   MoveScaled(0,0,43,24)
   Text = ("")
-  { Label1 Label
-    MoveScaled(1,9,62,3)
-    Text = ("Orario: (hh:mm:ss.ddd)")
-  }
   { Label2 Label
     MoveScaled(1,0,62,3)
     Text = ("Numero equipaggio:")
@@ -15,18 +11,22 @@
     MoveScaled(1,4,19,4)
     Text = ("")
   }
+  { Label1 Label
+    MoveScaled(1,9,62,3)
+    Text = ("Orario: (hh:mm:ss.ddd)")
+  }
   { TextBox2 TextBox
     MoveScaled(1,12,28,4)
     Text = ("")
-  }
-  { Button1 Button
-    MoveScaled(26,18,16,5)
-    Default = True
-    Text = ("OK")
   }
   { Button2 Button
     MoveScaled(9,18,16,5)
     Cancel = True
     Text = ("Annulla")
+  }
+  { Button1 Button
+    MoveScaled(26,18,16,5)
+    Default = True
+    Text = ("OK")
   }
 }

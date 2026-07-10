@@ -16,14 +16,14 @@
     MoveScaled(1,6,20,4)
     Text = ("")
   }
-  { Button1 Button
-    MoveScaled(45,11,19,5)
-    Default = True
-    Text = ("OK")
-  }
   { Button2 Button
     MoveScaled(25,11,19,5)
     Cancel = True
     Text = ("Annulla")
+  }
+  { Button1 Button
+    MoveScaled(45,11,19,5)
+    Default = True
+    Text = ("OK")
   }
 }

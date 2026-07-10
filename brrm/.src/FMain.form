@@ -6,10 +6,9 @@
   { GridView1 GridView
     MoveScaled(1,1,99,38)
   }
-  { TimerGrid #Timer
-    #X = 665
-    #Y = 322
-    Delay = 91
+  { BArrivi ListBox
+    MoveScaled(1,4,90,3)
+    Visible = False
   }
   { ButtonPartenza Button
     MoveScaled(1,40,23,4)
@@ -19,22 +18,61 @@
     MoveScaled(25,40,23,4)
     Text = ("Annulla partenza")
   }
-  { ButtonInvertiArr Button
-    MoveScaled(25,50,23,4)
-    Text = ("Inverti arrivo")
+  { ButtonFotON Button
+    MoveScaled(82,40,9,4)
+    Background = &H00FF00&
+    Text = ("FotON")
   }
-  { ButtonAnnullaArr Button
-    MoveScaled(25,45,23,4)
-    Text = ("Annulla arrivo")
+  { ButtonFotOFF Button
+    MoveScaled(91,40,9,4)
+    Background = &HFFFFFF&
+    Text = ("FotOFF")
   }
   { LabelInArrivo Label
     MoveScaled(50,41,11,3)
     Text = ("IN ARRIVO:")
   }
+  { ButtonArrivo Button
+    MoveScaled(1,45,23,9)
+    Text = ("ARRIVO")
+  }
+  { ButtonAnnullaArr Button
+    MoveScaled(25,45,23,4)
+    Text = ("Annulla arrivo")
+  }
   { LabelInArrivoNum Label
     MoveScaled(50,45,25,9)
     Font = Font["+15"]
     Text = ("")
+  }
+  { ButtonEsporta Button
+    MoveScaled(82,45,18,4)
+    Text = ("ESPORTA")
+  }
+  { ButtonInvertiArr Button
+    MoveScaled(25,50,23,4)
+    Text = ("Inverti arrivo")
+  }
+  { ButtonImporta Button
+    MoveScaled(82,50,18,4)
+    Text = ("Importa partenze")
+  }
+  { ButtonOrdine Button
+    MoveScaled(1,55,23,4)
+    Text = ("MODIFICA ORDINE")
+  }
+  { ButtonChangeNum Button
+    MoveScaled(25,55,23,4)
+    Text = ("Cambia numero")
+  }
+  { ButtonAnnullaUltimo Button
+    MoveScaled(50,55,25,4)
+    Enabled = False
+    Text = ("Annulla ultimo passaggio")
+  }
+  { ButtonReset Button
+    MoveScaled(82,55,18,4)
+    Text = ("RESET!")
   }
   { LabelArduino Label
     MoveScaled(1,60,15,4)
@@ -51,40 +89,27 @@
     Alignment = Align.Center
     Text = ("SYNC")
   }
-  { ButtonEsporta Button
-    MoveScaled(82,45,18,4)
-    Text = ("ESPORTA")
+  { LabelSheet Label
+    MoveScaled(33,60,15,4)
+    Visible = False
+    Background = &HCC0000&
+    Foreground = &HFFFFFF&
+    Alignment = Align.Center
+    Text = ("SHEET")
   }
-  { ButtonImporta Button
-    MoveScaled(82,50,18,4)
-    Text = ("Importa partenze")
+  { ButtonSettings Button
+    MoveScaled(82,60,18,4)
+    Text = ("Impostazioni…")
   }
-  { ButtonFotON Button
-    MoveScaled(82,40,9,4)
-    Background = &H00FF00&
-    Text = ("FotON")
-  }
-  { ButtonFotOFF Button
-    MoveScaled(91,40,9,4)
-    Background = &HFFFFFF&
-    Text = ("FotOFF")
+  { TimerGrid #Timer
+    #X = 665
+    #Y = 322
+    Delay = 91
   }
   { TimerBlink #Timer
     #X = 665
     #Y = 329
     Delay = 500
-  }
-  { ButtonReset Button
-    MoveScaled(82,55,18,4)
-    Text = ("RESET!")
-  }
-  { BArrivi ListBox
-    MoveScaled(1,4,90,3)
-    Visible = False
-  }
-  { ButtonArrivo Button
-    MoveScaled(1,45,23,9)
-    Text = ("ARRIVO")
   }
   { TimerArrivoQueue #Timer
     #X = 665
@@ -103,30 +128,5 @@
     #Y = 350
     Enabled = False
     Delay = 15000
-  }
-  { ButtonOrdine Button
-    MoveScaled(1,55,23,4)
-    Text = ("MODIFICA ORDINE")
-  }
-  { ButtonChangeNum Button
-    MoveScaled(25,55,23,4)
-    Text = ("Cambia numero")
-  }
-  { LabelSheet Label
-    MoveScaled(33,60,15,4)
-    Visible = False
-    Background = &HCC0000&
-    Foreground = &HFFFFFF&
-    Alignment = Align.Center
-    Text = ("SHEET")
-  }
-  { ButtonSettings Button
-    MoveScaled(82,60,18,4)
-    Text = ("Impostazioni…")
-  }
-  { ButtonAnnullaUltimo Button
-    MoveScaled(50,55,25,4)
-    Enabled = False
-    Text = ("Annulla ultimo passaggio")
   }
 }
