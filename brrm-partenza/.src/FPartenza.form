@@ -23,6 +23,7 @@
   }
   { Button2 Button
     MoveScaled(24,11,19,5)
+    Cancel = True
     Text = ("Annulla")
   }
 }

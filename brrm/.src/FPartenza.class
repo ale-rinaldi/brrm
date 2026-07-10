@@ -46,7 +46,7 @@ PUBLIC SUB Form_Open()
   FPartenza.Center()
   TextBox1.Text = ""
   TextBox2.Text = ""
-
+  TextBox1.SetFocus
 END
 
 PUBLIC SUB TextBox2_KeyPress()
