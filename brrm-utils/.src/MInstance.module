@@ -58,7 +58,7 @@ Public Function Ensure() As Boolean
     Try iOld = CInt(Trim$(File.Load(sPath)))
     If iOld > 0 And If iOld <> iSelf And If IsAlive(iOld) And If IsBrrm(iOld) Then
       ' Conferma esplicita prima di terminare l'altra istanza.
-      If Message.Question("Un'altra istanza di BoxRally è già in esecuzione su questo computer e sta usando la porta seriale.\n\nVuoi terminarla e avviare questa?", "Termina e avvia", "Annulla") <> 1 Then
+      If Message.Question("Un'altra istanza di BRRM è già in esecuzione su questo computer e sta usando la porta seriale.\n\nVuoi terminarla e avviare questa?", "Termina e avvia", "Annulla") <> 1 Then
         Return False
       Endif
       Try MLog.Write("istanza_precedente", "pid=" & CStr(iOld) & " azione=term")
