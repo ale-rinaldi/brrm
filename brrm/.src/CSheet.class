@@ -75,6 +75,13 @@ Public Sub Init()
   StartProbe()
 End
 
+Public Sub Shutdown()
+  ' Ferma il writer Google Sheets alla chiusura: retry timer + richiesta in
+  ' volo (entrambi observer che terrebbero vivo il ciclo di eventi).
+  Try $hRetry.Stop
+  If $http Then Try $http.Stop
+End
+
 Public Sub Reinit()
   ' Chiamato da FSettings dopo salvataggio config.
   Try $hRetry.Stop
