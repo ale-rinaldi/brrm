@@ -787,6 +787,10 @@ FMain.Center()
 SetupGridHeader()
 MLog.Init()
 Try MLog.Write("app_start", "ruolo=arrivo")
+IF NOT MInstance.Ensure() THEN
+  Quit
+  RETURN
+ENDIF
 ' Loader formato v1: scarta silenziosamente se l'header non e' atteso.
 sTest = ""
 IF Exist(User.Home &/ ".local/share/brrm/arrivo-session") THEN sTest = File.Load(User.Home &/ ".local/share/brrm/arrivo-session")
@@ -1414,14 +1418,22 @@ PUBLIC SUB Form_Close()
   ' $shuttingDown si setta PRIMA degli Stop perche' un TimerArduino_Timer in
   ' WAIT potrebbe risvegliarsi proprio in questo istante.
   $shuttingDown = True
+  ' Ferma TUTTI i timer prima del teardown: un tick durante la distruzione dei
+  ' widget darebbe errori, e un timer non fermato terrebbe vivo il loop.
   TRY TimerGrid.Stop
+  TRY TimerBlink.Stop
+  TRY TimerArrivoQueue.Stop
   TRY TimerArduino.Stop
   TRY TimerAlignWatchdog.Stop
+  ' Chiudi le connessioni async (fd osservati che terrebbero vivo il loop).
+  IF $hAlignHttp <> Null THEN Try $hAlignHttp.Stop
+  IF $sheet <> Null THEN Try $sheet.Shutdown()
   ArduinoClose()
+  MInstance.Release()
   TRY MLog.Write("app_stop", "")
   TRY MLog.Close()
-  ' Termina il processo: senza, con una form secondaria aperta o un observer
-  ' residuo (SerialPort) il loop resterebbe vivo tenendo occupata la seriale.
+  ' Termina il processo in modo incondizionato: garantisce il rilascio di
+  ' seriale e fd anche se restasse un observer non previsto.
   Quit
 END
 

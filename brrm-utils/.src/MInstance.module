@@ -1,0 +1,97 @@
+' MInstance — istanza unica per l'intera famiglia brrm (arrivo + partenza).
+'
+' Su una macchina puo' girare UNA SOLA istanza: arrivo e partenza si
+' contenderebbero la stessa porta seriale, quindi il lock e' UNICO e condiviso
+' (un solo pidfile). Avviare una qualsiasi delle due, se ne trova un'altra
+' viva, propone di terminarla; su conferma la chiude (SIGTERM, poi SIGKILL se
+' resiste) e ne attende la morte -- alla quale il kernel rilascia la seriale --
+' prima di proseguire. Rinforzo contro le chiusure non pulite: niente piu'
+' killall gbr3 a mano.
+'
+' Source-of-truth symlinkata nei due progetti: SOLO funzioni Public (bug Gambas
+' 3.20 sulle Private nei moduli symlinkati).
+
+Public Function PidPath() As String
+  ' Pidfile UNICO per tutta la famiglia brrm (arrivo E partenza).
+  Return User.Home &/ ".local/share/brrm" &/ "brrm.pid"
+End
+
+Public Function SelfPid() As Integer
+  ' PID del processo corrente: primo campo di /proc/self/stat.
+  Dim s As String
+  s = ""
+  Try s = File.Load("/proc/self/stat")
+  If s = "" Then Return 0
+  Return CInt(Trim$(Split(s, " ")[0]))
+End
+
+Public Function IsAlive(pid As Integer) As Boolean
+  If pid <= 0 Then Return False
+  Return Exist("/proc/" & CStr(pid))
+End
+
+Public Function IsBrrm(pid As Integer) As Boolean
+  ' Vero se il processo e' un'istanza brrm/brrm-partenza. Evita di colpire un
+  ' processo estraneo che avesse riusato il PID di un'istanza morta senza
+  ' pulizia (fail-safe: se non e' riconosciuto come nostro, non si tocca).
+  Dim c As String
+  Dim p As String
+  c = ""
+  p = "/proc/" & CStr(pid) & "/cmdline"
+  If Not Exist(p) Then Return False
+  Try c = File.Load(p)
+  c = Replace(c, Chr(0), " ")
+  Return InStr(c, "brrm") > 0 And InStr(c, ".gambas") > 0
+End
+
+Public Function Ensure() As Boolean
+  ' Ritorna True se si puo' proseguire con l'avvio; False se l'utente ha
+  ' annullato la terminazione dell'altra istanza (il chiamante deve uscire).
+  Dim sPath As String
+  Dim iSelf As Integer
+  Dim iOld As Integer
+  Dim i As Integer
+  sPath = PidPath()
+  iSelf = SelfPid()
+  If Exist(sPath) Then
+    iOld = 0
+    Try iOld = CInt(Trim$(File.Load(sPath)))
+    If iOld > 0 And If iOld <> iSelf And If IsAlive(iOld) And If IsBrrm(iOld) Then
+      ' Conferma esplicita prima di terminare l'altra istanza.
+      If Message.Question("Un'altra istanza di BRRM è già in esecuzione su questo computer e sta usando la porta seriale.\n\nVuoi terminarla e avviare questa?", "Termina e avvia", "Annulla") <> 1 Then
+        Return False
+      Endif
+      Try MLog.Write("istanza_precedente", "pid=" & CStr(iOld) & " azione=term")
+      Shell "kill -TERM " & CStr(iOld) & " 2>/dev/null" Wait
+      For i = 1 To 10
+        If Not IsAlive(iOld) Then Break
+        Sleep 0.1
+      Next
+      If IsAlive(iOld) Then
+        ' TERM non ha chiuso: forza con KILL.
+        Try MLog.Write("istanza_precedente", "pid=" & CStr(iOld) & " azione=kill")
+        Shell "kill -KILL " & CStr(iOld) & " 2>/dev/null" Wait
+        For i = 1 To 10
+          If Not IsAlive(iOld) Then Break
+          Sleep 0.1
+        Next
+      Endif
+      ' Alla morte del processo il kernel ha gia' chiuso i suoi fd (seriale
+      ' liberata); piccolo margine extra per il driver tty.
+      Sleep 0.3
+    Endif
+  Endif
+  If iSelf > 0 Then MFile.AtomicSave(sPath, CStr(iSelf))
+  Return True
+End
+
+Public Sub Release()
+  ' Rimuove il pidfile se contiene il NOSTRO PID (uscita pulita).
+  Dim sPath As String
+  Dim iOld As Integer
+  sPath = PidPath()
+  If Not Exist(sPath) Then Return
+  iOld = 0
+  Try iOld = CInt(Trim$(File.Load(sPath)))
+  If iOld = SelfPid() Then Try Kill sPath
+End
