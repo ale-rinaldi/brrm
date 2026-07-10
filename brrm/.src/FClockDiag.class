@@ -33,15 +33,19 @@ Private Function FmtUtcLocal(unixSec As Long) As String
   Return Format$(MTime.UnixMsToDate(unixSec * 1000), "yyyy-mm-dd hh:nn:ss")
 End
 
-Private Function FmtScartoSec(sec As Long) As String
-  If sec > 0 Then Return "+" & CStr(sec) & " s"
-  Return CStr(sec) & " s"
-End
-
-Private Function FmtScartoMs(ms As Long) As String
-  Dim r As String = Format$(ms / 1000, "0.0")
-  If ms > 0 Then r = "+" & r
-  Return r & " s"
+Private Function FmtDurata(ms As Long) As String
+  ' Scarto leggibile a qualsiasi ordine di grandezza (un RTC mai sincronizzato
+  ' puo' distare anni dal PC): s / min / h / giorni.
+  Dim sg As String = "+"
+  Dim a As Long = ms
+  If a < 0 Then
+    sg = "-"
+    a = -a
+  Endif
+  If a < 60000 Then Return sg & Format$(a / 1000, "0.0") & " s"
+  If a < 3600000 Then Return sg & Format$(a / 60000, "0.0") & " min"
+  If a < 86400000 Then Return sg & Format$(a / 3600000, "0.0") & " h"
+  Return sg & Format$(a / 86400000, "0") & " giorni"
 End
 
 Private Sub Render()
@@ -113,11 +117,14 @@ Private Sub Render()
     Dim lRtc As Long = CLong(d[16])
     Dim lPc As Long = MTime.DateToUnixMs(Now)
     If bGps Then s &= "  GPS:   " & FmtUtcLocal(lGps) & "  (fix valido)\n" Else s &= "  GPS:   -- nessun fix\n"
-    If bRtc Then s &= "  RTC:   " & FmtUtcLocal(lRtc) & "  (ok)\n" Else s &= "  RTC:   -- oscillatore fermo / non impostato\n"
+    ' L'RTC ha SEMPRE un orario (l'oscillatore gira anche se non sincronizzato):
+    ' lo mostriamo comunque, cosi' un RTC da impostare e' subito evidente.
+    s &= "  RTC:   " & FmtUtcLocal(lRtc)
+    If bRtc Then s &= "  (sincronizzato)\n" Else s &= "  (NON sincronizzato - orario non affidabile)\n"
     s &= "  PC:    " & Format$(Now, "yyyy-mm-dd hh:nn:ss.uuu") & "  (orologio locale)\n"
-    If bGps And If bRtc Then s &= "  Scarto GPS-RTC: " & FmtScartoSec(lGps - lRtc) & "\n"
-    If bGps Then s &= "  Scarto GPS-PC:  " & FmtScartoMs(lGps * 1000 - lPc) & "\n"
-    If bRtc Then s &= "  Scarto RTC-PC:  " & FmtScartoMs(lRtc * 1000 - lPc) & "\n"
+    If bGps Then s &= "  Scarto GPS-RTC: " & FmtDurata((lGps - lRtc) * 1000) & "\n"
+    If bGps Then s &= "  Scarto GPS-PC:  " & FmtDurata(lGps * 1000 - lPc) & "\n"
+    s &= "  Scarto RTC-PC:  " & FmtDurata(lRtc * 1000 - lPc) & "\n"
   Else
     s &= "  non disponibili (firmware Arduino senza diagnostica estesa)\n"
   Endif

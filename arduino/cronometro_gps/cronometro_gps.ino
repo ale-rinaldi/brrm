@@ -380,11 +380,16 @@ void inviaDiag() {
     gpsUnix = g.unixtime();
   }
   DateTime r = rtc.now();
-  bool rtcOk = !rtc.lostPower() && r.year() >= 2020;
+  // rtc_ok = OSF pulito: l'RTC e' stato SINCRONIZZATO almeno una volta dopo
+  // l'ultimo arresto dell'oscillatore (il fix GPS azzera l'OSF). rtc_unix e'
+  // SEMPRE l'orario reale del DS3231 (l'oscillatore gira anche con OSF attivo /
+  // orario mai impostato): cosi' il PC lo mostra e rende evidente un RTC da
+  // sincronizzare, senza confonderlo con una batteria assente.
+  bool rtcOk = !rtc.lostPower();
   Serial.print(gpsOk ? 1 : 0);           Serial.print(',');
   Serial.print(gpsUnix);                 Serial.print(',');
   Serial.print(rtcOk ? 1 : 0);           Serial.print(',');
-  Serial.println(rtcOk ? r.unixtime() : 0UL);
+  Serial.println(r.unixtime());
 }
 
 // ============================================================
@@ -547,6 +552,22 @@ void tentaAggiornamentoRtc() {
   for (uint8_t i = 0; i < 7; i++) {
     Wire.write(buf[i]);
   }
+  Wire.endTransmission();
+
+  // Azzera l'OSF (Oscillator Stop Flag, status reg 0x0F bit7). Da qui in poi
+  // lostPower() torna 1 solo se l'oscillatore si ferma DAVVERO (es. batteria
+  // tampone morta con alimentazione staccata): cosi' l'OSF diventa un
+  // indicatore utile di "RTC sincronizzato e mai fermato da allora". Senza,
+  // resterebbe attivo per sempre e non distinguerebbe un RTC mai sincronizzato
+  // da uno con la batteria morta.
+  Wire.beginTransmission(0x68);
+  Wire.write(0x0F);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68, 1);
+  uint8_t st = Wire.available() ? Wire.read() : 0;
+  Wire.beginTransmission(0x68);
+  Wire.write(0x0F);
+  Wire.write(st & 0x7F);
   Wire.endTransmission();
 
   ultimo_aggiornamento_rtc_ms = millis();
