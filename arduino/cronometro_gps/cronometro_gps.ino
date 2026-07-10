@@ -56,6 +56,7 @@
 #include <RTClib.h>
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
+#include "cronometro_logic.h"
 
 RTC_DS3231 rtc;
 TinyGPSPlus gps;
@@ -164,7 +165,7 @@ void bootstrapRtc() {
   if (stato_attuale == PPS_ACTIVE) return;
 
   DateTime ora_iniziale = rtc.now();
-  if (ora_iniziale.year() < 2024) {
+  if (!rtcBootstrapYearOk(ora_iniziale.year())) {
     noInterrupts();
     if (stato_attuale != PPS_ACTIVE) {
       stato_attuale = UNSYNCED;
@@ -284,11 +285,13 @@ ISR(TIMER1_CAPT_vect) {
   }
 
   cattura_timer = icr_val;
-  uint32_t snap = unix_riferimento;
-  if (TCNT1 < cattura_timer) {
-    snap--;
-  }
-  unix_cattura = snap;
+  // Letti subito dopo ICR1 e coerenti fra loro: la COMPA non puo' interlacciarsi
+  // (interrupt disabilitati dentro questa ISR), quindi ref/OCF1A sono congelati.
+  uint16_t tcnt_now = TCNT1;
+  bool compare_pending = (TIFR1 & (1 << OCF1A)) != 0;
+  bool rtc_mode = (stato_attuale == RTC_ACTIVE);
+  unix_cattura = capturedUnix(unix_riferimento, tcnt_now, cattura_timer,
+                              compare_pending, rtc_mode);
   cattura_fonte = (stato_attuale == PPS_ACTIVE) ? 'G' : 'R';
   evento_fotocellula = true;
 }
@@ -326,9 +329,11 @@ void inviaPong() {
   Serial.print(s);
   if (s != 'N') {
     noInterrupts();
-    uint32_t sec = unix_riferimento;
+    uint32_t ref = unix_riferimento;
     uint16_t fr  = TCNT1;
+    bool ocf     = (TIFR1 & (1 << OCF1A)) != 0;
     interrupts();
+    uint32_t sec = secondoCorrente(ref, fr, ocf, stato_attuale == RTC_ACTIVE);
     stampaTempo(sec, fr);
   }
   Serial.println();
@@ -340,12 +345,16 @@ void inviaId() {
 
 void inviaDiag() {
   noInterrupts();
-  uint32_t secondo   = unix_riferimento;
+  uint32_t ref_now   = unix_riferimento;
+  uint16_t tcnt_now  = TCNT1;
+  bool ocf_now       = (TIFR1 & (1 << OCF1A)) != 0;
   uint16_t tcnt_diag = diag_tcnt_al_pps;
   uint16_t persi     = contatore_nmea_persi;
   unsigned long tpps = ultimo_pps_ms;
   unsigned long trtc = ultimo_aggiornamento_rtc_ms;
   interrupts();
+  uint32_t secondo = secondoCorrente(ref_now, tcnt_now, ocf_now,
+                                     stato_attuale == RTC_ACTIVE);
   unsigned long ora = millis();
   Serial.print('D');
   Serial.print(secondo);                 Serial.print(',');
@@ -371,7 +380,7 @@ void inviaDiag() {
   // gps_ok vero solo con un fix di posizione RECENTE (coerente col campo
   // 'fix' A/V): gps.date/time.isValid() da soli restano latched anche senza
   // fix e riporterebbero un orario stantio/fittizio.
-  bool gpsOk = gps.location.isValid() && gps.location.age() < 5000
+  bool gpsOk = nmeaFixUsable(gps.location.isValid(), gps.location.age())
                && gps.date.isValid() && gps.time.isValid();
   uint32_t gpsUnix = 0;
   if (gpsOk) {
@@ -426,34 +435,36 @@ void loop() {
                         gps.time.hour(), gps.time.minute(), gps.time.second());
         uint32_t t_nmea = oraGps.unixtime();
 
-        if (!tempo_inizializzato) {
-          // Bootstrap diretto da GPS (RTC non valido o ancora non sincronizzato).
-          // Allineamo TCNT1=0 al momento dell'NMEA: errore sistematico ~200ms
-          // fino al primo PPS, poi riallineamento automatico.
+        // Il tempo NMEA si usa SOLO con un fix di posizione recente: senza fix
+        // il GPS emette comunque data/ora (spesso sfasate di ~20 anni per week
+        // rollover) che NON devono corrompere il riferimento -- in fallback il
+        // tempo resta quello dell'RTC. Bootstrap ~200ms di errore fino al primo
+        // PPS, poi riallineamento automatico.
+        bool fixUsable = nmeaFixUsable(gps.location.isValid(), gps.location.age());
+
+        noInterrupts();
+        uint32_t attuale = unix_riferimento;
+        bool inizializzato = tempo_inizializzato;
+        interrupts();
+
+        NmeaTimeDecision dec = decideNmeaTime(t_nmea, fixUsable, inizializzato, attuale);
+
+        if (dec.emitWarn) {
+          Serial.print('W');
+          Serial.print(t_nmea);
+          Serial.print(',');
+          Serial.println(attuale);
+        }
+        if (dec.updateRef || dec.setInitialized || dec.resetTcnt) {
           noInterrupts();
-          TCNT1 = 0;
-          unix_riferimento = t_nmea;
-          tempo_inizializzato = true;
-          if (stato_attuale == UNSYNCED || stato_attuale == WAIT_RTC_SYNC) {
+          if (dec.resetTcnt) TCNT1 = 0;
+          if (dec.updateRef) unix_riferimento = dec.newRef;
+          if (dec.setInitialized) tempo_inizializzato = true;
+          if (dec.setRtcActive
+              && (stato_attuale == UNSYNCED || stato_attuale == WAIT_RTC_SYNC)) {
             stato_attuale = RTC_ACTIVE;
           }
           interrupts();
-        } else {
-          // Sanity check
-          noInterrupts();
-          uint32_t attuale = unix_riferimento;
-          interrupts();
-
-          int32_t diff = (int32_t)t_nmea - (int32_t)attuale;
-          if (diff != 0 && diff != -1) {
-            Serial.print('W');
-            Serial.print(t_nmea);
-            Serial.print(',');
-            Serial.println(attuale);
-            noInterrupts();
-            unix_riferimento = t_nmea;
-            interrupts();
-          }
         }
       }
     }
@@ -505,23 +516,16 @@ void tentaAggiornamentoRtc() {
   // Evita rollover di minuto (e quindi anche di ora, giorno, mese, anno):
   // scrivere a cavallo del cambio minuto puo' lasciare l'RTC su un minuto
   // ambiguo. Riproveremo al prossimo passaggio utile.
-  if ((prossimo_sec % 60) == 0) return;
+  if (syncAttraversaMinuto(prossimo_sec)) return;
 
-  // Prepara i 7 byte BCD del nuovo timestamp
+  // Prepara i 7 byte BCD del nuovo timestamp. Day-of-week: convenzione RTClib
+  // (dowToDS3231) -> domenica=7, altrimenti 1-6. Il registro DOW non incide sul
+  // calendario (RTClib lo ricalcola dalla data in lettura), ma manteniamo la
+  // stessa convenzione per coerenza.
   DateTime dt(prossimo_sec);
   uint8_t buf[7];
-  buf[0] = ((dt.second()  / 10) << 4) | (dt.second()  % 10);
-  buf[1] = ((dt.minute()  / 10) << 4) | (dt.minute()  % 10);
-  buf[2] = ((dt.hour()    / 10) << 4) | (dt.hour()    % 10);  // 24h mode (bit6=0)
-  // Day-of-week: convenzione RTClib (dowToDS3231) -> domenica=7, altrimenti 1-6.
-  // Il registro DOW non incide sul calendario (RTClib ricalcola il DOW dalla
-  // data in lettura), ma manteniamo la stessa convenzione per coerenza.
-  uint8_t dow = dt.dayOfTheWeek();
-  buf[3] = (dow == 0) ? 7 : dow;
-  buf[4] = ((dt.day()     / 10) << 4) | (dt.day()     % 10);
-  buf[5] = ((dt.month()   / 10) << 4) | (dt.month()   % 10);
-  uint16_t y = dt.year() - 2000;
-  buf[6] = ((y / 10) << 4) | (y % 10);
+  packRtcBcd(dt.second(), dt.minute(), dt.hour(), dt.dayOfTheWeek(),
+             dt.day(), dt.month(), (uint8_t)(dt.year() - 2000), buf);
 
   // Attesa fase 1: TCNT1 raggiunge zona "quasi rollover"
   unsigned long inizio_wait = millis();
@@ -567,7 +571,7 @@ void tentaAggiornamentoRtc() {
   uint8_t st = Wire.available() ? Wire.read() : 0;
   Wire.beginTransmission(0x68);
   Wire.write(0x0F);
-  Wire.write(st & 0x7F);
+  Wire.write(osfCleared(st));
   Wire.endTransmission();
 
   ultimo_aggiornamento_rtc_ms = millis();
