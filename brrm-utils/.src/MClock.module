@@ -72,9 +72,10 @@ Public Function ParseLine(sLine As String) As String[]
       If Len(km) <> 3 Or If Not IsAllDigits(km) Then Return Null
       Return [tag, ks, ku, km]
 
-    Case "D"   ' D<csv 12 campi>
+    Case "D"   ' D<csv >=12 campi> (12 base; il firmware esteso aggiunge in coda
+           ' gpsOk,gpsUnix,rtcOk,rtcUnix per la diagnostica GPS/RTC)
       parts = Split(rest, ",")
-      If parts.Count <> 12 Then Return Null
+      If parts.Count < 12 Then Return Null
       Dim outd As New String[]
       outd.Add(tag)
       Dim f As String

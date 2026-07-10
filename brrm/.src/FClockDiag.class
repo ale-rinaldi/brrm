@@ -28,6 +28,22 @@ Public Sub Form_Close()
   TimerDiag.Stop
 End
 
+Private Function FmtUtcLocal(unixSec As Long) As String
+  ' unix (UTC, secondi) -> data/ora locale leggibile
+  Return Format$(MTime.UnixMsToDate(unixSec * 1000), "yyyy-mm-dd hh:nn:ss")
+End
+
+Private Function FmtScartoSec(sec As Long) As String
+  If sec > 0 Then Return "+" & CStr(sec) & " s"
+  Return CStr(sec) & " s"
+End
+
+Private Function FmtScartoMs(ms As Long) As String
+  Dim r As String = Format$(ms / 1000, "0.0")
+  If ms > 0 Then r = "+" & r
+  Return r & " s"
+End
+
 Private Sub Render()
   ' Header sorgente con colore coerente con la label di stato
   Select Case FMain.ClockSrc
@@ -84,6 +100,26 @@ Private Sub Render()
     s &= "\n"
     s &= "Tempo\n"
     s &= "  live (pong):    " & FMain.ClockTimeLive & "\n"
+  Endif
+
+  ' GPS / RTC assoluti: campi aggiuntivi nella stessa riga D (firmware esteso).
+  ' Col firmware vecchio la D ha solo 12 campi -> non disponibili.
+  s &= "\n"
+  s &= "GPS / RTC assoluti\n"
+  If d <> Null And If d[0] = "D" And If d.Count >= 17 Then
+    Dim bGps As Boolean = (d[13] = "1")
+    Dim bRtc As Boolean = (d[15] = "1")
+    Dim lGps As Long = CLong(d[14])
+    Dim lRtc As Long = CLong(d[16])
+    Dim lPc As Long = MTime.DateToUnixMs(Now)
+    If bGps Then s &= "  GPS:   " & FmtUtcLocal(lGps) & "  (fix valido)\n" Else s &= "  GPS:   -- nessun fix\n"
+    If bRtc Then s &= "  RTC:   " & FmtUtcLocal(lRtc) & "  (ok)\n" Else s &= "  RTC:   -- oscillatore fermo / non impostato\n"
+    s &= "  PC:    " & Format$(Now, "yyyy-mm-dd hh:nn:ss.uuu") & "  (orologio locale)\n"
+    If bGps And If bRtc Then s &= "  Scarto GPS-RTC: " & FmtScartoSec(lGps - lRtc) & "\n"
+    If bGps Then s &= "  Scarto GPS-PC:  " & FmtScartoMs(lGps * 1000 - lPc) & "\n"
+    If bRtc Then s &= "  Scarto RTC-PC:  " & FmtScartoMs(lRtc * 1000 - lPc) & "\n"
+  Else
+    s &= "  non disponibili (firmware Arduino senza diagnostica estesa)\n"
   Endif
 
   s &= "\n"

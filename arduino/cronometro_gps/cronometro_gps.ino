@@ -335,7 +335,7 @@ void inviaPong() {
 }
 
 void inviaId() {
-  Serial.println(F("Y1"));
+  Serial.println(F("Y2"));
 }
 
 void inviaDiag() {
@@ -362,7 +362,25 @@ void inviaDiag() {
   Serial.print(persi);                   Serial.print(',');
   Serial.print((ora - tpps) / 1000);     Serial.print(',');
   Serial.print(trtc == 0 ? 0 : (ora - trtc) / 1000); Serial.print(',');
-  Serial.println(ora / 1000);
+  Serial.print(ora / 1000);              Serial.print(',');
+  // --- Estensione diagnostica: GPS e RTC assoluti (unix UTC). Letture
+  // "pesanti" (I2C sul DS3231, ricostruzione della data GPS) eseguite SOLO
+  // qui, cioe' solo quando il PC chiede la diagnostica con '@' (schermata di
+  // diagnostica aperta) - mai nel percorso di gara. Un firmware senza questi
+  // campi (versione precedente) fa emettere al PC "non disponibili".
+  bool gpsOk = gps.date.isValid() && gps.time.isValid();
+  uint32_t gpsUnix = 0;
+  if (gpsOk) {
+    DateTime g(gps.date.year(), gps.date.month(), gps.date.day(),
+               gps.time.hour(), gps.time.minute(), gps.time.second());
+    gpsUnix = g.unixtime();
+  }
+  DateTime r = rtc.now();
+  bool rtcOk = !rtc.lostPower() && r.year() >= 2020;
+  Serial.print(gpsOk ? 1 : 0);           Serial.print(',');
+  Serial.print(gpsUnix);                 Serial.print(',');
+  Serial.print(rtcOk ? 1 : 0);           Serial.print(',');
+  Serial.println(rtcOk ? r.unixtime() : 0UL);
 }
 
 // ============================================================

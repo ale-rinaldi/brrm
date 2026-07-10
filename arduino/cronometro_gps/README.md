@@ -94,12 +94,18 @@ diagnostiche sono su richiesta (request/response), il passaggio è asincrono.
 |---------|---------------------------------|----------------------------------------------------|
 | Passage | `P<unix>.<ms><G\|R>`            | `P1718000000.347G` (G=GPS, R=RTC)                  |
 | Pong    | `K<src>[<unix>.<ms>]`           | `KG1718000000.347` / `KN` (src `G`/`R`/`N`)        |
-| Diag    | `D<CSV 12 campi>`               | `D1718000000,G,-1,187.3,A,9,0.93,142,0,12,3,57`    |
-| Id      | `Y<ver>`                        | `Y1`                                               |
+| Diag    | `D<CSV >=12 campi>`             | `D1718000000,G,-1,187.3,A,9,0.93,142,0,12,3,57,1,1718000000,1,1717999998` |
+| Id      | `Y<ver>`                        | `Y2`                                               |
 | Warn    | `W<nmea>,<ref>`                 | `W1718000001,1718000003` (evento desync)           |
 
 Ordine colonne `D` (posizionale): `unix, src, dev_tcnt, nmea_ms, fix, sat,
-hdop, alt, nmea_persi, since_pps_s, since_rtc_write_s, uptime_s`.
+hdop, alt, nmea_persi, since_pps_s, since_rtc_write_s, uptime_s`. Dalla versione
+firmware `Y2` seguono 4 campi di **diagnostica estesa** (GPS e RTC assoluti,
+raccolti solo alla ricezione di `@`, quindi solo a schermata diagnostica aperta):
+`gps_ok, gps_unix, rtc_ok, rtc_unix` (`gps_ok`/`rtc_ok` = 0/1; unix in secondi
+UTC, 0 se non valido). Il PC calcola da questi gli scarti GPS-RTC e rispetto al
+proprio orologio; un firmware precedente non li invia (12 campi) e il PC mostra
+"non disponibili".
 
 - `src` — `G` (PPS), `R` (RTC), `N` (nessun tempo valido);
 - `dev_tcnt` — deviazione di TCNT1 da 32768 al PPS (ideale 0 / +-1);
