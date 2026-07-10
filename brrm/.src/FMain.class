@@ -19,6 +19,11 @@ Private Const MAX_NUMERO As Integer = 10000
 Private $entries As New CEntry[]
 Private CurrAct As String
 Private FotON As Boolean
+' Shortcut barra spaziatrice: disabilita la fotocellula finche' e' premuta.
+' $fotoWasOn ricorda lo stato precedente per ripristinarlo al rilascio.
+Private $fotoWasOn As Boolean
+' $spaceDown: barra attualmente premuta (ignora gli auto-repeat).
+Private $spaceDown As Boolean
 Private INV1 As Integer
 Private INV2 As Integer
 ' Ultimo passaggio auto-assegnato dalla fotocellula (per il pulsante "Annulla
@@ -1215,6 +1220,40 @@ PUBLIC SUB ButtonFotOFF_Click()
   Try MLog.Write("foto_toggle", "stato=OFF")
 END
 
+PUBLIC SUB Form_KeyPress()
+  ' Barra spaziatrice tenuta premuta -> FotOFF (fotocellula sospesa). Consuma
+  ' l'evento (Stop Event) cosi' lo Spazio non "clicca" il bottone col focus:
+  ' nella schermata principale i bottoni si usano col mouse. Il flag $spaceDown
+  ' fa agire solo il primo KeyPress e ignora gli auto-repeat.
+  IF Key.Code = Key.Space THEN
+    TimerSpaceRelease.Stop
+    IF NOT $spaceDown THEN
+      $spaceDown = TRUE
+      $fotoWasOn = FotON
+      IF FotON THEN ButtonFotOFF_Click
+    ENDIF
+    Stop Event
+  ENDIF
+END
+
+PUBLIC SUB Form_KeyRelease()
+  ' Rilascio della barra: arma un ripristino ritardato. Se e' solo un
+  ' auto-repeat, il KeyPress immediatamente successivo ferma il timer (niente
+  ' flicker); se e' il rilascio vero, nessun KeyPress segue e il timer scatta.
+  IF Key.Code = Key.Space THEN
+    TimerSpaceRelease.Start
+    Stop Event
+  ENDIF
+END
+
+PUBLIC SUB TimerSpaceRelease_Timer()
+  TimerSpaceRelease.Stop
+  IF $spaceDown THEN
+    $spaceDown = FALSE
+    IF $fotoWasOn THEN ButtonFotON_Click
+  ENDIF
+END
+
 PUBLIC SUB TimerBlink_Timer()
 
   IF ButtonFotOFF.Background = &HFF0000& THEN 
@@ -1425,6 +1464,7 @@ PUBLIC SUB Form_Close()
   TRY TimerArrivoQueue.Stop
   TRY TimerArduino.Stop
   TRY TimerAlignWatchdog.Stop
+  TRY TimerSpaceRelease.Stop
   ' Chiudi le connessioni async (fd osservati che terrebbero vivo il loop).
   IF $hAlignHttp <> Null THEN Try $hAlignHttp.Stop
   IF $sheet <> Null THEN Try $sheet.Shutdown()
