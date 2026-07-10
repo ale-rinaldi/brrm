@@ -6,30 +6,21 @@
   { GridView1 GridView
     MoveScaled(1,1,91,38)
   }
-  { TimerGrid #Timer
-    #X = 609
-    #Y = 322
-    Delay = 91
+  { BPartenze ListBox
+    MoveScaled(1,4,90,3)
+    Visible = False
+  }
+  { ButtonPartenza Button
+    MoveScaled(1,40,23,14)
+    Text = ("PARTENZA")
   }
   { ButtonAnnullaPart Button
     MoveScaled(25,40,23,4)
     Text = ("Annulla partenza")
   }
-  { ButtonChangeNum Button
-    MoveScaled(25,45,23,4)
-    Text = ("Cambia numero")
-  }
-  { ButtonInvert Button
-    MoveScaled(25,50,23,4)
-    Text = ("Inverti partenze")
-  }
-  { ButtonSettings Button
-    MoveScaled(74,55,18,4)
-    Text = ("Impostazioni…")
-  }
-  { ButtonEsporta Button
-    MoveScaled(74,45,18,4)
-    Text = ("ESPORTA")
+  { ButtonOrdine Button
+    MoveScaled(50,40,22,5)
+    Text = ("MODIFICA ORDINE")
   }
   { ButtonFotON Button
     MoveScaled(74,40,9,4)
@@ -41,22 +32,55 @@
     Background = &HFFFFFF&
     Text = ("FotOFF")
   }
-  { TimerBlink #Timer
-    #X = 609
-    #Y = 329
-    Delay = 500
+  { ButtonChangeNum Button
+    MoveScaled(25,45,23,4)
+    Text = ("Cambia numero")
+  }
+  { ButtonEsporta Button
+    MoveScaled(74,45,18,4)
+    Text = ("ESPORTA")
+  }
+  { ButtonAnnullaUltimo Button
+    MoveScaled(50,46,24,4)
+    Enabled = False
+    Text = ("Annulla ultimo passaggio")
+  }
+  { ButtonInvert Button
+    MoveScaled(25,50,23,4)
+    Text = ("Inverti partenze")
   }
   { ButtonReset Button
     MoveScaled(74,50,18,4)
     Text = ("RESET!")
   }
-  { BPartenze ListBox
-    MoveScaled(1,4,90,3)
-    Visible = False
+  { LabelArduino Label
+    MoveScaled(1,55,23,4)
+    Background = &HCCCCCC&
+    Foreground = &H000000&
+    Alignment = Align.Center
+    Text = ("ARDUINO ?")
   }
-  { ButtonPartenza Button
-    MoveScaled(1,40,23,14)
-    Text = ("PARTENZA")
+  { LabelSync Label
+    MoveScaled(25,55,23,4)
+    Visible = False
+    Background = &HCC0000&
+    Foreground = &HFFFFFF&
+    Alignment = Align.Center
+    Text = ("SYNC")
+  }
+  { ButtonSettings Button
+    MoveScaled(74,55,18,4)
+    Text = ("Impostazioni…")
+  }
+  { TimerGrid #Timer
+    #X = 609
+    #Y = 322
+    Delay = 91
+  }
+  { TimerBlink #Timer
+    #X = 609
+    #Y = 329
+    Delay = 500
   }
   { TimerPartenzaQueue #Timer
     #X = 609
@@ -81,29 +105,5 @@
     #Y = 357
     Enabled = False
     Delay = 30000
-  }
-  { LabelArduino Label
-    MoveScaled(1,55,23,4)
-    Background = &HCCCCCC&
-    Foreground = &H000000&
-    Alignment = Align.Center
-    Text = ("ARDUINO ?")
-  }
-  { LabelSync Label
-    MoveScaled(25,55,23,4)
-    Visible = False
-    Background = &HCC0000&
-    Foreground = &HFFFFFF&
-    Alignment = Align.Center
-    Text = ("SYNC")
-  }
-  { ButtonOrdine Button
-    MoveScaled(50,40,22,5)
-    Text = ("MODIFICA ORDINE")
-  }
-  { ButtonAnnullaUltimo Button
-    MoveScaled(50,46,24,4)
-    Enabled = False
-    Text = ("Annulla ultimo passaggio")
   }
 }

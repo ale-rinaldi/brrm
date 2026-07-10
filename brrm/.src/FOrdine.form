@@ -24,6 +24,7 @@
   }
   { Button5 Button
     MoveScaled(43,35,22,6)
+    Default = True
     Text = ("OK")
   }
 }

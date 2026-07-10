@@ -85,6 +85,7 @@
   }
   { ButtonCancel Button
     MoveScaled(31,39,16,5)
+    Cancel = True
     Text = ("Annulla")
   }
   { ButtonSave Button

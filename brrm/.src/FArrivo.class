@@ -4,6 +4,7 @@
 PUBLIC SUB Form_Open()
   ' L'orario lo imposta setOrario PRIMA di ShowModal: non azzerarlo qui.
   FArrivo.Center()
+  TextBox1.SetFocus
 END
 
 PUBLIC SUB setOrario(Orario AS String)
