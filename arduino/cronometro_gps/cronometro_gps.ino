@@ -368,7 +368,11 @@ void inviaDiag() {
   // qui, cioe' solo quando il PC chiede la diagnostica con '@' (schermata di
   // diagnostica aperta) - mai nel percorso di gara. Un firmware senza questi
   // campi (versione precedente) fa emettere al PC "non disponibili".
-  bool gpsOk = gps.date.isValid() && gps.time.isValid();
+  // gps_ok vero solo con un fix di posizione RECENTE (coerente col campo
+  // 'fix' A/V): gps.date/time.isValid() da soli restano latched anche senza
+  // fix e riporterebbero un orario stantio/fittizio.
+  bool gpsOk = gps.location.isValid() && gps.location.age() < 5000
+               && gps.date.isValid() && gps.time.isValid();
   uint32_t gpsUnix = 0;
   if (gpsOk) {
     DateTime g(gps.date.year(), gps.date.month(), gps.date.day(),
