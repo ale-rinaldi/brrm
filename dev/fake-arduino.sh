@@ -26,14 +26,22 @@ set -u
 CTL=${FAKE_CTL:-/tmp/fake-ctl}
 SRCF=${FAKE_SRC:-/tmp/fake-src}
 HANGF=${FAKE_HANG:-/tmp/fake-hang}
+LEGACYF=${FAKE_LEGACY:-/tmp/fake-legacy}
 
 echo "${FAKE_INIT_SRC:-G}" > "$SRCF"
-rm -f "$HANGF"
+rm -f "$HANGF" "$LEGACYF"
 [ -p "$CTL" ] || { rm -f "$CTL"; mkfifo "$CTL"; }
 
 emit_pong()    { printf 'K%s%s.%s\n' "$(cat "$SRCF")" "$(date -u +%s)" "$(date -u +%3N)"; }
-emit_diag()    { printf 'D%s,%s,0,187,A,9,0.93,142,0,12,3,57\n' "$(date -u +%s)" "$(cat "$SRCF")"; }
-emit_id()      { printf 'Y1\n'; }
+emit_diag() {
+  local u; u=$(date -u +%s)
+  if [ -f "$LEGACYF" ]; then
+    printf 'D%s,%s,0,187,A,9,0.93,142,0,12,3,57\n' "$u" "$(cat "$SRCF")"        # 12 campi (firmware vecchio)
+  else
+    printf 'D%s,%s,0,187,A,9,0.93,142,0,12,3,57,1,%s,1,%s\n' "$u" "$(cat "$SRCF")" "$u" "$((u-3))"  # +gpsOk,gpsUnix,rtcOk,rtcUnix
+  fi
+}
+emit_id()      { if [ -f "$LEGACYF" ]; then printf 'Y1\n'; else printf 'Y2\n'; fi; }
 emit_passage() {
   local s; s=$(cat "$SRCF")
   [ "$s" = "N" ] && s=G   # un passaggio deve avere src G o R
@@ -48,8 +56,10 @@ emit_passage() {
         passage)    [ -f "$HANGF" ] || emit_passage ;;
         src)        echo "$arg" > "$SRCF" ;;
         hang)       touch "$HANGF" ;;
-        resume)     rm -f "$HANGF" ;;
+        resume)     rm -f "$HANGF" "$LEGACYF" ;;
         legacybyte) printf 'X' ;;
+        legacydiag) touch "$LEGACYF" ;;
+        extdiag)    rm -f "$LEGACYF" ;;
       esac
     fi
   done
