@@ -121,6 +121,52 @@ inline uint32_t capturedUnix(uint32_t ref, uint16_t tcntNow, uint16_t catturaTim
   return (tcntNow >= catturaTimer) ? w : (w - 1);
 }
 
+// --- Antirimbalzo retriggerabile "a fascio libero" ------------------------
+// Il debounce a finestra fissa dall'ultimo rilevamento non basta a una
+// partenza spinta da fermo: il veicolo puo' occupare il fascio per >1s e/o le
+// gambe del pilota che spinge da dietro generano una seconda interruzione
+// oltre la finestra -> due passaggi per una sola partenza.
+//
+// Semantica corretta: si emette il PRIMO fronte (arrivo del veicolo); poi si
+// resta "occupati" finche' il fascio non e' libero per graceMs CONTINUATIVI.
+// Ogni attivita' (fascio bloccato ora, o nuovo fronte) riarma la grazia. Cosi'
+// veicolo + gambe confluiscono in un solo passaggio, col tempo del primo fronte.
+struct AntirimbalzoStato {
+  bool     occupato;            // dentro un passaggio + finestra di grazia
+  uint32_t ultima_attivita_ms;  // ultimo istante di fascio bloccato o fronte
+};
+struct AntirimbalzoEsito {
+  bool               emetti;    // true = nuovo passaggio da emettere ('P')
+  AntirimbalzoStato  stato;     // stato aggiornato (da riassegnare al chiamante)
+};
+
+// nowMs          : millis() corrente
+// fascioBloccato : true se il fascio e' interrotto ADESSO (pin ICP1 a livello)
+// fronte         : true se in questa iterazione e' stato catturato un fronte
+// graceMs        : fascio libero necessario a chiudere il passaggio
+inline AntirimbalzoEsito aggiornaAntirimbalzo(AntirimbalzoStato s, uint32_t nowMs,
+                                              bool fascioBloccato, bool fronte,
+                                              uint32_t graceMs) {
+  AntirimbalzoEsito e;
+  e.emetti = false;
+  // Attivita' (fascio bloccato ora, o fronte catturato) riarma la grazia.
+  if (fascioBloccato || fronte) {
+    s.ultima_attivita_ms = nowMs;
+  }
+  // Passaggio chiuso quando il fascio e' libero da >= graceMs (nessuna attivita').
+  if (s.occupato && (uint32_t)(nowMs - s.ultima_attivita_ms) >= graceMs) {
+    s.occupato = false;
+  }
+  // Un fronte mentre siamo liberi = nuovo passaggio: emette ed entra in occupato.
+  // Un fronte mentre siamo occupati (veicolo lungo / gambe del pilota) e' soppresso.
+  if (fronte && !s.occupato) {
+    e.emetti    = true;
+    s.occupato  = true;
+  }
+  e.stato = s;
+  return e;
+}
+
 // --- Bootstrap RTC: anno plausibile ---------------------------------------
 // A boot l'RTC viene usato come sorgente solo se porta una data sensata.
 inline bool rtcBootstrapYearOk(int year) {

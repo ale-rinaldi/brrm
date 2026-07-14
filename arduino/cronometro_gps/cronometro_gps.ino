@@ -102,7 +102,10 @@ uint8_t cmdLen = 0;
 const unsigned long DEBOUNCE_TIME_MS     = 1000;
 const unsigned long TIMEOUT_BOOTSTRAP_MS = 1500;
 const unsigned long TIMEOUT_BUSY_WAIT_MS = 2000;
-unsigned long ultimo_passaggio_valido = 0;
+// Antirimbalzo retriggerabile "a fascio libero" (vedi cronometro_logic.h):
+// un solo passaggio anche se il veicolo occupa il fascio a lungo o le gambe del
+// pilota che spinge da dietro generano una seconda interruzione entro 1s.
+AntirimbalzoStato stato_antirimbalzo = {false, 0};
 
 // ============================================================
 // SETUP
@@ -470,29 +473,37 @@ void loop() {
     }
   }
 
-  // --- Gestione passaggio fotocellula ---
+  // --- Gestione passaggio fotocellula (antirimbalzo retriggerabile) ---
+  // Chiamato a ogni giro: la logica ha bisogno del livello del fascio ANCHE
+  // senza un nuovo fronte, per riarmare la grazia finche' il fascio e' occupato
+  // e per chiudere il passaggio dopo 1s di fascio libero. Dark-ON NPN + pull-up
+  // su ICP1 (pin 8): livello BASSO = fascio interrotto.
+  bool fascio_bloccato = (digitalRead(8) == LOW);
+  bool fronte = false;
+  uint32_t secondo = 0;
+  uint16_t frazione = 0;
+  uint8_t fonte = 'R';
+  noInterrupts();
   if (evento_fotocellula) {
-    unsigned long m = millis();
-    if (m - ultimo_passaggio_valido > DEBOUNCE_TIME_MS) {
-
-      noInterrupts();
-      uint32_t secondo  = unix_cattura;
-      uint16_t frazione = cattura_timer;
-      interrupts();
-
-      noInterrupts();
-      uint8_t fonte = cattura_fonte;
-      interrupts();
-      Serial.print('P');
-      stampaTempo(secondo, frazione);
-      Serial.println((char) fonte);
-
-      ultimo_passaggio_valido = m;
-
-      // Aggiorna RTC se opportuno (durante il debounce, dopo aver stampato)
-      tentaAggiornamentoRtc();
-    }
+    fronte    = true;
+    secondo   = unix_cattura;
+    frazione  = cattura_timer;
+    fonte     = cattura_fonte;
     evento_fotocellula = false;
+  }
+  interrupts();
+
+  AntirimbalzoEsito ar = aggiornaAntirimbalzo(stato_antirimbalzo, millis(),
+                                              fascio_bloccato, fronte,
+                                              DEBOUNCE_TIME_MS);
+  stato_antirimbalzo = ar.stato;
+  if (ar.emetti) {
+    Serial.print('P');
+    stampaTempo(secondo, frazione);
+    Serial.println((char) fonte);
+
+    // Aggiorna RTC se opportuno (dopo aver stampato il passaggio)
+    tentaAggiornamentoRtc();
   }
 
 }

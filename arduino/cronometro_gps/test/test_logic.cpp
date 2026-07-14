@@ -211,6 +211,49 @@ static void test_helpers() {
   CHECK_EQ(buf[3], 7, "bcd dow domenica -> 7");
 }
 
+static void test_antirimbalzo() {
+  const uint32_t G = 1000;  // grazia (ms)
+  AntirimbalzoStato s = {false, 0};
+  AntirimbalzoEsito e;
+
+  // 1) Idle: il primo fronte e' un nuovo passaggio -> emette.
+  e = aggiornaAntirimbalzo(s, 0, /*bloccato=*/true, /*fronte=*/true, G); s = e.stato;
+  CHECK(e.emetti, "primo fronte emette");
+  CHECK(s.occupato, "dopo il primo fronte -> occupato");
+
+  // 2) Il veicolo occupa il fascio IN CONTINUO per >G: resta occupato, niente
+  //    nuova emissione (fix del 'veicolo impiega piu' di 1s a passare').
+  e = aggiornaAntirimbalzo(s, 1500, true, false, G); s = e.stato;
+  CHECK(!e.emetti && s.occupato, "occlusione continua oltre G resta occupato");
+
+  // 3) Il fascio si libera: entro G il passaggio non si chiude.
+  e = aggiornaAntirimbalzo(s, 1600, false, false, G); s = e.stato;
+  CHECK(!e.emetti && s.occupato, "fascio appena libero: ancora occupato");
+
+  // 4) Gambe del pilota 500ms dopo il rilascio (< G): SOPPRESSE, e riarmano.
+  e = aggiornaAntirimbalzo(s, 2100, true, true, G); s = e.stato;
+  CHECK(!e.emetti && s.occupato, "gambe entro G dal rilascio -> soppresse");
+
+  // 5) Dopo le gambe, fascio libero per G intero -> torna idle.
+  e = aggiornaAntirimbalzo(s, 2200, false, false, G); s = e.stato;
+  CHECK(s.occupato, "subito dopo le gambe: ancora occupato");
+  e = aggiornaAntirimbalzo(s, 3101, false, false, G); s = e.stato;
+  CHECK(!s.occupato, "fascio libero per G -> torna idle");
+
+  // 6) Nuovo veicolo dopo idle -> nuova emissione.
+  e = aggiornaAntirimbalzo(s, 3200, true, true, G); s = e.stato;
+  CHECK(e.emetti && s.occupato, "nuovo passaggio dopo idle emette");
+
+  // 7) Regressione del bug: gambe OLTRE 1s dal rilevamento del veicolo ma con
+  //    gap di fascio libero < G non devono generare un secondo passaggio.
+  AntirimbalzoStato b = {false, 0};
+  e = aggiornaAntirimbalzo(b, 0, true, true, G);      b = e.stato;  // veicolo t=0
+  CHECK(e.emetti, "bug: veicolo emette");
+  e = aggiornaAntirimbalzo(b, 400, false, false, G);  b = e.stato;  // libero t=400
+  e = aggiornaAntirimbalzo(b, 1100, true, true, G);   b = e.stato;  // gambe t=1100 (>1s dal veicolo)
+  CHECK(!e.emetti, "bug: gambe a 1100ms (gap 700ms<G) NON emettono");
+}
+
 int main() {
   std::printf("== capturedUnix (confine del secondo) ==\n");
   test_capturedUnix_casi_espliciti();
@@ -220,6 +263,8 @@ int main() {
   test_decideNmeaTime();
   std::printf("== helpers (fix/anno/minuto/osf/bcd) ==\n");
   test_helpers();
+  std::printf("== antirimbalzo (partenza spinta: veicolo + gambe) ==\n");
+  test_antirimbalzo();
 
   std::printf("\n%d controlli, %d fallimenti\n", g_checks, g_fail);
   if (g_fail == 0) std::printf("TUTTI I TEST OK\n");
