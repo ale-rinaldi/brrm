@@ -33,7 +33,8 @@ import (
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8099", "indirizzo del pannello di comando")
-	headless := flag.Bool("headless", false, "non stampare il pannello, solo la seriale")
+	headless := flag.Bool("headless", false, "non stampare l'indirizzo del pannello")
+	gui := flag.Bool("finestra", false, "apri la finestra nativa invece del comando da tastiera (richiede il build con -tags gui)")
 	flag.Parse()
 
 	master, slave, err := apriPTY()
@@ -82,10 +83,29 @@ func main() {
 		fmt.Printf("\nIn brrm: Avanzate → Trasporti → porta seriale = %s\n", slave)
 	}
 
+	// Chiusura ordinata su Ctrl-C anche mentre la tastiera aspetta una riga.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
-	fmt.Println()
+	go func() {
+		<-sig
+		fmt.Println()
+		os.Exit(0)
+	}()
+
+	if *gui {
+		if !conFinestra {
+			log.Fatal("questo binario è compilato senza la finestra: rifallo con " +
+				"`go build -tags gui`, oppure usa il comando da tastiera o il pannello web")
+		}
+		finestra(c, slave)
+		return
+	}
+
+	// Il comando da tastiera è la via PRINCIPALE: il terminale è già aperto, non
+	// c'è una finestra da cercare, e funziona attraverso ssh — che è come si prova
+	// un nodo su un Raspberry. Il pannello nel browser resta per chi vuole il
+	// pulsante grosso o comandarlo da un telefono.
+	tastiera(c, slave)
 }
 
 // pannello registra la paginetta di comando e le sue azioni.

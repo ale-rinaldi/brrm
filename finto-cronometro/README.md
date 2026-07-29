@@ -21,12 +21,47 @@ pseudo-seriale: /dev/ttys004
 pannello:       http://127.0.0.1:8099
 ```
 
+Si comanda **da tastiera**, nello stesso terminale: Invio manda un passaggio,
+`g`/`r`/`n` cambiano la base tempo, `w` manda l'avviso di scostamento, `?` l'aiuto.
+È la via principale perché il terminale è già aperto, non c'è una finestra da
+cercare fra le altre, e funziona attraverso ssh — che è come si prova un nodo su un
+Raspberry.
+
 In brrm: **Avanzate → Trasporti → porta seriale** = quel percorso. Il rilevamento
 delle porte lo riconosce da sé, perché risponde al `#` come il firmware vero — e
 si dichiara `2-sim`, così in un log di gara si vede a colpo d'occhio che quei
 tempi non vengono da un cronometro.
 
-![il pannello](simulatore.png)
+## Le tre interfacce
+
+| | come | quando |
+|---|---|---|
+| **tastiera** | il terminale da cui è partito | il caso normale, e via ssh |
+| **pannello web** | `http://127.0.0.1:8099` | pulsante grosso, o comandarlo da un telefono |
+| **finestra nativa** | `-tags gui` in build, poi `-finestra` | quando si vuole una finestra e non una scheda |
+
+La finestra nativa è **dietro un tag di build** perché Gio porta ventidue moduli,
+ottanta pacchetti e richiede cgo — su Linux anche gli header di X11 o Wayland — e
+il binario passa da 8 a 14 MB:
+
+```
+go build -o finto-cronometro .                 # tastiera + pannello (8 MB)
+go build -tags gui -o finto-cronometro-gui .   # anche la finestra (14 MB)
+./finto-cronometro-gui -finestra
+```
+
+> **Stato della finestra nativa:** compila e passa `go vet`, ma **non l'ho potuta
+> verificare**: sulla macchina dove è stata scritta non c'è una sessione grafica
+> utilizzabile, e Gio va in panico nel crearla (`runtime/cgo: misuse of an invalid
+> Handle`). Il fallimento **non è di questo codice**: un hello-world Gio nudo fa
+> lo stesso, con Gio 0.8 e 0.10 e con Go 1.25 e 1.26. Su una sessione desktop vera
+> dovrebbe funzionare, ma va provata.
+
+Non Wails: quello incorpora un motore di browser (WebView2, WebKit). Non
+toglierebbe il browser, lo nasconderebbe, e aggiungerebbe npm e la sua CLI alla
+build per mostrare la stessa pagina che già c'è.
+
+![il pannello web](simulatore.png)
 
 ## Cosa si comanda
 
