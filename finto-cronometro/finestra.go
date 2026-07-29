@@ -41,7 +41,7 @@ const conFinestra = true
 func finestra(c *Cronometro, slave string) {
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("finto cronometro"), app.Size(unit.Dp(420), unit.Dp(430)))
+		w.Option(app.Title("finto cronometro"), app.Size(unit.Dp(560), unit.Dp(460)))
 		if err := ciclo(w, c, slave); err != nil {
 			fmt.Fprintln(os.Stderr, "finestra:", err)
 		}
@@ -109,7 +109,7 @@ func ciclo(w *app.Window, c *Cronometro, slave string) error {
 						)
 					}),
 					spazio(4),
-					rigida(nota(th, "L'ora è sempre quella di sistema: cambia la qualità dichiarata.")),
+					rigida(nota(th, "L'ora è quella di sistema:\ncambia la qualità dichiarata.")),
 					spazio(18),
 					rigida(etichetta(th, "FASCIO")),
 					spazio(6),
@@ -122,7 +122,7 @@ func ciclo(w *app.Window, c *Cronometro, slave string) error {
 					}),
 					spazio(8),
 					rigida(material.Body2(th,
-						fmt.Sprintf("accettati %d     scartati dall'antirimbalzo %d", acc, sca)).Layout),
+						fmt.Sprintf("accettati %d   ·   scartati %d", acc, sca)).Layout),
 					spazio(4),
 					rigida(func(gtx layout.Context) layout.Dimensions {
 						l := material.Body2(th, esito)
@@ -135,7 +135,9 @@ func ciclo(w *app.Window, c *Cronometro, slave string) error {
 					rigida(etichetta(th, "GUASTI DA PROVARE")),
 					spazio(6),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return material.Button(th, &bW, "scostamento orologio +3 s").Layout(gtx)
+						b := material.Button(th, &bW, "scostamento orologio +3 s")
+						b.Background = ambra
+						return b.Layout(gtx)
 					}),
 				)
 			})

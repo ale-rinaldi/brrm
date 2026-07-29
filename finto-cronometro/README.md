@@ -50,12 +50,27 @@ go build -tags gui -o finto-cronometro-gui .   # anche la finestra (14 MB)
 ./finto-cronometro-gui -finestra
 ```
 
-> **Stato della finestra nativa:** compila e passa `go vet`, ma **non l'ho potuta
-> verificare**: sulla macchina dove è stata scritta non c'è una sessione grafica
-> utilizzabile, e Gio va in panico nel crearla (`runtime/cgo: misuse of an invalid
-> Handle`). Il fallimento **non è di questo codice**: un hello-world Gio nudo fa
-> lo stesso, con Gio 0.8 e 0.10 e con Go 1.25 e 1.26. Su una sessione desktop vera
-> dovrebbe funzionare, ma va provata.
+**Verificata in un container Linux**, con lo stesso trucco che il legacy usa per
+Qt6 — Xvfb dentro il container, x11vnc per guardarlo da Screen Sharing:
+
+```
+./dev/vnc.sh            # avvia e apre Screen Sharing (vnc://localhost:5902, password brrm-dev)
+./dev/vnc.sh --scatto   # cattura ./finestra.png ed esce
+```
+
+![la finestra nativa](finestra.png)
+
+Nello scatto: tre clic su PASSAGGIO, di cui uno entro il secondo — «accettati 2 ·
+scartati 1», e il pannello web concorda (`{"passaggi":2,"scartati":1}`). Le due
+interfacce non possono divergere perché nessuna tiene una copia dei contatori: Gio è
+immediate-mode e ridisegna leggendo lo stato vero.
+
+> **Su macOS serve una sessione grafica vera.** Lanciata da un terminale che non ha
+> accesso al window server, Gio va in panico creando la finestra
+> (`runtime/cgo: misuse of an invalid Handle`) — e non è un difetto di questo codice:
+> un hello-world Gio nudo fa lo stesso, con Gio 0.8 e 0.10 e con Go 1.25 e 1.26. Dal
+> desktop dovrebbe funzionare; nel container funziona, ed è quello che i controlli
+> usano.
 
 Non Wails: quello incorpora un motore di browser (WebView2, WebKit). Non
 toglierebbe il browser, lo nasconderebbe, e aggiungerebbe npm e la sua CLI alla
