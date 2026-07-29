@@ -26,6 +26,8 @@ delle porte lo riconosce da sé, perché risponde al `#` come il firmware vero �
 si dichiara `2-sim`, così in un log di gara si vede a colpo d'occhio che quei
 tempi non vengono da un cronometro.
 
+![il pannello](simulatore.png)
+
 ## Cosa si comanda
 
 **Base tempo** — `PPS` (GPS agganciato), `RTC` (holdover), `nessun tempo`. L'ora è
